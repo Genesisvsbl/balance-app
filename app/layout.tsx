@@ -5,9 +5,8 @@ export const metadata: Metadata = {
   title: "BALANCE",
   description: "Sistema profesional de planeación de materiales",
   icons: {
-    icon: "/LOGO.png",
-    shortcut: "/LOGO.png",
-    apple: "/LOGO.png",
+    icon: "/icon.png",
+    apple: "/apple-icon.png",
   },
 };
 
