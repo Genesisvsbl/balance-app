@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { obtenerCargas, limpiarCargas, eliminarCarga } from "@/lib/storage";
 import { SavedLoad } from "@/types/balance";
 
-export default function HistoricoModule() {
+type Props = {
+  onLoad: (data: SavedLoad) => void;
+};
+
+export default function HistoricoModule({ onLoad }: Props) {
   const [cargas, setCargas] = useState<SavedLoad[]>([]);
   const [busqueda, setBusqueda] = useState("");
 
@@ -29,8 +33,14 @@ export default function HistoricoModule() {
     );
   });
 
+  function cargarBalance(carga: SavedLoad) {
+    onLoad(carga);
+  }
+
   function borrarUno(id: string) {
-    const confirmar = confirm("¿Seguro que deseas eliminar este balance guardado?");
+    const confirmar = confirm(
+      "¿Seguro que deseas eliminar este balance guardado?"
+    );
     if (!confirmar) return;
 
     eliminarCarga(id);
@@ -54,7 +64,8 @@ export default function HistoricoModule() {
               Histórico de balances
             </h3>
             <p className="mt-1 text-sm font-medium text-slate-500">
-              Consulta, filtra o elimina balances guardados por fecha y hora.
+              Consulta, filtra, carga o elimina balances guardados por fecha y
+              hora.
             </p>
           </div>
 
@@ -69,21 +80,27 @@ export default function HistoricoModule() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-semibold text-slate-500">Balances guardados</p>
+          <p className="text-sm font-semibold text-slate-500">
+            Balances guardados
+          </p>
           <p className="mt-1 text-3xl font-black text-slate-950">
             {cargas.length}
           </p>
         </div>
 
         <div className="rounded-2xl border border-red-100 bg-white p-5 shadow-sm">
-          <p className="text-sm font-semibold text-slate-500">Total faltantes</p>
+          <p className="text-sm font-semibold text-slate-500">
+            Total faltantes
+          </p>
           <p className="mt-1 text-3xl font-black text-[#e30613]">
             {cargas.reduce((acc, c) => acc + (c.info?.totalFaltantes || 0), 0)}
           </p>
         </div>
 
         <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
-          <p className="text-sm font-semibold text-slate-500">Total sobrantes</p>
+          <p className="text-sm font-semibold text-slate-500">
+            Total sobrantes
+          </p>
           <p className="mt-1 text-3xl font-black text-emerald-700">
             {cargas.reduce((acc, c) => acc + (c.info?.totalSobrantes || 0), 0)}
           </p>
@@ -125,9 +142,15 @@ export default function HistoricoModule() {
                 <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                   <th className="px-4 py-3 text-left font-black">Fecha</th>
                   <th className="px-4 py-3 text-left font-black">Nombre</th>
-                  <th className="px-4 py-3 text-right font-black">Componentes</th>
-                  <th className="px-4 py-3 text-right font-black">Faltantes</th>
-                  <th className="px-4 py-3 text-right font-black">Sobrantes</th>
+                  <th className="px-4 py-3 text-right font-black">
+                    Componentes
+                  </th>
+                  <th className="px-4 py-3 text-right font-black">
+                    Faltantes
+                  </th>
+                  <th className="px-4 py-3 text-right font-black">
+                    Sobrantes
+                  </th>
                   <th className="px-4 py-3 text-right font-black">Acciones</th>
                 </tr>
               </thead>
@@ -159,12 +182,21 @@ export default function HistoricoModule() {
                     </td>
 
                     <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => borrarUno(carga.id)}
-                        className="rounded-lg border border-[#e30613]/30 px-3 py-2 text-xs font-black text-[#e30613] hover:bg-red-50"
-                      >
-                        Eliminar
-                      </button>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => cargarBalance(carga)}
+                          className="rounded-lg bg-[#e30613] px-3 py-2 text-xs font-black text-white transition hover:bg-[#b8000f]"
+                        >
+                          Ver
+                        </button>
+
+                        <button
+                          onClick={() => borrarUno(carga.id)}
+                          className="rounded-lg border border-[#e30613]/30 px-3 py-2 text-xs font-black text-[#e30613] hover:bg-red-50"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

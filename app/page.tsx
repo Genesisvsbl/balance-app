@@ -9,7 +9,7 @@ import BalanceModule from "@/components/BalanceModule";
 import DashboardModule from "@/components/DashboardModule";
 import HistoricoModule from "@/components/HistoricoModule";
 import VariacionModule from "@/components/VariacionModule";
-import { BalanceInfo, BalanceRow, ExcelData } from "@/types/balance";
+import { BalanceInfo, BalanceRow, ExcelData, SavedLoad } from "@/types/balance";
 
 export default function Home() {
   const [logged, setLogged] = useState(false);
@@ -22,6 +22,13 @@ export default function Home() {
 
   const [analisis, setAnalisis] = useState<BalanceRow[]>([]);
   const [infoAnalisis, setInfoAnalisis] = useState<BalanceInfo | null>(null);
+
+  function cargarBalanceHistorico(carga: SavedLoad) {
+    setAnalisis(carga.analisis);
+    setInfoAnalisis(carga.info);
+    setArchivoNombre(carga.archivo);
+    setActiveModule("dashboard");
+  }
 
   if (!logged) {
     return <Login onLogin={() => setLogged(true)} />;
@@ -74,7 +81,9 @@ export default function Home() {
 
         {activeModule === "variacion" && <VariacionModule />}
 
-        {activeModule === "historico" && <HistoricoModule />}
+        {activeModule === "historico" && (
+          <HistoricoModule onLoad={cargarBalanceHistorico} />
+        )}
       </ModuleContainer>
     </main>
   );
