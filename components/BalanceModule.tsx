@@ -2,7 +2,7 @@
 
 import * as XLSX from "xlsx";
 import { generarBalance } from "@/lib/balance";
-import { guardarCarga } from "@/lib/storage";
+import { guardarCarga, crearNombreBalance } from "@/lib/storage";
 import { BalanceInfo, BalanceRow, ExcelData, SavedLoad } from "@/types/balance";
 import { formatoNumero } from "@/lib/format";
 import { useState } from "react";
@@ -38,20 +38,37 @@ export default function BalanceModule({
 
       setAnalisis(resultado.analisis);
       setInfoAnalisis(resultado.info);
-
-      const carga: SavedLoad = {
-        id: crypto.randomUUID(),
-        fecha: new Date().toISOString(),
-        archivo: archivoNombre || "Archivo sin nombre",
-        hojas: Object.keys(datos),
-        analisis: resultado.analisis,
-        info: resultado.info,
-      };
-
-      guardarCarga(carga);
     } catch (error: any) {
       alert(error.message);
     }
+  }
+
+  function guardarBalanceActual() {
+    if (!infoAnalisis || analisis.length === 0) {
+      alert("Primero genera un balance.");
+      return;
+    }
+
+    const nombreBalance = crearNombreBalance();
+
+    const confirmar = confirm(
+      `¿Deseas guardar este balance como:\n\n${nombreBalance}?`
+    );
+
+    if (!confirmar) return;
+
+    const carga: SavedLoad = {
+      id: crypto.randomUUID(),
+      fecha: new Date().toISOString(),
+      archivo: nombreBalance,
+      hojas: Object.keys(datos),
+      analisis,
+      info: infoAnalisis,
+    };
+
+    guardarCarga(carga);
+
+    alert("Balance guardado correctamente.");
   }
 
   const filtrado = analisis.filter((row) => {
@@ -125,7 +142,7 @@ export default function BalanceModule({
             </p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={ejecutarBalance}
               className="rounded-xl bg-[#e30613] px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#b8000f]"
@@ -134,12 +151,21 @@ export default function BalanceModule({
             </button>
 
             {analisis.length > 0 && (
-              <button
-                onClick={exportar}
-                className="rounded-xl bg-[#d4a017] px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#b88900]"
-              >
-                Exportar Excel
-              </button>
+              <>
+                <button
+                  onClick={guardarBalanceActual}
+                  className="rounded-xl border border-[#d4a017] bg-white px-5 py-3 text-sm font-black text-[#9a6a00] shadow-sm transition hover:bg-[#fff8df]"
+                >
+                  Guardar balance
+                </button>
+
+                <button
+                  onClick={exportar}
+                  className="rounded-xl bg-[#d4a017] px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#b88900]"
+                >
+                  Exportar Excel
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -246,9 +272,7 @@ export default function BalanceModule({
                       Material
                     </th>
                     <th className="px-4 py-3 text-left font-black">UM</th>
-                    <th className="px-4 py-3 text-left font-black">
-                      Sección
-                    </th>
+                    <th className="px-4 py-3 text-left font-black">Sección</th>
 
                     {columnasSemana.map((sem) => (
                       <th
