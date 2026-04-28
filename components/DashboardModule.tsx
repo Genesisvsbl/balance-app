@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { BalanceInfo, BalanceRow } from "@/types/balance";
 import { formatoNumero } from "@/lib/format";
+import { obtenerCargas } from "@/lib/storage";
 
 type Props = {
   analisis: BalanceRow[];
@@ -24,6 +25,11 @@ type Props = {
 export default function DashboardModule({ analisis, infoAnalisis }: Props) {
   const semanas = infoAnalisis?.columnasSemana || [];
   const [semanaSeleccionada, setSemanaSeleccionada] = useState("");
+  const [cargasHistoricas, setCargasHistoricas] = useState<any[]>([]);
+
+  useEffect(() => {
+    setCargasHistoricas(obtenerCargas());
+  }, []);
 
   const semanaActiva = semanaSeleccionada || semanas[0] || "";
 
@@ -97,6 +103,21 @@ export default function DashboardModule({ analisis, infoAnalisis }: Props) {
       faltante,
     };
   });
+
+  const dataComparativoBalances = cargasHistoricas
+    .slice()
+    .reverse()
+    .map((carga) => ({
+      nombre: new Date(carga.fecha).toLocaleString("es-DO", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      componentes: carga.info?.totalComponentes || 0,
+      faltantes: carga.info?.totalFaltantes || 0,
+      sobrantes: carga.info?.totalSobrantes || 0,
+    }));
 
   const dataSecciones = Object.values(
     analisis.reduce((acc: any, row) => {
@@ -274,6 +295,65 @@ export default function DashboardModule({ analisis, infoAnalisis }: Props) {
                 border="border-emerald-100"
               />
             </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h4 className="text-xl font-black text-slate-950">
+                  Evolución de balances guardados
+                </h4>
+                <p className="mt-1 text-sm font-semibold text-slate-500">
+                  Comparación histórica de faltantes, sobrantes y componentes por
+                  balance.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-[#d4a017]/30 bg-[#fff8df] px-4 py-2 text-xs font-black text-[#9a6a00]">
+                {cargasHistoricas.length} balances guardados
+              </div>
+            </div>
+
+            {dataComparativoBalances.length > 0 ? (
+              <div className="h-[360px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={dataComparativoBalances}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="nombre" />
+                    <YAxis />
+                    <Tooltip />
+                    <Line
+                      type="monotone"
+                      dataKey="faltantes"
+                      name="Faltantes"
+                      stroke="#e30613"
+                      strokeWidth={4}
+                      dot={{ r: 5 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="sobrantes"
+                      name="Sobrantes"
+                      stroke="#047857"
+                      strokeWidth={4}
+                      dot={{ r: 5 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="componentes"
+                      name="Componentes"
+                      stroke="#d4a017"
+                      strokeWidth={4}
+                      dot={{ r: 5 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-slate-200 bg-[#fbfbfa] px-4 py-10 text-center text-sm font-semibold text-slate-500">
+                Todavía no hay balances guardados para comparar.
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">

@@ -6,11 +6,11 @@ type Props = {
 };
 
 const modules = [
-  { id: "dashboard", label: "Dashboard" },
   { id: "importacion", label: "Bases" },
   { id: "balance", label: "Balance" },
-  { id: "variacion", label: "Variaciones" },
   { id: "historico", label: "Histórico" },
+  { id: "variacion", label: "Variaciones" },
+  { id: "dashboard", label: "Dashboard" },
 ];
 
 export default function TopNav({ active, setActive }: Props) {
