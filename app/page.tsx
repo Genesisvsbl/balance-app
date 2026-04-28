@@ -23,13 +23,12 @@ export default function Home() {
   const [analisis, setAnalisis] = useState<BalanceRow[]>([]);
   const [infoAnalisis, setInfoAnalisis] = useState<BalanceInfo | null>(null);
 
-  function cargarBalanceHistorico(carga: SavedLoad) {
-    setAnalisis(carga.analisis);
-    setInfoAnalisis(carga.info);
-    setArchivoNombre(carga.archivo);
-    setActiveModule("dashboard");
-  }
-
+function cargarBalanceHistorico(carga: SavedLoad) {
+  setAnalisis(carga.analisis);
+  setInfoAnalisis(carga.info);
+  setArchivoNombre(carga.archivo);
+  setActiveModule("balance");
+}
   if (!logged) {
     return <Login onLogin={() => setLogged(true)} />;
   }
