@@ -80,7 +80,7 @@ export default function BalanceModule({
 
       almacenesDetectados.forEach((alm) => {
         nuevosAlmacenes[alm] =
-          actual.almacenes[alm] ?? alm === "AG01" || alm === "AG04";
+          actual.almacenes[alm] ?? (alm === "AG01" || alm === "AG04");
       });
 
       return {
