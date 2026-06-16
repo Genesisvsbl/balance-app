@@ -74,39 +74,39 @@ export default function Login({ onLogin }: Props) {
         <div className="absolute bottom-16 left-12 right-12 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
       </div>
 
-      <header className="relative z-10 flex h-24 items-center justify-between border-b border-slate-200 bg-white px-12">
-        <div className="flex items-center gap-5">
+      <header className="relative z-10 flex h-[72px] items-center justify-between border-b border-slate-200 bg-white px-8">
+        <div className="flex items-center gap-4">
           <img
             src="/LOGO.png"
             alt="Bavaria"
-            className="h-12 object-contain"
+            className="h-9 object-contain"
           />
 
-          <div className="h-12 w-px bg-slate-200" />
+          <div className="h-9 w-px bg-slate-200" />
 
           <div>
-            <h1 className="text-2xl font-black text-slate-950">BALANCE</h1>
+            <h1 className="text-xl font-black text-slate-950">BALANCE</h1>
             <p className="text-sm font-semibold text-slate-500">
               Planeación de materiales
             </p>
           </div>
         </div>
 
-        <span className="rounded-full border border-[#e30613]/25 bg-[#e30613]/5 px-5 py-2 text-sm font-bold text-[#e30613]">
+        <span className="rounded-full border border-[#e30613]/25 bg-[#e30613]/5 px-4 py-1.5 text-xs font-bold text-[#e30613]">
           Acceso seguro
         </span>
       </header>
 
-      <section className="relative z-10 flex min-h-[calc(100vh-96px)] items-center justify-end px-20">
-        <div className="w-full max-w-md rounded-[24px] border border-slate-200 bg-white shadow-[0_25px_70px_rgba(0,0,0,0.12)]">
-          <div className="flex flex-col items-center border-b border-slate-100 px-8 py-8 text-center">
+      <section className="relative z-10 flex min-h-[calc(100vh-72px)] items-center justify-end px-14">
+        <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white shadow-[0_18px_50px_rgba(0,0,0,0.10)]">
+          <div className="flex flex-col items-center border-b border-slate-100 px-6 py-6 text-center">
             <img
               src="/LOGO.png"
               alt="Bavaria"
-              className="h-16 object-contain"
+              className="h-12 object-contain"
             />
 
-            <h2 className="mt-5 text-3xl font-black text-slate-950">
+            <h2 className="mt-4 text-2xl font-black text-slate-950">
               Iniciar sesión
             </h2>
 
@@ -115,7 +115,7 @@ export default function Login({ onLogin }: Props) {
             </p>
           </div>
 
-          <div className="px-8 py-8">
+          <div className="px-6 py-6">
             <label className="text-xs font-bold uppercase text-slate-500">
               Usuario
             </label>
@@ -123,11 +123,11 @@ export default function Login({ onLogin }: Props) {
             <input
               value={usuario}
               onChange={(e) => setUsuario(e.target.value)}
-              className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#e30613] focus:ring-2 focus:ring-[#e30613]/10"
+              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#e30613] focus:ring-2 focus:ring-[#e30613]/10"
               placeholder="Ingrese su usuario"
             />
 
-            <label className="mt-5 block text-xs font-bold uppercase text-slate-500">
+            <label className="mt-4 block text-xs font-bold uppercase text-slate-500">
               Contraseña
             </label>
 
@@ -135,7 +135,7 @@ export default function Login({ onLogin }: Props) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               type="password"
-              className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#e30613] focus:ring-2 focus:ring-[#e30613]/10"
+              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#e30613] focus:ring-2 focus:ring-[#e30613]/10"
               placeholder="Ingrese su contraseña"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !loading) acceder();
@@ -143,7 +143,7 @@ export default function Login({ onLogin }: Props) {
             />
 
             {error && (
-              <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-[#e30613]">
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-semibold text-[#e30613]">
                 {error}
               </div>
             )}
@@ -151,13 +151,13 @@ export default function Login({ onLogin }: Props) {
             <button
               onClick={acceder}
               disabled={loading}
-              className="mt-6 w-full rounded-xl bg-[#e30613] py-4 text-sm font-bold text-white shadow-md transition hover:bg-[#b8000f] disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-5 w-full rounded-lg bg-[#e30613] py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#b8000f] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? "VALIDANDO..." : "ACCEDER"}
             </button>
           </div>
 
-          <div className="border-t border-slate-100 bg-slate-50 px-8 py-4 text-center text-xs font-medium text-slate-400">
+          <div className="border-t border-slate-100 bg-slate-50 px-6 py-3 text-center text-xs font-medium text-slate-400">
             BALANCE © 2026
           </div>
         </div>

@@ -9,10 +9,15 @@
   --erp-text: #111827;
 }
 
+html {
+  font-size: 13px;
+}
+
 body {
   background: var(--erp-bg);
   color: var(--erp-text);
-  font-size: 14px;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 h1,
@@ -29,12 +34,12 @@ input,
 select,
 textarea,
 table {
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .compact-card {
-  border-radius: 12px;
-  padding: 14px;
+  border-radius: 8px;
+  padding: 10px;
 }
 
 .compact-scroll {
@@ -54,17 +59,17 @@ table {
 .erp-card {
   background: #ffffff;
   border: 1px solid var(--erp-border);
-  border-radius: 16px;
-  padding: 20px;
+  border-radius: 10px;
+  padding: 14px;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
 
 .erp-button-red {
   background: var(--bavaria-red);
   color: white;
-  border-radius: 12px;
-  padding: 10px 16px;
-  font-size: 14px;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
   font-weight: 900;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
   transition: 0.2s ease;
@@ -77,9 +82,9 @@ table {
 .erp-button-gold {
   background: var(--bavaria-gold);
   color: white;
-  border-radius: 12px;
-  padding: 10px 16px;
-  font-size: 14px;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
   font-weight: 900;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
 }
@@ -88,9 +93,9 @@ table {
   background: white;
   color: #374151;
   border: 1px solid #d1d5db;
-  border-radius: 12px;
-  padding: 10px 16px;
-  font-size: 14px;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -102,14 +107,14 @@ table {
   background: #f3f4f6;
   color: #374151;
   border: 1px solid #d1d5db;
-  padding: 8px 12px;
-  font-size: 12px;
+  padding: 6px 9px;
+  font-size: 11px;
   font-weight: 900;
   text-transform: uppercase;
 }
 
 .erp-table td {
   border: 1px solid #d1d5db;
-  padding: 8px 12px;
-  font-size: 12px;
+  padding: 6px 9px;
+  font-size: 11px;
 }

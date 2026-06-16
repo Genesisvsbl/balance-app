@@ -15,12 +15,12 @@ const modules = [
 
 export default function TopNav({ active, setActive }: Props) {
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-2">
       {modules.map((m) => (
         <button
           key={m.id}
           onClick={() => setActive(m.id)}
-          className={`rounded-lg px-2.5 py-2 text-xs font-black transition ${
+          className={`rounded-md px-2 py-1.5 text-[11px] font-black transition ${
             active === m.id
               ? "bg-red-50 text-[#e30613]"
               : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
