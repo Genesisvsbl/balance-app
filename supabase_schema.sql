@@ -161,7 +161,10 @@ begin
   valid_login :=
     matched_user.id is not null
     and encode(
-      digest(matched_user.password_salt || ':' || coalesce(login_password, ''), 'sha256'),
+      extensions.digest(
+        convert_to(matched_user.password_salt || ':' || coalesce(login_password, ''), 'UTF8'),
+        'sha256'
+      ),
       'hex'
     ) = matched_user.password_hash;
 
