@@ -16,6 +16,64 @@ type Props = {
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const LOGIN_ENDPOINTS = ["/api/auth-login", "/.netlify/functions/auth-login"];
+const LOCAL_USERS = [
+  {
+    id: "0e478af9-deff-48a6-b042-3d205c5a60e6",
+    username: "genesis.visbal",
+    fullName: "Genesis Visbal",
+    role: "admin",
+    salt: "6728aa204edebd254c75e1f2a6d05850",
+    hash: "31d1e41e125d7d03b76fff0229b632b16e8cd9a9729c29381fa6499baa5f636c",
+  },
+  {
+    id: "b8c4fc6f-916b-40c8-b6df-2cd64170a6c0",
+    username: "jeremy.griego",
+    fullName: "Jeremy Griego",
+    role: "planner",
+    salt: "be5ce946c0ad00adcf4a93722bf8970a",
+    hash: "cfa57a9b6d80f98ed249e7014777e005b2ef23dc1ed304b264ae02b20ce527c9",
+  },
+];
+
+function normalizeLogin(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+async function sha256Hex(value: string) {
+  const data = new TextEncoder().encode(value);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function loginLocal(username: string, password: string) {
+  const normalized = normalizeLogin(username);
+  const user = LOCAL_USERS.find((item) => {
+    const fullName = normalizeLogin(item.fullName);
+    return (
+      normalizeLogin(item.username) === normalized ||
+      fullName === normalized ||
+      fullName.replace(/\s+/g, ".") === normalized
+    );
+  });
+
+  if (!user) return null;
+
+  const passwordHash = await sha256Hex(`${user.salt}:${password}`);
+  if (passwordHash !== user.hash) return null;
+
+  return {
+    id: user.id,
+    username: user.username,
+    fullName: user.fullName,
+    role: user.role,
+  };
+}
 
 export default function Login({ onLogin }: Props) {
   const [usuario, setUsuario] = useState("");
@@ -94,6 +152,12 @@ export default function Login({ onLogin }: Props) {
           lastError = error.message || `No se pudo conectar con ${endpoint}.`;
           continue;
         }
+      }
+
+      const localUser = await loginLocal(usuario, password);
+      if (localUser) {
+        onLogin(localUser);
+        return;
       }
 
       throw new Error(lastError);
