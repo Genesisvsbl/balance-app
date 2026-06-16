@@ -1,5 +1,10 @@
 import { SavedLoad } from "@/types/balance";
 
+const API_BASE =
+  typeof window !== "undefined" && window.location.hostname.includes("netlify.app")
+    ? "/.netlify/functions"
+    : "/api";
+
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
@@ -11,7 +16,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
 
 export async function guardarCarga(carga: SavedLoad) {
   await parseResponse<{ ok: boolean }>(
-    await fetch("/api/balance-runs", {
+    await fetch(`${API_BASE}/balance-runs`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -22,12 +27,12 @@ export async function guardarCarga(carga: SavedLoad) {
 }
 
 export async function obtenerCargas(): Promise<SavedLoad[]> {
-  return parseResponse<SavedLoad[]>(await fetch("/api/balance-runs"));
+  return parseResponse<SavedLoad[]>(await fetch(`${API_BASE}/balance-runs`));
 }
 
 export async function eliminarCarga(id: string) {
   await parseResponse<{ ok: boolean }>(
-    await fetch(`/api/balance-runs/${id}`, {
+    await fetch(`${API_BASE}/balance-run?id=${encodeURIComponent(id)}`, {
       method: "DELETE",
     })
   );
@@ -35,7 +40,7 @@ export async function eliminarCarga(id: string) {
 
 export async function limpiarCargas() {
   await parseResponse<{ ok: boolean }>(
-    await fetch("/api/balance-runs", {
+    await fetch(`${API_BASE}/balance-runs`, {
       method: "DELETE",
     })
   );

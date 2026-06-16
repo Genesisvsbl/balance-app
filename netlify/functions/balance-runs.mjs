@@ -1,0 +1,178 @@
+import { createClient } from "@supabase/supabase-js";
+
+function json(statusCode, body) {
+  return {
+    statusCode,
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  };
+}
+
+function client() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY;
+
+  if (!url || !key) {
+    throw new Error("Supabase environment variables are not configured.");
+  }
+
+  return createClient(url, key, {
+    auth: {
+      persistSession: false,
+    },
+  });
+}
+
+function toSavedLoad(run, rows) {
+  return {
+    id: run.id,
+    fecha: run.created_at,
+    archivo: run.archivo,
+    hojas: run.hojas || [],
+    info: run.info,
+    analisis: rows.map((row) => ({
+      codigo: row.codigo,
+      material: row.material || "",
+      um: row.um || "",
+      seccion: row.seccion || "",
+      seccionesArray: row.secciones_array || [],
+      estado: row.estado,
+      totalNecesidad: Number(row.total_necesidad || 0),
+      totalRecepcion: Number(row.total_recepcion || 0),
+      totalExistencia: Number(row.total_existencia || 0),
+      diferenciaTotal: Number(row.diferencia_total || 0),
+      inventarioLibre: Number(row.inventario_libre || 0),
+      inventarioBloqueado: Number(row.inventario_bloqueado || 0),
+      stockTotal: Number(row.stock_total || 0),
+      valorInventarioLibre: Number(row.valor_inventario_libre || 0),
+      valorInventarioBloqueado: Number(row.valor_inventario_bloqueado || 0),
+      valorStockTotal: Number(row.valor_stock_total || 0),
+      necesidadesPorSemana: row.necesidades_por_semana || {},
+      recepcionesPorSemana: row.recepciones_por_semana || {},
+      fechasRecepcionPorSemana: row.fechas_recepcion_por_semana || {},
+      transitosPorSemana: row.transitos_por_semana || {},
+      coberturaPorSemana: row.cobertura_por_semana || {},
+      almacenes: row.almacenes || {},
+      diferenciasPorSemana: row.diferencias_por_semana || {},
+    })),
+  };
+}
+
+function toDbRows(runId, rows) {
+  return rows.map((row) => ({
+    run_id: runId,
+    codigo: row.codigo,
+    material: row.material,
+    um: row.um,
+    seccion: row.seccion,
+    secciones_array: row.seccionesArray || [],
+    estado: row.estado,
+    total_necesidad: row.totalNecesidad || 0,
+    total_recepcion: row.totalRecepcion || 0,
+    total_existencia: row.totalExistencia || 0,
+    diferencia_total: row.diferenciaTotal || 0,
+    inventario_libre: row.inventarioLibre || 0,
+    inventario_bloqueado: row.inventarioBloqueado || 0,
+    stock_total: row.stockTotal || 0,
+    valor_inventario_libre: row.valorInventarioLibre || 0,
+    valor_inventario_bloqueado: row.valorInventarioBloqueado || 0,
+    valor_stock_total: row.valorStockTotal || 0,
+    necesidades_por_semana: row.necesidadesPorSemana || {},
+    recepciones_por_semana: row.recepcionesPorSemana || {},
+    fechas_recepcion_por_semana: row.fechasRecepcionPorSemana || {},
+    transitos_por_semana: row.transitosPorSemana || {},
+    cobertura_por_semana: row.coberturaPorSemana || {},
+    almacenes: row.almacenes || {},
+    diferencias_por_semana: row.diferenciasPorSemana || {},
+  }));
+}
+
+export async function handler(event) {
+  try {
+    const supabase = client();
+
+    if (event.httpMethod === "GET") {
+      const { data: runs, error: runsError } = await supabase
+        .from("balance_runs")
+        .select("id, created_at, archivo, hojas, info")
+        .order("created_at", { ascending: false });
+
+      if (runsError) return json(500, { error: runsError.message });
+
+      const runIds = (runs || []).map((run) => run.id);
+      if (runIds.length === 0) return json(200, []);
+
+      const { data: rows, error: rowsError } = await supabase
+        .from("balance_rows")
+        .select("*")
+        .in("run_id", runIds);
+
+      if (rowsError) return json(500, { error: rowsError.message });
+
+      const rowsByRun = new Map();
+      for (const row of rows || []) {
+        const list = rowsByRun.get(row.run_id) || [];
+        list.push(row);
+        rowsByRun.set(row.run_id, list);
+      }
+
+      return json(
+        200,
+        (runs || []).map((run) => toSavedLoad(run, rowsByRun.get(run.id) || []))
+      );
+    }
+
+    if (event.httpMethod === "POST") {
+      const carga = JSON.parse(event.body || "{}");
+
+      const { error: runError } = await supabase.from("balance_runs").insert({
+        id: carga.id,
+        created_at: carga.fecha,
+        archivo: carga.archivo,
+        hojas: carga.hojas || [],
+        info: carga.info,
+      });
+
+      if (runError) return json(500, { error: runError.message });
+
+      const rows = toDbRows(carga.id, carga.analisis || []);
+      for (let i = 0; i < rows.length; i += 500) {
+        const { error: rowsError } = await supabase
+          .from("balance_rows")
+          .insert(rows.slice(i, i + 500));
+
+        if (rowsError) {
+          await supabase.from("balance_runs").delete().eq("id", carga.id);
+          return json(500, { error: rowsError.message });
+        }
+      }
+
+      return json(200, { ok: true });
+    }
+
+    if (event.httpMethod === "DELETE") {
+      const { data: runs, error: readError } = await supabase
+        .from("balance_runs")
+        .select("id");
+
+      if (readError) return json(500, { error: readError.message });
+
+      for (const run of runs || []) {
+        const { error } = await supabase
+          .from("balance_runs")
+          .delete()
+          .eq("id", run.id);
+
+        if (error) return json(500, { error: error.message });
+      }
+
+      return json(200, { ok: true });
+    }
+
+    return json(405, { error: "Method not allowed." });
+  } catch (error) {
+    return json(500, { error: error.message || "Unexpected error." });
+  }
+}
