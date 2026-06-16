@@ -1,9 +1,6 @@
 import { SavedLoad } from "@/types/balance";
 
-const API_BASE =
-  typeof window !== "undefined" && window.location.hostname.includes("netlify.app")
-    ? "/.netlify/functions"
-    : "/api";
+const API_BASE = "/api";
 
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {

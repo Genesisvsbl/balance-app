@@ -57,10 +57,13 @@ export default function Home() {
   }
 
   function cargarBalanceHistorico(carga: SavedLoad) {
-    setAnalisis(carga.analisis);
-    setInfoAnalisis(carga.info);
-    setArchivoNombre(carga.archivo);
-    setActiveModule("balance");
+    setDatos({});
+    setHojasEncontradas(carga.hojas || []);
+    setHojaActiva(carga.hojas?.[0] || "");
+    setAnalisis(carga.analisis || []);
+    setInfoAnalisis(carga.info || null);
+    setArchivoNombre(carga.archivo || "Balance historico");
+    setActiveModule("dashboard");
   }
 
   if (!logged || !currentUser) {
