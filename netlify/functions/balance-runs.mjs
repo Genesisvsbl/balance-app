@@ -30,9 +30,16 @@ function toSavedLoad(run, rows) {
     id: run.id,
     fecha: run.created_at,
     archivo: run.archivo,
-    hojas: run.hojas || [],
-    info: run.info,
-    analisis: rows.map((row) => ({
+      hojas: run.hojas || [],
+      info: run.info,
+      createdBy: run.created_by
+        ? {
+            id: run.created_by,
+            username: run.created_by_username || "",
+            fullName: run.created_by_name || "",
+          }
+        : undefined,
+      analisis: rows.map((row) => ({
       codigo: row.codigo,
       material: row.material || "",
       um: row.um || "",
@@ -96,7 +103,7 @@ export async function handler(event) {
     if (event.httpMethod === "GET") {
       const { data: runs, error: runsError } = await supabase
         .from("balance_runs")
-        .select("id, created_at, archivo, hojas, info")
+        .select("id, created_at, created_by, archivo, hojas, info")
         .order("created_at", { ascending: false });
 
       if (runsError) return json(500, { error: runsError.message });
@@ -130,6 +137,7 @@ export async function handler(event) {
       const { error: runError } = await supabase.from("balance_runs").insert({
         id: carga.id,
         created_at: carga.fecha,
+        created_by: carga.createdBy?.id || null,
         archivo: carga.archivo,
         hojas: carga.hojas || [],
         info: carga.info,
@@ -148,6 +156,21 @@ export async function handler(event) {
           return json(500, { error: rowsError.message });
         }
       }
+
+      await supabase.from("audit_events").insert({
+        user_id: carga.createdBy?.id || null,
+        username: carga.createdBy?.username || null,
+        action: "BALANCE_CREATED",
+        entity: "balance_run",
+        entity_id: carga.id,
+        details: {
+          archivo: carga.archivo,
+          hojas: carga.hojas || [],
+          componentes: carga.info?.totalComponentes || 0,
+          faltantes: carga.info?.totalFaltantes || 0,
+          sobrantes: carga.info?.totalSobrantes || 0,
+        },
+      });
 
       return json(200, { ok: true });
     }

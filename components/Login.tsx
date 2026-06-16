@@ -2,23 +2,51 @@
 
 import { useState } from "react";
 
+type AppUser = {
+  id: string;
+  username: string;
+  fullName: string;
+  role: string;
+};
+
 type Props = {
-  onLogin: () => void;
+  onLogin: (user: AppUser) => void;
 };
 
 export default function Login({ onLogin }: Props) {
   const [usuario, setUsuario] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  function acceder() {
-    if (usuario === "admin" && password === "balance2026") {
-      setError("");
-      onLogin();
-      return;
+  async function acceder() {
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch("/.netlify/functions/auth-login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: usuario,
+          password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Usuario o contraseña incorrectos.");
+      }
+
+      onLogin(data.user);
+    } catch (error: any) {
+      setError(error.message || "No se pudo iniciar sesión.");
+    } finally {
+      setLoading(false);
     }
-
-    setError("Usuario o contraseña incorrectos.");
   }
 
   return (
@@ -110,7 +138,7 @@ export default function Login({ onLogin }: Props) {
               className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#e30613] focus:ring-2 focus:ring-[#e30613]/10"
               placeholder="Ingrese su contraseña"
               onKeyDown={(e) => {
-                if (e.key === "Enter") acceder();
+                if (e.key === "Enter" && !loading) acceder();
               }}
             />
 
@@ -122,14 +150,11 @@ export default function Login({ onLogin }: Props) {
 
             <button
               onClick={acceder}
-              className="mt-6 w-full rounded-xl bg-[#e30613] py-4 text-sm font-bold text-white shadow-md transition hover:bg-[#b8000f]"
+              disabled={loading}
+              className="mt-6 w-full rounded-xl bg-[#e30613] py-4 text-sm font-bold text-white shadow-md transition hover:bg-[#b8000f] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              ACCEDER
+              {loading ? "VALIDANDO..." : "ACCEDER"}
             </button>
-
-            <div className="mt-6 rounded-xl border border-[#d4a017]/30 bg-[#fff8df] px-4 py-3 text-center text-xs font-semibold text-slate-600">
-              Usuario: admin · Contraseña: balance2026
-            </div>
           </div>
 
           <div className="border-t border-slate-100 bg-slate-50 px-8 py-4 text-center text-xs font-medium text-slate-400">

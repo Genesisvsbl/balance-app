@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Login from "@/components/Login";
 import Header from "@/components/Header";
 import ModuleContainer from "@/components/ModuleContainer";
@@ -11,8 +11,16 @@ import HistoricoModule from "@/components/HistoricoModule";
 import VariacionModule from "@/components/VariacionModule";
 import { BalanceInfo, BalanceRow, ExcelData, SavedLoad } from "@/types/balance";
 
+export type AppUser = {
+  id: string;
+  username: string;
+  fullName: string;
+  role: string;
+};
+
 export default function Home() {
   const [logged, setLogged] = useState(false);
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [activeModule, setActiveModule] = useState("importacion");
 
   const [datos, setDatos] = useState<ExcelData>({});
@@ -23,14 +31,40 @@ export default function Home() {
   const [analisis, setAnalisis] = useState<BalanceRow[]>([]);
   const [infoAnalisis, setInfoAnalisis] = useState<BalanceInfo | null>(null);
 
-function cargarBalanceHistorico(carga: SavedLoad) {
-  setAnalisis(carga.analisis);
-  setInfoAnalisis(carga.info);
-  setArchivoNombre(carga.archivo);
-  setActiveModule("balance");
-}
-  if (!logged) {
-    return <Login onLogin={() => setLogged(true)} />;
+  useEffect(() => {
+    const savedUser = sessionStorage.getItem("balance_user");
+    if (!savedUser) return;
+
+    try {
+      const user = JSON.parse(savedUser) as AppUser;
+      setCurrentUser(user);
+      setLogged(true);
+    } catch {
+      sessionStorage.removeItem("balance_user");
+    }
+  }, []);
+
+  function iniciarSesion(user: AppUser) {
+    setCurrentUser(user);
+    setLogged(true);
+    sessionStorage.setItem("balance_user", JSON.stringify(user));
+  }
+
+  function cerrarSesion() {
+    setCurrentUser(null);
+    setLogged(false);
+    sessionStorage.removeItem("balance_user");
+  }
+
+  function cargarBalanceHistorico(carga: SavedLoad) {
+    setAnalisis(carga.analisis);
+    setInfoAnalisis(carga.info);
+    setArchivoNombre(carga.archivo);
+    setActiveModule("balance");
+  }
+
+  if (!logged || !currentUser) {
+    return <Login onLogin={iniciarSesion} />;
   }
 
   const titles: Record<string, string> = {
@@ -47,7 +81,8 @@ function cargarBalanceHistorico(carga: SavedLoad) {
         title={titles[activeModule] || "BALANCE"}
         active={activeModule}
         setActive={setActiveModule}
-        onLogout={() => setLogged(false)}
+        onLogout={cerrarSesion}
+        userName={currentUser.fullName}
       />
 
       <ModuleContainer>
@@ -79,6 +114,7 @@ function cargarBalanceHistorico(carga: SavedLoad) {
             setAnalisis={setAnalisis}
             infoAnalisis={infoAnalisis}
             setInfoAnalisis={setInfoAnalisis}
+            currentUser={currentUser}
           />
         )}
 

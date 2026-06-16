@@ -36,7 +36,8 @@ export async function handler(event) {
       return json(400, { error: "Missing balance id." });
     }
 
-    const { error } = await client()
+    const supabase = client();
+    const { error } = await supabase
       .from("balance_runs")
       .delete()
       .eq("id", id);
@@ -44,6 +45,13 @@ export async function handler(event) {
     if (error) {
       return json(500, { error: error.message });
     }
+
+    await supabase.from("audit_events").insert({
+      action: "BALANCE_DELETED",
+      entity: "balance_run",
+      entity_id: id,
+      details: {},
+    });
 
     return json(200, { ok: true });
   } catch (error) {

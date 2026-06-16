@@ -67,6 +67,11 @@ export type BalanceInfo = {
 export type SavedLoad = {
   id: string;
   fecha: string;
+  createdBy?: {
+    id: string;
+    username: string;
+    fullName: string;
+  };
   archivo: string;
   hojas: string[];
   analisis: BalanceRow[];

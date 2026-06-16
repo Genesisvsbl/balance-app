@@ -14,6 +14,11 @@ type Props = {
   setAnalisis: (data: BalanceRow[]) => void;
   infoAnalisis: BalanceInfo | null;
   setInfoAnalisis: (data: BalanceInfo | null) => void;
+  currentUser: {
+    id: string;
+    username: string;
+    fullName: string;
+  };
 };
 
 type ColumnVisibility = {
@@ -64,6 +69,7 @@ export default function BalanceModule({
   setAnalisis,
   infoAnalisis,
   setInfoAnalisis,
+  currentUser,
 }: Props) {
   const [filtroTexto, setFiltroTexto] = useState("");
   const [filtroSeccion, setFiltroSeccion] = useState("TODAS");
@@ -246,6 +252,7 @@ export default function BalanceModule({
     const carga: SavedLoad = {
       id: crypto.randomUUID(),
       fecha: new Date().toISOString(),
+      createdBy: currentUser,
       archivo: nombreBalance,
       hojas: Object.keys(datos),
       analisis,
