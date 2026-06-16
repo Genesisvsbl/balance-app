@@ -30,6 +30,14 @@ function hashPassword(salt, password) {
   return crypto.createHash("sha256").update(`${salt}:${password}`).digest("hex");
 }
 
+function normalizeLogin(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 export async function handler(event) {
   try {
     if (event.httpMethod !== "POST") {
@@ -37,20 +45,28 @@ export async function handler(event) {
     }
 
     const { username, password } = JSON.parse(event.body || "{}");
-    const normalizedUsername = String(username || "").trim().toLowerCase();
+    const normalizedUsername = normalizeLogin(username);
 
     if (!normalizedUsername || !password) {
       return json(400, { error: "Usuario y contraseña son obligatorios." });
     }
 
     const supabase = client();
-    const { data: user, error } = await supabase
+    const { data: users, error } = await supabase
       .from("app_users")
       .select("id, username, full_name, password_salt, password_hash, role, active")
-      .eq("username", normalizedUsername)
-      .maybeSingle();
+      .eq("active", true);
 
     if (error) return json(500, { error: error.message });
+
+    const user = (users || []).find((item) => {
+      const usernameMatch = normalizeLogin(item.username) === normalizedUsername;
+      const fullNameMatch = normalizeLogin(item.full_name) === normalizedUsername;
+      const compactFullNameMatch =
+        normalizeLogin(item.full_name).replace(/\s+/g, ".") === normalizedUsername;
+
+      return usernameMatch || fullNameMatch || compactFullNameMatch;
+    });
 
     const valid =
       user?.active &&
