@@ -397,15 +397,18 @@ export default function BalanceModule({
       infoAnalisis?.valorInventarioTotal ?? resumenValoresInventario.total,
   };
   const primeraSemanaValidacion = columnasSemana[0] || "";
-  const skusPrimeraSemana = primeraSemanaValidacion
+  const skusCriticosPrimeraSemana = primeraSemanaValidacion
     ? analisis.filter(
-        (row) => (row.necesidadesPorSemana[primeraSemanaValidacion] || 0) > 0
+        (row) => (row.diferenciasPorSemana[primeraSemanaValidacion] || 0) < 0
       ).length
     : 0;
-  const necesidadPrimeraSemana = primeraSemanaValidacion
+  const faltantePrimeraSemana = primeraSemanaValidacion
     ? analisis.reduce(
-        (acc, row) =>
-          acc + (row.necesidadesPorSemana[primeraSemanaValidacion] || 0),
+        (acc, row) => {
+          const diferencia =
+            row.diferenciasPorSemana[primeraSemanaValidacion] || 0;
+          return diferencia < 0 ? acc + Math.abs(diferencia) : acc;
+        },
         0
       )
     : 0;
@@ -507,13 +510,13 @@ export default function BalanceModule({
 
             <div className="rounded-xl border border-[#d4a017]/25 bg-white p-4 shadow-sm">
               <p className="text-xs font-semibold text-slate-500">
-                SKU a validar {primeraSemanaValidacion || ""}
+                SKU críticos {primeraSemanaValidacion || ""}
               </p>
               <p className="mt-1 truncate text-xl font-black text-[#9a6a00]">
-                {skusPrimeraSemana}
+                {skusCriticosPrimeraSemana}
               </p>
               <p className="mt-1 truncate text-[11px] font-semibold text-slate-500">
-                Necesidad: {formatoNumero(necesidadPrimeraSemana)}
+                Faltante: {formatoNumero(faltantePrimeraSemana)}
               </p>
             </div>
           </div>
