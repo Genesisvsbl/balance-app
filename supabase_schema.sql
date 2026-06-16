@@ -128,3 +128,79 @@ create policy "service can manage balance rows"
   on public.balance_rows for all
   using (true)
   with check (true);
+
+create or replace function public.login_app_user(
+  login_text text,
+  login_password text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  normalized_login text;
+  normalized_dots text;
+  matched_user public.app_users%rowtype;
+  valid_login boolean;
+begin
+  normalized_login := lower(trim(coalesce(login_text, '')));
+  normalized_dots := replace(normalized_login, ' ', '.');
+
+  select *
+    into matched_user
+  from public.app_users
+  where active = true
+    and (
+      lower(username) = normalized_login
+      or lower(full_name) = normalized_login
+      or replace(lower(full_name), ' ', '.') = normalized_dots
+    )
+  limit 1;
+
+  valid_login :=
+    matched_user.id is not null
+    and encode(
+      digest(matched_user.password_salt || ':' || coalesce(login_password, ''), 'sha256'),
+      'hex'
+    ) = matched_user.password_hash;
+
+  insert into public.audit_events (
+    user_id,
+    username,
+    action,
+    entity,
+    entity_id,
+    details
+  )
+  values (
+    case when matched_user.id is null then null else matched_user.id end,
+    normalized_login,
+    case when valid_login then 'LOGIN_SUCCESS' else 'LOGIN_FAILED' end,
+    'session',
+    case when matched_user.id is null then null else matched_user.id::text end,
+    '{}'::jsonb
+  );
+
+  if not valid_login then
+    raise exception 'Usuario o contrasena incorrectos.';
+  end if;
+
+  update public.app_users
+  set last_login_at = now()
+  where id = matched_user.id;
+
+  return jsonb_build_object(
+    'user',
+    jsonb_build_object(
+      'id', matched_user.id,
+      'username', matched_user.username,
+      'fullName', matched_user.full_name,
+      'role', matched_user.role
+    )
+  );
+end;
+$$;
+
+grant execute on function public.login_app_user(text, text) to anon;
+grant execute on function public.login_app_user(text, text) to authenticated;

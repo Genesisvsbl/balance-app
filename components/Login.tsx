@@ -13,6 +13,8 @@ type Props = {
   onLogin: (user: AppUser) => void;
 };
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const LOGIN_ENDPOINTS = ["/api/auth-login", "/.netlify/functions/auth-login"];
 
 export default function Login({ onLogin }: Props) {
@@ -26,6 +28,34 @@ export default function Login({ onLogin }: Props) {
     setError("");
 
     try {
+      if (SUPABASE_URL && SUPABASE_KEY) {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/login_app_user`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${SUPABASE_KEY}`,
+          },
+          body: JSON.stringify({
+            login_text: usuario,
+            login_password: password,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data.message ||
+              data.error ||
+              "Usuario o contrasena incorrectos."
+          );
+        }
+
+        onLogin(data.user);
+        return;
+      }
+
       let lastError = "No se pudo iniciar sesion.";
 
       for (const endpoint of LOGIN_ENDPOINTS) {
