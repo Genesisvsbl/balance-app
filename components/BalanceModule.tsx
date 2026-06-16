@@ -396,16 +396,20 @@ export default function BalanceModule({
     total:
       infoAnalisis?.valorInventarioTotal ?? resumenValoresInventario.total,
   };
+  const stockBaseTotal = analisis.reduce(
+    (acc, row) => acc + (row.totalExistencia || 0),
+    0
+  );
 
   return (
-    <section className="space-y-5">
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+    <section className="space-y-4">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-xl font-black text-slate-950">
+            <h3 className="text-lg font-black text-slate-950">
               Balance de materiales
             </h3>
-            <p className="mt-1 text-sm font-medium text-slate-500">
+            <p className="mt-1 text-xs font-medium text-slate-500">
               Base de cálculo: AG01 + AG04 contra necesidades por semana.
             </p>
           </div>
@@ -441,61 +445,63 @@ export default function BalanceModule({
 
       {infoAnalisis && (
         <>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
-              <p className="text-sm font-semibold text-slate-500">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="rounded-xl border border-emerald-100 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold text-slate-500">
                 Valor inventario libre
               </p>
-              <p className="mt-1 text-3xl font-black text-emerald-700">
+              <p className="mt-1 truncate text-xl font-black text-emerald-700">
                 {formatoNumero(valoresInventario.libre)}
               </p>
             </div>
 
-            <div className="rounded-2xl border border-[#d4a017]/25 bg-white p-5 shadow-sm">
-              <p className="text-sm font-semibold text-slate-500">
+            <div className="rounded-xl border border-[#d4a017]/25 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold text-slate-500">
                 Valor inventario bloqueado
               </p>
-              <p className="mt-1 text-3xl font-black text-[#9a6a00]">
+              <p className="mt-1 truncate text-xl font-black text-[#9a6a00]">
                 {formatoNumero(valoresInventario.bloqueado)}
               </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-sm font-semibold text-slate-500">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold text-slate-500">
                 Valor inventario total
               </p>
-              <p className="mt-1 text-3xl font-black text-slate-950">
+              <p className="mt-1 truncate text-xl font-black text-slate-950">
                 {formatoNumero(valoresInventario.total)}
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-sm font-semibold text-slate-500">Componentes</p>
-              <p className="mt-1 text-3xl font-black text-slate-950">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold text-slate-500">Componentes</p>
+              <p className="mt-1 truncate text-xl font-black text-slate-950">
                 {infoAnalisis.totalComponentes}
               </p>
             </div>
 
-            <div className="rounded-2xl border border-red-100 bg-white p-5 shadow-sm">
-              <p className="text-sm font-semibold text-slate-500">Faltantes</p>
-              <p className="mt-1 text-3xl font-black text-[#e30613]">
+            <div className="rounded-xl border border-red-100 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold text-slate-500">Faltantes</p>
+              <p className="mt-1 truncate text-xl font-black text-[#e30613]">
                 {infoAnalisis.totalFaltantes}
               </p>
             </div>
 
-            <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
-              <p className="text-sm font-semibold text-slate-500">Sobrantes</p>
-              <p className="mt-1 text-3xl font-black text-emerald-700">
+            <div className="rounded-xl border border-emerald-100 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold text-slate-500">Sobrantes</p>
+              <p className="mt-1 truncate text-xl font-black text-emerald-700">
                 {infoAnalisis.totalSobrantes}
               </p>
             </div>
 
-            <div className="rounded-2xl border border-[#d4a017]/25 bg-white p-5 shadow-sm">
-              <p className="text-sm font-semibold text-slate-500">Base balance</p>
-              <p className="mt-1 text-2xl font-black text-[#9a6a00]">
-                AG01 + AG04
+            <div className="rounded-xl border border-[#d4a017]/25 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold text-slate-500">
+                Stock base AG01 + AG04
+              </p>
+              <p className="mt-1 truncate text-xl font-black text-[#9a6a00]">
+                {formatoNumero(stockBaseTotal)}
               </p>
             </div>
           </div>
@@ -503,7 +509,7 @@ export default function BalanceModule({
       )}
 
       {analisis.length > 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <h4 className="text-lg font-black text-slate-950">

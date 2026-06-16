@@ -12,6 +12,43 @@
 body {
   background: var(--erp-bg);
   color: var(--erp-text);
+  font-size: 14px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  letter-spacing: 0;
+}
+
+button,
+input,
+select,
+textarea,
+table {
+  font-size: 13px;
+}
+
+.compact-card {
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.compact-scroll {
+  scrollbar-width: thin;
+}
+
+.compact-scroll::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.compact-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
 }
 
 .erp-card {

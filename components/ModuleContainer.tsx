@@ -3,5 +3,5 @@ type Props = {
 };
 
 export default function ModuleContainer({ children }: Props) {
-  return <div className="px-8 py-6">{children}</div>;
+  return <div className="px-6 py-4">{children}</div>;
 }

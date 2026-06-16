@@ -19,18 +19,18 @@ export default function Header({
 }: Props) {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white">
-      <div className="flex h-20 items-center justify-between px-8">
-        <div className="flex items-center gap-5">
+      <div className="flex h-16 items-center justify-between px-6">
+        <div className="flex items-center gap-4">
           <img
             src="/LOGO.png"
             alt="Bavaria"
-            className="h-11 w-32 object-contain"
+            className="h-9 w-28 object-contain"
           />
 
-          <div className="h-10 w-px bg-slate-200" />
+          <div className="h-8 w-px bg-slate-200" />
 
           <div>
-            <h1 className="text-xl font-black tracking-tight text-slate-950">
+            <h1 className="text-base font-black tracking-tight text-slate-950">
               BALANCE
             </h1>
             <p className="text-xs font-semibold text-slate-500">
@@ -42,21 +42,21 @@ export default function Header({
         <TopNav active={active} setActive={setActive} />
 
         <div className="flex items-center gap-3">
-          <div className="rounded-xl border border-[#d4a017]/30 bg-[#fff8df] px-4 py-2 text-xs font-black text-[#9a6a00]">
+          <div className="max-w-[160px] truncate rounded-lg border border-[#d4a017]/30 bg-[#fff8df] px-3 py-2 text-xs font-black text-[#9a6a00]">
             {userName}
           </div>
 
           <button
             onClick={onLogout}
-            className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
           >
             Cerrar sesión
           </button>
         </div>
       </div>
 
-      <div className="border-t border-slate-100 bg-[#fbfbfa] px-8 py-4">
-        <h2 className="text-2xl font-black text-slate-950">{title}</h2>
+      <div className="border-t border-slate-100 bg-[#fbfbfa] px-6 py-3">
+        <h2 className="text-lg font-black text-slate-950">{title}</h2>
       </div>
     </header>
   );

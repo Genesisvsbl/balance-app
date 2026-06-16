@@ -15,15 +15,15 @@ const modules = [
 
 export default function TopNav({ active, setActive }: Props) {
   return (
-    <div className="flex items-center gap-8 border-b border-slate-200">
+    <div className="flex items-center gap-4">
       {modules.map((m) => (
         <button
           key={m.id}
           onClick={() => setActive(m.id)}
-          className={`pb-3 text-sm font-semibold transition ${
+          className={`rounded-lg px-2.5 py-2 text-xs font-black transition ${
             active === m.id
-              ? "border-b-2 border-[#e30613] text-[#e30613]"
-              : "text-slate-500 hover:text-slate-800"
+              ? "bg-red-50 text-[#e30613]"
+              : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
           }`}
         >
           {m.label}
