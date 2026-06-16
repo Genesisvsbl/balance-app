@@ -13,7 +13,7 @@ import { BalanceInfo, BalanceRow, ExcelData, SavedLoad } from "@/types/balance";
 
 export default function Home() {
   const [logged, setLogged] = useState(false);
-  const [activeModule, setActiveModule] = useState("dashboard");
+  const [activeModule, setActiveModule] = useState("importacion");
 
   const [datos, setDatos] = useState<ExcelData>({});
   const [hojasEncontradas, setHojasEncontradas] = useState<string[]>([]);
@@ -52,7 +52,11 @@ function cargarBalanceHistorico(carga: SavedLoad) {
 
       <ModuleContainer>
         {activeModule === "dashboard" && (
-          <DashboardModule analisis={analisis} infoAnalisis={infoAnalisis} />
+          <DashboardModule
+            datos={datos}
+            analisis={analisis}
+            infoAnalisis={infoAnalisis}
+          />
         )}
 
         {activeModule === "importacion" && (

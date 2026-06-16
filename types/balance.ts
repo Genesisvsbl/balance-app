@@ -8,6 +8,18 @@ export type ExcelData = {
   [sheetName: string]: ExcelSheet;
 };
 
+export type RecepcionTransito = {
+  fechaOperativa: string;
+  cantidad: number;
+};
+
+export type InventarioBloqueadoRow = {
+  material: string;
+  textoBreve: string;
+  cantidad: number;
+  valor: number;
+};
+
 export type BalanceRow = {
   codigo: string;
   material: string;
@@ -15,8 +27,19 @@ export type BalanceRow = {
   seccion: string;
   seccionesArray: string[];
   necesidadesPorSemana: Record<string, number>;
+  recepcionesPorSemana?: Record<string, number>;
+  fechasRecepcionPorSemana?: Record<string, string[]>;
+  transitosPorSemana?: Record<string, RecepcionTransito[]>;
+  coberturaPorSemana?: Record<string, number>;
   totalNecesidad: number;
+  totalRecepcion?: number;
   almacenes: Record<string, number>;
+  inventarioLibre?: number;
+  inventarioBloqueado?: number;
+  stockTotal?: number;
+  valorInventarioLibre?: number;
+  valorInventarioBloqueado?: number;
+  valorStockTotal?: number;
   totalExistencia: number;
   diferenciaTotal: number;
   diferenciasPorSemana: Record<string, number>;
@@ -26,12 +49,19 @@ export type BalanceRow = {
 export type BalanceInfo = {
   hojaReceta: string;
   hojaExistencias: string;
+  hojaPlanRecepcion?: string;
   columnasSemana: string[];
   almacenesDetectados: string[];
   seccionesDetectadas: string[];
   totalComponentes: number;
   totalFaltantes: number;
   totalSobrantes: number;
+  totalPlanRecepcion?: number;
+  valorInventarioLibre?: number;
+  valorInventarioBloqueado?: number;
+  valorInventarioTotal?: number;
+  materialesBloqueados?: InventarioBloqueadoRow[];
+  consumosPorMaterial?: Record<string, number>;
 };
 
 export type SavedLoad = {

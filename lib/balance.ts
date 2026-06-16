@@ -1,20 +1,140 @@
-import { BalanceInfo, BalanceRow, ExcelData } from "@/types/balance";
+import type {
+  BalanceInfo,
+  BalanceRow,
+  ExcelData,
+  InventarioBloqueadoRow,
+  RecepcionTransito,
+} from "@/types/balance";
 import { convertirNumero } from "./format";
 
-function obtenerHoja(datos: ExcelData, nombre: string) {
-  const entrada = Object.entries(datos).find(
-    ([key]) => key.toLowerCase().trim() === nombre.toLowerCase().trim()
+type ExcelRow = Record<string, any>;
+type ColumnaSemana = { key: string; label: string };
+
+function normalizarTexto(valor: string) {
+  return valor
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function obtenerHoja(datos: ExcelData, nombres: string[]) {
+  const objetivos = nombres.map(normalizarTexto);
+  const entrada = Object.entries(datos).find(([key]) =>
+    objetivos.includes(normalizarTexto(key))
   );
 
   return entrada ? entrada[1] : null;
+}
+
+function obtenerValor(fila: ExcelRow, nombres: string[]) {
+  for (const nombre of nombres) {
+    const objetivo = normalizarTexto(nombre);
+    const key = Object.keys(fila || {}).find(
+      (columna) =>
+        normalizarTexto(columna) === objetivo &&
+        fila[columna] !== undefined &&
+        fila[columna] !== ""
+    );
+
+    if (key) return fila[key];
+  }
+
+  return "";
+}
+
+function esFecha(valor: string) {
+  const texto = valor.trim();
+  if (!texto) return false;
+  if (/^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(texto)) return true;
+  if (/^\d{4}[/-]\d{1,2}[/-]\d{1,2}$/.test(texto)) return true;
+
+  const fecha = new Date(texto);
+  return (
+    !Number.isNaN(fecha.getTime()) &&
+    (/[a-zA-Z]{3,}/.test(texto) || /[/-]/.test(texto))
+  );
+}
+
+function formatearFecha(valor: any) {
+  if (valor instanceof Date) {
+    return valor.toLocaleDateString("es-CO", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }
+
+  const texto = String(valor ?? "").trim();
+  const fecha = new Date(texto);
+
+  if (esFecha(texto) && !Number.isNaN(fecha.getTime())) {
+    return fecha.toLocaleDateString("es-CO", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }
+
+  return texto;
+}
+
+function obtenerColumnasSemana(columnas: string[]): ColumnaSemana[] {
+  const usadas = new Set<string>();
+
+  return columnas
+    .filter((col) => normalizarTexto(col).startsWith("sem"))
+    .map((key) => {
+      let label = key.trim();
+      let contador = 2;
+
+      while (usadas.has(label)) {
+        label = `${key.trim()} (${contador})`;
+        contador += 1;
+      }
+
+      usadas.add(label);
+      return { key, label };
+    });
+}
+
+function obtenerSemanaDePlan(fila: ExcelRow, semanasBalance: string[]) {
+  const semana = String(
+    obtenerValor(fila, [
+      "Semana",
+      "Semana correspondiente",
+      "Semana recepcion",
+      "Semana recepción",
+      "Week",
+    ])
+  ).trim();
+
+  if (!semana) return "";
+
+  return (
+    semanasBalance.find(
+      (sem) => normalizarTexto(sem) === normalizarTexto(semana)
+    ) || ""
+  );
 }
 
 export function generarBalance(datos: ExcelData): {
   analisis: BalanceRow[];
   info: BalanceInfo;
 } {
-  const hojaReceta: any = obtenerHoja(datos, "Receta");
-  const hojaExistencias: any = obtenerHoja(datos, "Existencias");
+  const hojaReceta: any = obtenerHoja(datos, ["Receta"]);
+  const hojaExistencias: any = obtenerHoja(datos, ["Existencias"]);
+  const hojaConsumos: any = obtenerHoja(datos, ["Consumos", "Consumo"]);
+  const hojaPlan: any = obtenerHoja(datos, [
+    "Plan de Recibo",
+    "PLAN DE RECIBO",
+    "Plan de Recepcion",
+    "Plan de Recepción",
+    "Plan Recepcion",
+    "Plan Recepción",
+    "Programacion",
+    "Programación",
+  ]);
 
   if (!hojaReceta || !hojaExistencias) {
     throw new Error("No se encontró la hoja Receta o Existencias.");
@@ -22,47 +142,79 @@ export function generarBalance(datos: ExcelData): {
 
   const receta = hojaReceta.datos || [];
   const existencias = hojaExistencias.datos || [];
+  const consumos = hojaConsumos?.datos || [];
+  const planRecepcion = hojaPlan?.datos || [];
 
   if (receta.length === 0 || existencias.length === 0) {
     throw new Error("Receta o Existencias no tienen datos.");
   }
 
   const columnasReceta = Object.keys(receta[0] || {});
-
-  const columnasSemana = columnasReceta.filter((col) =>
-    col.toLowerCase().replace(/\s/g, "").startsWith("sem")
-  );
+  const columnasSemana = obtenerColumnasSemana(columnasReceta);
+  const etiquetasSemana = columnasSemana.map((col) => col.label);
 
   const mapaExistencias: any = {};
   const almacenesSet = new Set<string>();
 
-  existencias.forEach((fila: any) => {
-    const material = String(fila["Material"] || "").trim();
-
-    const almacen = String(
-      fila["Alm."] || fila["Alm"] || fila["ALM"] || fila["Almacen"] || ""
+  existencias.forEach((fila: ExcelRow) => {
+    const material = String(
+      obtenerValor(fila, ["Material", "Código", "Codigo"])
     ).trim();
-
+    const textoBreve = String(
+      obtenerValor(fila, [
+        "Texto breve de material",
+        "Texto breve material",
+        "Texto breve",
+        "Descripcion",
+        "Descripción",
+      ])
+    ).trim();
+    const almacen = String(
+      obtenerValor(fila, ["Alm.", "Alm", "ALM", "Almacen", "Almacén"])
+    ).trim();
     const libre = convertirNumero(
-      fila["Libre utiliz."] ||
-        fila["Libre utiliz"] ||
-        fila["Libre Utiliz."] ||
-        fila["Libre Utiliz"] ||
-        fila["Libre utilización"] ||
-        fila["Libre Utilizacion"] ||
-        0
+      obtenerValor(fila, [
+        "Libre utiliz.",
+        "Libre utiliz",
+        "Libre Utiliz.",
+        "Libre Utiliz",
+        "Libre utilización",
+        "Libre Utilizacion",
+      ])
     );
+    const bloqueado = convertirNumero(
+      obtenerValor(fila, ["Bloqueado", "Stock bloqueado", "Inventario bloqueado"])
+    );
+    const valorStock = convertirNumero(
+      obtenerValor(fila, ["Vr.Stock Alm.", "Vr.Stock Alm"])
+    );
+    const valorBloqueado =
+      libre > 0
+        ? (valorStock / libre) * bloqueado
+        : bloqueado > 0
+        ? valorStock
+        : 0;
 
     if (!material) return;
 
     if (!mapaExistencias[material]) {
       mapaExistencias[material] = {
         total: 0,
+        bloqueado: 0,
+        valorStock: 0,
+        valorBloqueado: 0,
+        textoBreve: "",
         almacenes: {},
       };
     }
 
+    if (textoBreve && !mapaExistencias[material].textoBreve) {
+      mapaExistencias[material].textoBreve = textoBreve;
+    }
     mapaExistencias[material].total += libre;
+    mapaExistencias[material].bloqueado += bloqueado;
+    mapaExistencias[material].valorStock += valorStock;
+    mapaExistencias[material].valorBloqueado += valorBloqueado;
 
     if (almacen) {
       almacenesSet.add(almacen);
@@ -72,28 +224,128 @@ export function generarBalance(datos: ExcelData): {
   });
 
   const almacenesDetectados = Array.from(almacenesSet);
+  const valoresInventario: {
+    total: number;
+    bloqueado: number;
+    libre: number;
+  } = (Object.values(mapaExistencias) as any[]).reduce(
+    (acc: any, item: any) => {
+      acc.total += item.valorStock || 0;
+      acc.bloqueado += item.valorBloqueado || 0;
+      return acc;
+    },
+    { total: 0, bloqueado: 0, libre: 0 }
+  );
+  valoresInventario.libre =
+    valoresInventario.total - valoresInventario.bloqueado;
+
+  const materialesBloqueados: InventarioBloqueadoRow[] = (
+    Object.entries(mapaExistencias) as [string, any][]
+  )
+    .map(([material, item]) => ({
+      material,
+      textoBreve: item.textoBreve || "",
+      cantidad: item.bloqueado || 0,
+      valor: item.valorBloqueado || 0,
+    }))
+    .filter((item) => item.cantidad > 0 || item.valor > 0)
+    .sort((a, b) => b.valor - a.valor);
+
+  const mapaRecepciones: Record<string, any> = {};
+
+  planRecepcion.forEach((fila: ExcelRow) => {
+    const codigo = String(
+      obtenerValor(fila, [
+        "SKU",
+        "Codigo SKU",
+        "Código SKU",
+        "Código material",
+        "Codigo material",
+        "Codigo",
+        "Código",
+        "Material",
+      ])
+    ).trim();
+    const semana = obtenerSemanaDePlan(fila, etiquetasSemana);
+    const cantidad = convertirNumero(
+      obtenerValor(fila, [
+        "Cantidad",
+        "Cantidad programada",
+        "Cantidad prevista",
+        "Cantidad prevista de recepción",
+      ])
+    );
+    const fecha = formatearFecha(
+      obtenerValor(fila, [
+        "Fecha operativa",
+        "Fecha",
+        "Fecha recepcion",
+        "Fecha recepción",
+      ])
+    );
+
+    const fechaRecibo = formatearFecha(
+      obtenerValor(fila, [
+        "Fecha recibo",
+        "Fecha de recibo",
+        "FECHA  RECIBO",
+        "FECHA RECIBO",
+      ])
+    );
+
+    if (!codigo || !semana || fechaRecibo) return;
+
+    if (!mapaRecepciones[codigo]) mapaRecepciones[codigo] = {};
+    if (!mapaRecepciones[codigo][semana]) {
+      mapaRecepciones[codigo][semana] = {
+        cantidad: 0,
+        fechas: new Set<string>(),
+        detalles: [],
+      };
+    }
+
+    mapaRecepciones[codigo][semana].cantidad += cantidad;
+    if (fecha) mapaRecepciones[codigo][semana].fechas.add(fecha);
+    mapaRecepciones[codigo][semana].detalles.push({
+      fechaOperativa: fecha,
+      cantidad,
+    });
+  });
 
   const mapaNecesidades: any = {};
+  const recetaPorSku: Record<
+    string,
+    { componente: string; cantidadBase: number }[]
+  > = {};
   const seccionesSet = new Set<string>();
 
-  receta.forEach((fila: any) => {
+  receta.forEach((fila: ExcelRow) => {
     const codigo = String(
-      fila["N° componente"] ||
-        fila["Nº componente"] ||
-        fila["N° Componente"] ||
-        fila["Nº Componente"] ||
-        fila["Material"] ||
-        ""
+      obtenerValor(fila, [
+        "N° componente",
+        "Nº componente",
+        "N° Componente",
+        "Nº Componente",
+        "Material",
+        "Código",
+        "Codigo",
+      ])
     ).trim();
 
     if (!codigo) return;
 
+    const skuPlan = String(
+      obtenerValor(fila, [
+        "Codigo",
+        "Código",
+        "SKU",
+        "Material padre",
+        "Material Padre",
+      ])
+    ).trim();
+
     const seccion = String(
-      fila["Seccion"] ||
-        fila["Sección"] ||
-        fila["SECCION"] ||
-        fila["SECCIÓN"] ||
-        ""
+      obtenerValor(fila, ["Seccion", "Sección", "SECCION", "SECCIÓN"])
     ).trim();
 
     if (seccion) seccionesSet.add(seccion);
@@ -102,51 +354,94 @@ export function generarBalance(datos: ExcelData): {
       mapaNecesidades[codigo] = {
         codigo,
         material:
-          fila["Texto breve-objeto"] ||
-          fila["Texto breve objeto"] ||
-          fila["Texto breve de material"] ||
-          fila["Descripción"] ||
-          fila["Descripcion"] ||
-          "",
-        um: fila["UM"] || fila["UMB"] || "",
+          obtenerValor(fila, [
+            "Texto breve-objeto",
+            "Texto breve objeto",
+            "Texto breve de material",
+            "Texto breve",
+            "Descripción",
+            "Descripcion",
+          ]) || "",
+        um: obtenerValor(fila, ["UM", "UMB"]) || "",
         secciones: new Set<string>(),
         necesidadesPorSemana: {},
         totalNecesidad: 0,
       };
 
-      columnasSemana.forEach((sem) => {
+      etiquetasSemana.forEach((sem) => {
         mapaNecesidades[codigo].necesidadesPorSemana[sem] = 0;
       });
     }
 
-    if (seccion) {
-      mapaNecesidades[codigo].secciones.add(seccion);
+    if (seccion) mapaNecesidades[codigo].secciones.add(seccion);
+
+    if (skuPlan) {
+      if (!recetaPorSku[skuPlan]) recetaPorSku[skuPlan] = [];
+      recetaPorSku[skuPlan].push({
+        componente: codigo,
+        cantidadBase: convertirNumero(
+          obtenerValor(fila, ["Cantidad", "Cantidad base"])
+        ),
+      });
     }
 
-    columnasSemana.forEach((sem) => {
-      const valor = convertirNumero(fila[sem]);
-      mapaNecesidades[codigo].necesidadesPorSemana[sem] += valor;
+    columnasSemana.forEach(({ key, label }) => {
+      const valor = convertirNumero(fila[key]);
+      mapaNecesidades[codigo].necesidadesPorSemana[label] += valor;
       mapaNecesidades[codigo].totalNecesidad += valor;
+    });
+  });
+
+  const consumosPorMaterial: Record<string, number> = {};
+
+  consumos.forEach((fila: ExcelRow) => {
+    const sku = String(
+      obtenerValor(fila, ["Material", "SKU", "Codigo", "Código"])
+    ).trim();
+    const cantidadConsumo = convertirNumero(
+      obtenerValor(fila, ["Cantidad", "Cantidad consumo"])
+    );
+    const recetaSku = recetaPorSku[sku] || [];
+
+    recetaSku.forEach((item) => {
+      consumosPorMaterial[item.componente] =
+        (consumosPorMaterial[item.componente] || 0) +
+        (cantidadConsumo * item.cantidadBase) / 100;
     });
   });
 
   const analisis: BalanceRow[] = Object.values(mapaNecesidades).map(
     (item: any) => {
       const codigo = item.codigo;
-      const almacenes = mapaExistencias[codigo]?.almacenes || {};
-
+      const existencia = mapaExistencias[codigo] || {};
+      const almacenes = existencia.almacenes || {};
       const existenciaBalance =
         (almacenes["AG01"] || 0) + (almacenes["AG04"] || 0);
-
-      const diferenciaTotal = existenciaBalance - item.totalNecesidad;
-
-      let acumulado = existenciaBalance;
+      const recepciones = mapaRecepciones[codigo] || {};
+      const recepcionesPorSemana: Record<string, number> = {};
+      const fechasRecepcionPorSemana: Record<string, string[]> = {};
+      const transitosPorSemana: Record<string, RecepcionTransito[]> = {};
+      const coberturaPorSemana: Record<string, number> = {};
       const diferenciasPorSemana: any = {};
+      let acumulado = existenciaBalance;
+      let totalRecepcion = 0;
 
-      columnasSemana.forEach((sem) => {
-        acumulado -= item.necesidadesPorSemana[sem] || 0;
+      etiquetasSemana.forEach((sem) => {
+        const recepcion = recepciones[sem]?.cantidad || 0;
+        const necesidad = item.necesidadesPorSemana[sem] || 0;
+
+        totalRecepcion += recepcion;
+        recepcionesPorSemana[sem] = recepcion;
+        fechasRecepcionPorSemana[sem] = Array.from(
+          recepciones[sem]?.fechas || []
+        );
+        transitosPorSemana[sem] = recepciones[sem]?.detalles || [];
+        coberturaPorSemana[sem] = necesidad > 0 ? (recepcion / necesidad) * 100 : 0;
+        acumulado -= necesidad;
         diferenciasPorSemana[sem] = acumulado;
       });
+
+      const diferenciaTotal = existenciaBalance - item.totalNecesidad;
 
       let estado: BalanceRow["estado"] = "OK";
       if (diferenciaTotal < 0) estado = "FALTANTE";
@@ -160,8 +455,20 @@ export function generarBalance(datos: ExcelData): {
         seccion: Array.from(item.secciones || []).join(", "),
         seccionesArray: Array.from(item.secciones || []),
         necesidadesPorSemana: item.necesidadesPorSemana,
+        recepcionesPorSemana,
+        fechasRecepcionPorSemana,
+        transitosPorSemana,
+        coberturaPorSemana,
         totalNecesidad: item.totalNecesidad,
+        totalRecepcion,
         almacenes,
+        inventarioLibre: existencia.total || 0,
+        inventarioBloqueado: existencia.bloqueado || 0,
+        stockTotal: (existencia.total || 0) + (existencia.bloqueado || 0),
+        valorInventarioLibre:
+          (existencia.valorStock || 0) - (existencia.valorBloqueado || 0),
+        valorInventarioBloqueado: existencia.valorBloqueado || 0,
+        valorStockTotal: existencia.valorStock || 0,
         totalExistencia: existenciaBalance,
         diferenciaTotal,
         diferenciasPorSemana,
@@ -178,12 +485,19 @@ export function generarBalance(datos: ExcelData): {
     info: {
       hojaReceta: hojaReceta.nombreReal || "Receta",
       hojaExistencias: hojaExistencias.nombreReal || "Existencias",
-      columnasSemana,
+      hojaPlanRecepcion: hojaPlan?.nombreReal || "",
+      columnasSemana: etiquetasSemana,
       almacenesDetectados,
       seccionesDetectadas: Array.from(seccionesSet).sort(),
       totalComponentes: analisis.length,
       totalFaltantes: faltantes.length,
       totalSobrantes: sobrantes.length,
+      totalPlanRecepcion: planRecepcion.length,
+      valorInventarioLibre: valoresInventario.libre,
+      valorInventarioBloqueado: valoresInventario.bloqueado,
+      valorInventarioTotal: valoresInventario.total,
+      materialesBloqueados,
+      consumosPorMaterial,
     },
   };
 }

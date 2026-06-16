@@ -1,7 +1,7 @@
 "use client";
 
 import { ExcelData } from "@/types/balance";
-import { leerArchivoExcel } from "@/lib/excel";
+import { leerArchivosExcel } from "@/lib/excel";
 import { formatearValor } from "@/lib/format";
 import { useState } from "react";
 
@@ -25,18 +25,32 @@ export default function ImportModule({
   setArchivoNombre,
 }: Props) {
   const [busqueda, setBusqueda] = useState("");
+  const [balanceNombre, setBalanceNombre] = useState("");
+  const [planNombre, setPlanNombre] = useState("");
 
-  async function subirArchivo(e: React.ChangeEvent<HTMLInputElement>) {
+  async function cargarArchivo(
+    e: React.ChangeEvent<HTMLInputElement>,
+    tipo: "balance" | "plan"
+  ) {
     const archivo = e.target.files?.[0];
     if (!archivo) return;
 
-    const resultado = await leerArchivoExcel(archivo);
-    const hojas = Object.keys(resultado);
+    const resultado = await leerArchivosExcel([archivo]);
+    const combinado = { ...datos, ...resultado };
+    const hojas = Object.keys(combinado);
+    const nuevoBalance = tipo === "balance" ? archivo.name : balanceNombre;
+    const nuevoPlan = tipo === "plan" ? archivo.name : planNombre;
 
-    setDatos(resultado);
+    if (tipo === "balance") setBalanceNombre(archivo.name);
+    if (tipo === "plan") setPlanNombre(archivo.name);
+
+    setDatos(combinado);
     setHojasEncontradas(hojas);
-    setHojaActiva(hojas[0] || "");
-    setArchivoNombre(archivo.name);
+    setHojaActiva(hojaActiva || hojas[0] || "");
+    setArchivoNombre(
+      [nuevoBalance, nuevoPlan].filter(Boolean).join(" + ") || archivo.name
+    );
+    e.target.value = "";
   }
 
   const hoja = datos[hojaActiva];
@@ -58,24 +72,43 @@ export default function ImportModule({
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h3 className="text-xl font-black text-slate-950">
-              Importación / Bases de datos
+              Importacion / Bases de datos
             </h3>
             <p className="mt-1 text-sm font-medium text-slate-500">
-              Sube el archivo Excel principal. El sistema detecta y organiza las
-              hojas base.
+              Carga el Balance y, cuando lo necesites, carga tambien el Plan de
+              Recibo. Ambos quedan unidos para el analisis.
             </p>
           </div>
 
-          <label className="cursor-pointer rounded-xl bg-[#e30613] px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#b8000f]">
-            Importar Excel
-            <input
-              type="file"
-              accept=".xlsx,.xlsm,.xls"
-              onChange={subirArchivo}
-              className="hidden"
-            />
-          </label>
+          <div className="flex flex-wrap gap-3">
+            <label className="cursor-pointer rounded-xl bg-[#e30613] px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#b8000f]">
+              Cargar Balance
+              <input
+                type="file"
+                accept=".xlsx,.xlsm,.xls"
+                onChange={(e) => cargarArchivo(e, "balance")}
+                className="hidden"
+              />
+            </label>
+
+            <label className="cursor-pointer rounded-xl bg-[#d4a017] px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#b88900]">
+              Cargar Plan de Recibo
+              <input
+                type="file"
+                accept=".xlsx,.xlsm,.xls"
+                onChange={(e) => cargarArchivo(e, "plan")}
+                className="hidden"
+              />
+            </label>
+          </div>
         </div>
+
+        {(balanceNombre || planNombre) && (
+          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <ArchivoEstado titulo="Balance" nombre={balanceNombre} />
+            <ArchivoEstado titulo="Plan de Recibo" nombre={planNombre} />
+          </div>
+        )}
       </div>
 
       {hojasEncontradas.length > 0 && (
@@ -125,7 +158,7 @@ export default function ImportModule({
                 Bases detectadas
               </h4>
               <p className="mt-1 text-sm font-semibold text-slate-500">
-                Selecciona una hoja para visualizar su información.
+                Selecciona una hoja para visualizar su informacion.
               </p>
             </div>
 
@@ -210,7 +243,7 @@ export default function ImportModule({
                         colSpan={999}
                         className="px-4 py-10 text-center text-sm font-semibold text-slate-500"
                       >
-                        No hay datos con la búsqueda seleccionada.
+                        No hay datos con la busqueda seleccionada.
                       </td>
                     </tr>
                   )}
@@ -221,5 +254,22 @@ export default function ImportModule({
         </div>
       )}
     </section>
+  );
+}
+
+function ArchivoEstado({ titulo, nombre }: { titulo: string; nombre: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-[#fbfbfa] px-4 py-3">
+      <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+        {titulo}
+      </p>
+      <p
+        className={`mt-1 truncate text-sm font-black ${
+          nombre ? "text-emerald-700" : "text-slate-400"
+        }`}
+      >
+        {nombre || "Pendiente"}
+      </p>
+    </div>
   );
 }

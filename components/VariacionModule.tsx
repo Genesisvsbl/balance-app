@@ -1,40 +1,57 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { formatoNumero } from "@/lib/format";
 import { obtenerCargas } from "@/lib/storage";
 import { SavedLoad } from "@/types/balance";
-import { formatoNumero } from "@/lib/format";
+
+type Diagnostico =
+  | "AUMENTO DE PLAN"
+  | "REDUCCION EXPLICADA POR CONSUMO"
+  | "REDUCCION NO EXPLICADA"
+  | "CONSUMO MAYOR A REDUCCION"
+  | "NUEVO MATERIAL"
+  | "MATERIAL RETIRADO"
+  | "SIN CAMBIO";
 
 type VariacionRow = {
   codigo: string;
   material: string;
   seccion: string;
-  necesidadAntes: number;
-  necesidadAhora: number;
-  diferenciaAntes: number;
-  diferenciaAhora: number;
-  variacionNecesidad: number;
-  variacionDiferencia: number;
-  estadoAntes: string;
-  estadoAhora: string;
-  tipoCambio: string;
+  planAnterior: number;
+  planActual: number;
+  movimientoPlan: number;
+  reduccionPlan: number;
+  consumoNotificado: number;
+  diferenciaPorExplicar: number;
+  diagnostico: Diagnostico;
+  semanas: {
+    semana: string;
+    anterior: number;
+    actual: number;
+    movimiento: number;
+  }[];
 };
 
 export default function VariacionModule() {
   const [cargas, setCargas] = useState<SavedLoad[]>([]);
   const [cargaAntesId, setCargaAntesId] = useState("");
   const [cargaAhoraId, setCargaAhoraId] = useState("");
-  const [filtroTipo, setFiltroTipo] = useState("TODOS");
   const [busqueda, setBusqueda] = useState("");
+  const [filtroDiagnostico, setFiltroDiagnostico] = useState("TODOS");
+  const [filtroSeccion, setFiltroSeccion] = useState("TODAS");
+  const [soloPorExplicar, setSoloPorExplicar] = useState(false);
+  const [materialSeleccionado, setMaterialSeleccionado] = useState("");
 
   useEffect(() => {
-    const data = obtenerCargas();
-    setCargas(data);
+    obtenerCargas().then((data) => {
+      setCargas(data);
 
-    if (data.length >= 2) {
-      setCargaAhoraId(data[0].id);
-      setCargaAntesId(data[1].id);
-    }
+      if (data.length >= 2) {
+        setCargaAhoraId(data[0].id);
+        setCargaAntesId(data[1].id);
+      }
+    });
   }, []);
 
   const cargaAntes = cargas.find((c) => c.id === cargaAntesId);
@@ -43,113 +60,149 @@ export default function VariacionModule() {
   const variaciones = useMemo(() => {
     if (!cargaAntes || !cargaAhora) return [];
 
-    const mapaAntes = new Map(
-      cargaAntes.analisis.map((row) => [row.codigo, row])
+    const mapaAntes = new Map(cargaAntes.analisis.map((row) => [row.codigo, row]));
+    const mapaAhora = new Map(cargaAhora.analisis.map((row) => [row.codigo, row]));
+    const semanas = Array.from(
+      new Set([
+        ...(cargaAntes.info?.columnasSemana || []),
+        ...(cargaAhora.info?.columnasSemana || []),
+      ])
     );
+    const codigos = new Set([...mapaAntes.keys(), ...mapaAhora.keys()]);
 
-    const mapaAhora = new Map(
-      cargaAhora.analisis.map((row) => [row.codigo, row])
-    );
+    return Array.from(codigos)
+      .map((codigo) => {
+        const antes = mapaAntes.get(codigo);
+        const ahora = mapaAhora.get(codigo);
+        const planAnterior = antes?.totalNecesidad || 0;
+        const planActual = ahora?.totalNecesidad || 0;
+        const movimientoPlan = planActual - planAnterior;
+        const reduccionPlan = Math.max(planAnterior - planActual, 0);
+        const consumoNotificado =
+          cargaAntes.info?.consumosPorMaterial?.[codigo] || 0;
+        const diferenciaPorExplicar =
+          reduccionPlan > 0 ? reduccionPlan - consumoNotificado : movimientoPlan;
 
-    const codigos = new Set([
-      ...Array.from(mapaAntes.keys()),
-      ...Array.from(mapaAhora.keys()),
-    ]);
+        let diagnostico: Diagnostico = "SIN CAMBIO";
 
-    const resultado: VariacionRow[] = [];
+        if (!antes && ahora) diagnostico = "NUEVO MATERIAL";
+        else if (antes && !ahora) diagnostico = "MATERIAL RETIRADO";
+        else if (movimientoPlan > 0) diagnostico = "AUMENTO DE PLAN";
+        else if (reduccionPlan > 0) {
+          const tolerancia = Math.max(1, reduccionPlan * 0.001);
+          const diferencia = reduccionPlan - consumoNotificado;
 
-    codigos.forEach((codigo) => {
-      const antes = mapaAntes.get(codigo);
-      const ahora = mapaAhora.get(codigo);
+          if (Math.abs(diferencia) <= tolerancia) {
+            diagnostico = "REDUCCION EXPLICADA POR CONSUMO";
+          } else if (diferencia > 0) {
+            diagnostico = "REDUCCION NO EXPLICADA";
+          } else {
+            diagnostico = "CONSUMO MAYOR A REDUCCION";
+          }
+        }
 
-      const necesidadAntes = antes?.totalNecesidad || 0;
-      const necesidadAhora = ahora?.totalNecesidad || 0;
+        return {
+          codigo,
+          material: ahora?.material || antes?.material || "",
+          seccion: ahora?.seccion || antes?.seccion || "",
+          planAnterior,
+          planActual,
+          movimientoPlan,
+          reduccionPlan,
+          consumoNotificado,
+          diferenciaPorExplicar,
+          diagnostico,
+          semanas: semanas.map((semana) => {
+            const anterior = antes?.necesidadesPorSemana[semana] || 0;
+            const actual = ahora?.necesidadesPorSemana[semana] || 0;
 
-      const diferenciaAntes = antes?.diferenciaTotal || 0;
-      const diferenciaAhora = ahora?.diferenciaTotal || 0;
+            return {
+              semana,
+              anterior,
+              actual,
+              movimiento: actual - anterior,
+            };
+          }),
+        };
+      })
+      .sort((a, b) => {
+        const prioridad: Diagnostico[] = [
+          "REDUCCION NO EXPLICADA",
+          "CONSUMO MAYOR A REDUCCION",
+          "AUMENTO DE PLAN",
+          "NUEVO MATERIAL",
+          "MATERIAL RETIRADO",
+          "REDUCCION EXPLICADA POR CONSUMO",
+          "SIN CAMBIO",
+        ];
 
-      const estadoAntes = antes?.estado || "NO EXISTÍA";
-      const estadoAhora = ahora?.estado || "ELIMINADO";
-
-      let tipoCambio = "SIN CAMBIO";
-
-      if (!antes && ahora) tipoCambio = "NUEVO MATERIAL";
-      else if (antes && !ahora) tipoCambio = "MATERIAL ELIMINADO";
-      else if (estadoAntes !== "FALTANTE" && estadoAhora === "FALTANTE")
-        tipoCambio = "FALTANTE NUEVO";
-      else if (estadoAntes === "FALTANTE" && estadoAhora !== "FALTANTE")
-        tipoCambio = "FALTANTE CORREGIDO";
-      else if (necesidadAhora > necesidadAntes) tipoCambio = "NECESIDAD AUMENTÓ";
-      else if (necesidadAhora < necesidadAntes) tipoCambio = "NECESIDAD BAJÓ";
-      else if (diferenciaAhora < diferenciaAntes) tipoCambio = "EMPEORÓ";
-      else if (diferenciaAhora > diferenciaAntes) tipoCambio = "MEJORÓ";
-
-      resultado.push({
-        codigo,
-        material: ahora?.material || antes?.material || "",
-        seccion: ahora?.seccion || antes?.seccion || "",
-        necesidadAntes,
-        necesidadAhora,
-        diferenciaAntes,
-        diferenciaAhora,
-        variacionNecesidad: necesidadAhora - necesidadAntes,
-        variacionDiferencia: diferenciaAhora - diferenciaAntes,
-        estadoAntes,
-        estadoAhora,
-        tipoCambio,
+        const orden =
+          prioridad.indexOf(a.diagnostico) - prioridad.indexOf(b.diagnostico);
+        if (orden !== 0) return orden;
+        return Math.abs(b.diferenciaPorExplicar) - Math.abs(a.diferenciaPorExplicar);
       });
-    });
-
-    return resultado.sort((a, b) => {
-      const prioridad = [
-        "FALTANTE NUEVO",
-        "EMPEORÓ",
-        "NECESIDAD AUMENTÓ",
-        "NUEVO MATERIAL",
-        "FALTANTE CORREGIDO",
-        "MEJORÓ",
-        "NECESIDAD BAJÓ",
-        "MATERIAL ELIMINADO",
-        "SIN CAMBIO",
-      ];
-
-      return prioridad.indexOf(a.tipoCambio) - prioridad.indexOf(b.tipoCambio);
-    });
   }, [cargaAntes, cargaAhora]);
+
+  const diagnosticos = Array.from(new Set(variaciones.map((v) => v.diagnostico)));
+  const secciones = Array.from(
+    new Set(variaciones.map((v) => v.seccion).filter(Boolean))
+  ).sort();
 
   const variacionesFiltradas = variaciones.filter((row) => {
     const texto = busqueda.toLowerCase().trim();
-
     const coincideTexto =
-      texto === "" ||
+      !texto ||
       row.codigo.toLowerCase().includes(texto) ||
       row.material.toLowerCase().includes(texto) ||
-      row.seccion.toLowerCase().includes(texto) ||
-      row.tipoCambio.toLowerCase().includes(texto);
+      row.seccion.toLowerCase().includes(texto);
+    const coincideDiagnostico =
+      filtroDiagnostico === "TODOS" || row.diagnostico === filtroDiagnostico;
+    const coincideSeccion =
+      filtroSeccion === "TODAS" || row.seccion === filtroSeccion;
+    const coincideExplicar =
+      !soloPorExplicar ||
+      row.diagnostico === "REDUCCION NO EXPLICADA" ||
+      row.diagnostico === "CONSUMO MAYOR A REDUCCION";
 
-    const coincideTipo =
-      filtroTipo === "TODOS" || row.tipoCambio === filtroTipo;
-
-    return coincideTexto && coincideTipo;
+    return (
+      coincideTexto && coincideDiagnostico && coincideSeccion && coincideExplicar
+    );
   });
 
-  const tipos = Array.from(new Set(variaciones.map((v) => v.tipoCambio)));
+  const seleccionado = variaciones.find(
+    (row) => row.codigo === materialSeleccionado
+  );
 
-  const faltantesNuevos = variaciones.filter(
-    (v) => v.tipoCambio === "FALTANTE NUEVO"
-  ).length;
+  const resumen = {
+    aumentos: variaciones.filter((v) => v.diagnostico === "AUMENTO DE PLAN")
+      .length,
+    explicadas: variaciones.filter(
+      (v) => v.diagnostico === "REDUCCION EXPLICADA POR CONSUMO"
+    ).length,
+    porExplicar: variaciones.filter(
+      (v) =>
+        v.diagnostico === "REDUCCION NO EXPLICADA" ||
+        v.diagnostico === "CONSUMO MAYOR A REDUCCION"
+    ).length,
+    nuevos: variaciones.filter((v) => v.diagnostico === "NUEVO MATERIAL").length,
+    retirados: variaciones.filter((v) => v.diagnostico === "MATERIAL RETIRADO")
+      .length,
+    diferenciaTotal: variaciones.reduce(
+      (acc, row) => acc + row.diferenciaPorExplicar,
+      0
+    ),
+    consumoTotal: variaciones.reduce(
+      (acc, row) => acc + row.consumoNotificado,
+      0
+    ),
+  };
 
-  const corregidos = variaciones.filter(
-    (v) => v.tipoCambio === "FALTANTE CORREGIDO"
-  ).length;
+  const porcentajeExplicado =
+    variaciones.length > 0 ? (resumen.explicadas / variaciones.length) * 100 : 0;
 
-  const empeoraron = variaciones.filter(
-    (v) => v.tipoCambio === "EMPEORÓ" || v.tipoCambio === "NECESIDAD AUMENTÓ"
-  ).length;
-
-  const mejoraron = variaciones.filter(
-    (v) => v.tipoCambio === "MEJORÓ" || v.tipoCambio === "NECESIDAD BAJÓ"
-  ).length;
+  function toggleMaterial(codigo: string) {
+    setMaterialSeleccionado((actual) => (actual === codigo ? "" : codigo));
+  }
 
   return (
     <section className="space-y-5">
@@ -157,11 +210,11 @@ export default function VariacionModule() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h3 className="text-xl font-black text-slate-950">
-              Variaciones entre análisis
+              Control de variaciones del plan
             </h3>
             <p className="mt-1 text-sm font-medium text-slate-500">
-              Compara dos cargas guardadas y detecta cambios de necesidad,
-              faltantes nuevos y correcciones.
+              Compara plan anterior contra plan actual y valida si las reducciones
+              estan explicadas por consumo notificado.
             </p>
           </div>
         </div>
@@ -177,79 +230,76 @@ export default function VariacionModule() {
         <>
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-xs font-black uppercase text-slate-500">
-                  Carga anterior
-                </label>
-                <select
-                  value={cargaAntesId}
-                  onChange={(e) => setCargaAntesId(e.target.value)}
-                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none focus:border-[#e30613]"
-                >
-                  {cargas.map((carga) => (
-                    <option key={carga.id} value={carga.id}>
-                      {new Date(carga.fecha).toLocaleString("es-DO")} ·{" "}
-                      {carga.archivo}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-xs font-black uppercase text-slate-500">
-                  Carga actual
-                </label>
-                <select
-                  value={cargaAhoraId}
-                  onChange={(e) => setCargaAhoraId(e.target.value)}
-                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none focus:border-[#e30613]"
-                >
-                  {cargas.map((carga) => (
-                    <option key={carga.id} value={carga.id}>
-                      {new Date(carga.fecha).toLocaleString("es-DO")} ·{" "}
-                      {carga.archivo}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <SelectorCarga
+                label="Balance anterior"
+                value={cargaAntesId}
+                cargas={cargas}
+                onChange={setCargaAntesId}
+              />
+              <SelectorCarga
+                label="Balance actual"
+                value={cargaAhoraId}
+                cargas={cargas}
+                onChange={setCargaAhoraId}
+              />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-            <div className="rounded-2xl border border-red-100 bg-white p-5 shadow-sm">
-              <p className="text-sm font-semibold text-slate-500">
-                Faltantes nuevos
-              </p>
-              <p className="mt-1 text-3xl font-black text-[#e30613]">
-                {faltantesNuevos}
-              </p>
-            </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4 xl:grid-cols-7">
+            <Kpi
+              titulo="Aumentos"
+              valor={resumen.aumentos}
+              color="text-[#e30613]"
+              border="border-red-100"
+            />
+            <Kpi
+              titulo="Explicadas por consumo"
+              valor={resumen.explicadas}
+              color="text-emerald-700"
+              border="border-emerald-100"
+            />
+            <Kpi
+              titulo="Por explicar"
+              valor={resumen.porExplicar}
+              color="text-[#e30613]"
+              border="border-red-100"
+            />
+            <Kpi titulo="Nuevos" valor={resumen.nuevos} />
+            <Kpi titulo="Retirados" valor={resumen.retirados} />
+            <Kpi
+              titulo="% explicado"
+              valor={`${porcentajeExplicado.toFixed(1)}%`}
+              color="text-emerald-700"
+              border="border-emerald-100"
+            />
+            <Kpi
+              titulo="Dif. total"
+              valor={formatoNumero(resumen.diferenciaTotal)}
+              color="text-[#9a6a00]"
+              border="border-[#d4a017]/25"
+            />
+          </div>
 
-            <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
-              <p className="text-sm font-semibold text-slate-500">
-                Faltantes corregidos
-              </p>
-              <p className="mt-1 text-3xl font-black text-emerald-700">
-                {corregidos}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-[#d4a017]/25 bg-white p-5 shadow-sm">
-              <p className="text-sm font-semibold text-slate-500">
-                Empeoraron
-              </p>
-              <p className="mt-1 text-3xl font-black text-[#9a6a00]">
-                {empeoraron}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-sm font-semibold text-slate-500">
-                Mejoraron
-              </p>
-              <p className="mt-1 text-3xl font-black text-slate-950">
-                {mejoraron}
-              </p>
+          <div className="rounded-2xl border border-[#d4a017]/25 bg-[#fff8df] p-6 shadow-sm">
+            <p className="text-xs font-black uppercase tracking-wide text-[#9a6a00]">
+              Regla de lectura
+            </p>
+            <div className="mt-3 grid grid-cols-1 gap-3 text-sm font-black text-slate-800 md:grid-cols-5">
+              <div className="rounded-xl border border-white/70 bg-white px-4 py-3">
+                Movimiento = Plan actual - Plan anterior
+              </div>
+              <div className="flex items-center justify-center text-xl text-[#9a6a00]">
+                |
+              </div>
+              <div className="rounded-xl border border-white/70 bg-white px-4 py-3">
+                Si reduce, debe coincidir con consumo
+              </div>
+              <div className="flex items-center justify-center text-xl text-[#9a6a00]">
+                |
+              </div>
+              <div className="rounded-xl border border-white/70 bg-white px-4 py-3">
+                Diferencia por explicar = reduccion - consumo
+              </div>
             </div>
           </div>
 
@@ -260,155 +310,164 @@ export default function VariacionModule() {
                   Detalle de variaciones
                 </h4>
                 <p className="mt-1 text-sm font-semibold text-slate-500">
-                  Mostrando {variacionesFiltradas.length} de{" "}
-                  {variaciones.length} cambios.
+                  Mostrando {variacionesFiltradas.length} de {variaciones.length}
+                  materiales evaluados.
                 </p>
               </div>
 
-              <div className="grid w-full grid-cols-1 gap-3 md:w-auto md:grid-cols-3">
+              <div className="grid w-full grid-cols-1 gap-3 md:w-auto md:grid-cols-5">
                 <input
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
-                  placeholder="Buscar componente, material, sección..."
-                  className="h-11 min-w-[320px] rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#e30613] focus:ring-4 focus:ring-[#e30613]/10"
+                  placeholder="Buscar material, texto breve, seccion..."
+                  className="h-11 min-w-[280px] rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#e30613] focus:ring-4 focus:ring-[#e30613]/10"
                 />
 
                 <select
-                  value={filtroTipo}
-                  onChange={(e) => setFiltroTipo(e.target.value)}
+                  value={filtroDiagnostico}
+                  onChange={(e) => setFiltroDiagnostico(e.target.value)}
                   className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#e30613]"
                 >
-                  <option value="TODOS">Todos los cambios</option>
-                  {tipos.map((tipo) => (
-                    <option key={tipo} value={tipo}>
-                      {tipo}
+                  <option value="TODOS">Todos los diagnosticos</option>
+                  {diagnosticos.map((diag) => (
+                    <option key={diag} value={diag}>
+                      {diag}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={filtroSeccion}
+                  onChange={(e) => setFiltroSeccion(e.target.value)}
+                  className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#e30613]"
+                >
+                  <option value="TODAS">Todas las secciones</option>
+                  {secciones.map((seccion) => (
+                    <option key={seccion} value={seccion}>
+                      {seccion}
                     </option>
                   ))}
                 </select>
 
                 <button
+                  onClick={() => setSoloPorExplicar(!soloPorExplicar)}
+                  className={`h-11 rounded-xl border px-4 text-sm font-black transition ${
+                    soloPorExplicar
+                      ? "border-red-100 bg-red-50 text-[#e30613]"
+                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  Por explicar
+                </button>
+
+                <button
                   onClick={() => {
                     setBusqueda("");
-                    setFiltroTipo("TODOS");
+                    setFiltroDiagnostico("TODOS");
+                    setFiltroSeccion("TODAS");
+                    setSoloPorExplicar(false);
                   }}
                   className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50"
                 >
-                  Limpiar filtros
+                  Limpiar
                 </button>
               </div>
             </div>
 
             <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
               <div className="max-h-[620px] overflow-auto">
-                <table className="w-full min-w-[1400px] border-collapse text-sm">
+                <table className="w-full min-w-[1500px] border-collapse text-sm">
                   <thead className="sticky top-0 z-20 bg-[#f8f8f6]">
                     <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                      <th className="px-4 py-3 text-left font-black">Material</th>
                       <th className="px-4 py-3 text-left font-black">
-                        Componente
+                        Texto breve del material
                       </th>
-                      <th className="px-4 py-3 text-left font-black">
-                        Material
-                      </th>
-                      <th className="px-4 py-3 text-left font-black">
-                        Sección
+                      <th className="px-4 py-3 text-left font-black">Seccion</th>
+                      <th className="px-4 py-3 text-right font-black">
+                        Plan anterior
                       </th>
                       <th className="px-4 py-3 text-right font-black">
-                        Necesidad antes
+                        Plan actual
                       </th>
                       <th className="px-4 py-3 text-right font-black">
-                        Necesidad ahora
+                        Movimiento del plan
                       </th>
                       <th className="px-4 py-3 text-right font-black">
-                        Var. necesidad
+                        Consumo notificado
                       </th>
                       <th className="px-4 py-3 text-right font-black">
-                        Dif. antes
-                      </th>
-                      <th className="px-4 py-3 text-right font-black">
-                        Dif. ahora
-                      </th>
-                      <th className="px-4 py-3 text-right font-black">
-                        Var. diferencia
+                        Diferencia por explicar
                       </th>
                       <th className="px-4 py-3 text-left font-black">
-                        Cambio
+                        Diagnostico
                       </th>
                     </tr>
                   </thead>
 
                   <tbody>
-                    {variacionesFiltradas.map((row, i) => (
+                    {variacionesFiltradas.map((row) => (
                       <tr
-                        key={`${row.codigo}-${i}`}
-                        className="border-b border-slate-100 bg-white transition hover:bg-[#fbfbfa]"
+                        key={row.codigo}
+                        onClick={() => toggleMaterial(row.codigo)}
+                        className={`cursor-pointer border-b border-slate-100 transition ${
+                          materialSeleccionado === row.codigo
+                            ? "bg-[#fff8df]"
+                            : "bg-white hover:bg-[#fbfbfa]"
+                        }`}
                       >
                         <td className="px-4 py-3 font-black text-slate-950">
                           {row.codigo}
                         </td>
-
                         <td className="max-w-[360px] px-4 py-3 font-medium text-slate-700">
                           {row.material}
                         </td>
-
                         <td className="px-4 py-3 font-semibold text-slate-500">
                           {row.seccion || "-"}
                         </td>
-
                         <td className="px-4 py-3 text-right font-semibold">
-                          {formatoNumero(row.necesidadAntes)}
+                          {formatoNumero(row.planAnterior)}
                         </td>
-
                         <td className="px-4 py-3 text-right font-semibold">
-                          {formatoNumero(row.necesidadAhora)}
+                          {formatoNumero(row.planActual)}
                         </td>
-
                         <td
                           className={`px-4 py-3 text-right font-black ${
-                            row.variacionNecesidad > 0
+                            row.movimientoPlan > 0
                               ? "text-[#e30613]"
-                              : row.variacionNecesidad < 0
+                              : row.movimientoPlan < 0
                               ? "text-emerald-700"
                               : "text-slate-500"
                           }`}
                         >
-                          {formatoNumero(row.variacionNecesidad)}
+                          {formatoNumero(row.movimientoPlan)}
                         </td>
-
-                        <td className="px-4 py-3 text-right font-semibold">
-                          {formatoNumero(row.diferenciaAntes)}
+                        <td className="px-4 py-3 text-right font-black text-[#9a6a00]">
+                          {formatoNumero(row.consumoNotificado)}
                         </td>
-
-                        <td className="px-4 py-3 text-right font-semibold">
-                          {formatoNumero(row.diferenciaAhora)}
-                        </td>
-
                         <td
                           className={`px-4 py-3 text-right font-black ${
-                            row.variacionDiferencia < 0
+                            Math.abs(row.diferenciaPorExplicar) > 0
                               ? "text-[#e30613]"
-                              : row.variacionDiferencia > 0
-                              ? "text-emerald-700"
-                              : "text-slate-500"
+                              : "text-emerald-700"
                           }`}
                         >
-                          {formatoNumero(row.variacionDiferencia)}
+                          {formatoNumero(row.diferenciaPorExplicar)}
                         </td>
-
                         <td className="px-4 py-3">
                           <span
                             className={`rounded-full px-3 py-1 text-xs font-black ${
-                              row.tipoCambio === "FALTANTE NUEVO" ||
-                              row.tipoCambio === "EMPEORÓ" ||
-                              row.tipoCambio === "NECESIDAD AUMENTÓ"
+                              row.diagnostico === "REDUCCION NO EXPLICADA" ||
+                              row.diagnostico === "CONSUMO MAYOR A REDUCCION" ||
+                              row.diagnostico === "AUMENTO DE PLAN"
                                 ? "bg-red-50 text-[#e30613]"
-                                : row.tipoCambio === "FALTANTE CORREGIDO" ||
-                                  row.tipoCambio === "MEJORÓ" ||
-                                  row.tipoCambio === "NECESIDAD BAJÓ"
+                                : row.diagnostico ===
+                                  "REDUCCION EXPLICADA POR CONSUMO"
                                 ? "bg-emerald-50 text-emerald-700"
                                 : "bg-slate-100 text-slate-600"
                             }`}
                           >
-                            {row.tipoCambio}
+                            {row.diagnostico}
                           </span>
                         </td>
                       </tr>
@@ -429,8 +488,140 @@ export default function VariacionModule() {
               </div>
             </div>
           </div>
+
+          {seleccionado && (
+            <div className="rounded-2xl border border-[#d4a017]/25 bg-[#fff8df] p-6 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wide text-[#9a6a00]">
+                    Detalle semanal del movimiento
+                  </p>
+                  <h4 className="mt-1 text-xl font-black text-slate-950">
+                    {seleccionado.codigo}
+                  </h4>
+                  <p className="mt-1 text-sm font-semibold text-slate-600">
+                    {seleccionado.material}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setMaterialSeleccionado("")}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-50"
+                >
+                  Cerrar detalle
+                </button>
+              </div>
+
+              <div className="mt-5 overflow-hidden rounded-2xl border border-white/70 bg-white">
+                <div className="max-h-[360px] overflow-auto">
+                  <table className="w-full min-w-[900px] border-collapse text-sm">
+                    <thead className="sticky top-0 z-20 bg-[#f8f8f6]">
+                      <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                        <th className="px-4 py-3 text-left font-black">Semana</th>
+                        <th className="px-4 py-3 text-right font-black">
+                          Plan anterior
+                        </th>
+                        <th className="px-4 py-3 text-right font-black">
+                          Plan actual
+                        </th>
+                        <th className="px-4 py-3 text-right font-black">
+                          Movimiento
+                        </th>
+                        <th className="px-4 py-3 text-left font-black">
+                          Lectura
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {seleccionado.semanas.map((sem) => (
+                        <tr key={sem.semana} className="border-b border-slate-100">
+                          <td className="px-4 py-3 font-black text-slate-950">
+                            {sem.semana}
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold">
+                            {formatoNumero(sem.anterior)}
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold">
+                            {formatoNumero(sem.actual)}
+                          </td>
+                          <td
+                            className={`px-4 py-3 text-right font-black ${
+                              sem.movimiento > 0
+                                ? "text-[#e30613]"
+                                : sem.movimiento < 0
+                                ? "text-emerald-700"
+                                : "text-slate-500"
+                            }`}
+                          >
+                            {formatoNumero(sem.movimiento)}
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-slate-600">
+                            {sem.movimiento > 0
+                              ? "Aumento en esta semana"
+                              : sem.movimiento < 0
+                              ? "Reduccion en esta semana"
+                              : "Sin cambio"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </section>
+  );
+}
+
+function SelectorCarga({
+  label,
+  value,
+  cargas,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  cargas: SavedLoad[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <label className="mb-2 block text-xs font-black uppercase text-slate-500">
+        {label}
+      </label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none focus:border-[#e30613]"
+      >
+        {cargas.map((carga) => (
+          <option key={carga.id} value={carga.id}>
+            {new Date(carga.fecha).toLocaleString("es-DO")} - {carga.archivo}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function Kpi({
+  titulo,
+  valor,
+  color = "text-slate-950",
+  border = "border-slate-200",
+}: {
+  titulo: string;
+  valor: string | number;
+  color?: string;
+  border?: string;
+}) {
+  return (
+    <div className={`rounded-2xl border ${border} bg-white p-5 shadow-sm`}>
+      <p className="text-sm font-semibold text-slate-500">{titulo}</p>
+      <p className={`mt-1 text-2xl font-black ${color}`}>{valor}</p>
+    </div>
   );
 }

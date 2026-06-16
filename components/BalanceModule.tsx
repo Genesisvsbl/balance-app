@@ -5,7 +5,7 @@ import { generarBalance } from "@/lib/balance";
 import { guardarCarga, crearNombreBalance } from "@/lib/storage";
 import { BalanceInfo, BalanceRow, ExcelData, SavedLoad } from "@/types/balance";
 import { formatoNumero } from "@/lib/format";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 
 type Props = {
   datos: ExcelData;
@@ -29,6 +29,11 @@ type ColumnVisibility = {
   diferenciasSemana: boolean;
   estado: boolean;
 };
+
+type SortConfig = {
+  key: string;
+  direction: "asc" | "desc";
+} | null;
 
 function crearVisibilidadInicial(almacenes: string[]): ColumnVisibility {
   const almacenesVisibles: Record<string, boolean> = {};
@@ -64,6 +69,8 @@ export default function BalanceModule({
   const [filtroSeccion, setFiltroSeccion] = useState("TODAS");
   const [filtroEstado, setFiltroEstado] = useState("TODOS");
   const [mostrarColumnas, setMostrarColumnas] = useState(false);
+  const [semanasTransito, setSemanasTransito] = useState<string[]>([]);
+  const [orden, setOrden] = useState<SortConfig>(null);
   const [visibilidad, setVisibilidad] = useState<ColumnVisibility>(
     crearVisibilidadInicial([])
   );
@@ -152,6 +159,65 @@ export default function BalanceModule({
     });
   }
 
+  function toggleSemanaTransito(semana: string) {
+    setSemanasTransito((actual) =>
+      actual.includes(semana)
+        ? actual.filter((item) => item !== semana)
+        : [...actual, semana]
+    );
+  }
+
+  function ordenarPor(key: string) {
+    setOrden((actual) => {
+      if (actual?.key !== key) return { key, direction: "asc" };
+      return {
+        key,
+        direction: actual.direction === "asc" ? "desc" : "asc",
+      };
+    });
+  }
+
+  function obtenerValorOrden(row: BalanceRow, key: string) {
+    if (key.startsWith("sem:")) {
+      return row.necesidadesPorSemana[key.replace("sem:", "")] || 0;
+    }
+    if (key.startsWith("alm:")) {
+      return row.almacenes[key.replace("alm:", "")] || 0;
+    }
+    if (key.startsWith("dif:")) {
+      return row.diferenciasPorSemana[key.replace("dif:", "")] || 0;
+    }
+    if (key.startsWith("transitoFecha:")) {
+      const semana = key.replace("transitoFecha:", "");
+      return row.transitosPorSemana?.[semana]?.[0]?.fechaOperativa || "";
+    }
+    if (key.startsWith("transitoCantidad:")) {
+      const semana = key.replace("transitoCantidad:", "");
+      return row.recepcionesPorSemana?.[semana] || 0;
+    }
+
+    switch (key) {
+      case "codigo":
+        return row.codigo;
+      case "material":
+        return row.material;
+      case "um":
+        return row.um;
+      case "seccion":
+        return row.seccion;
+      case "totalNecesidad":
+        return row.totalNecesidad;
+      case "totalExistencia":
+        return row.totalExistencia;
+      case "diferenciaTotal":
+        return row.diferenciaTotal;
+      case "estado":
+        return row.estado;
+      default:
+        return "";
+    }
+  }
+
   function ejecutarBalance() {
     try {
       const resultado = generarBalance(datos);
@@ -163,7 +229,7 @@ export default function BalanceModule({
     }
   }
 
-  function guardarBalanceActual() {
+  async function guardarBalanceActual() {
     if (!infoAnalisis || analisis.length === 0) {
       alert("Primero genera un balance.");
       return;
@@ -186,9 +252,12 @@ export default function BalanceModule({
       info: infoAnalisis,
     };
 
-    guardarCarga(carga);
-
-    alert("Balance guardado correctamente.");
+    try {
+      await guardarCarga(carga);
+      alert("Balance guardado correctamente.");
+    } catch (error: any) {
+      alert(error.message || "No se pudo guardar el balance.");
+    }
   }
 
   const filtrado = analisis.filter((row) => {
@@ -211,8 +280,30 @@ export default function BalanceModule({
     return coincideTexto && coincideSeccion && coincideEstado;
   });
 
+  const filtradoOrdenado = useMemo(() => {
+    if (!orden) return filtrado;
+
+    return [...filtrado].sort((a, b) => {
+      const valorA = obtenerValorOrden(a, orden.key);
+      const valorB = obtenerValorOrden(b, orden.key);
+
+      let comparacion = 0;
+      if (typeof valorA === "number" && typeof valorB === "number") {
+        comparacion = valorA - valorB;
+      } else {
+        comparacion = String(valorA ?? "").localeCompare(
+          String(valorB ?? ""),
+          "es",
+          { numeric: true, sensitivity: "base" }
+        );
+      }
+
+      return orden.direction === "asc" ? comparacion : -comparacion;
+    });
+  }, [filtrado, orden]);
+
   function exportar() {
-    const dataExport = filtrado.map((row) => {
+    const dataExport = filtradoOrdenado.map((row) => {
       const base: any = {};
 
       if (visibilidad.codigo) base["N° componente"] = row.codigo;
@@ -223,6 +314,20 @@ export default function BalanceModule({
       if (visibilidad.semanas) {
         columnasSemana.forEach((sem) => {
           base[sem] = row.necesidadesPorSemana[sem] || 0;
+          if (semanasTransito.includes(sem)) {
+            const transitos = row.transitosPorSemana?.[sem] || [];
+            const fechas = Array.from(
+              new Set(
+                transitos
+                  .map((item) => item.fechaOperativa)
+                  .filter(Boolean)
+              )
+            );
+
+            base[`Fecha operativa ${sem}`] = fechas.join(", ");
+            base[`Cantidad transito ${sem}`] =
+              row.recepcionesPorSemana?.[sem] || 0;
+          }
         });
       }
 
@@ -265,6 +370,25 @@ export default function BalanceModule({
   const almacenesVisibles = almacenesDetectados.filter(
     (alm) => visibilidad.almacenes[alm]
   );
+
+  const resumenValoresInventario = analisis.reduce(
+    (acc, row) => {
+      acc.libre += row.valorInventarioLibre || 0;
+      acc.bloqueado += row.valorInventarioBloqueado || 0;
+      acc.total += row.valorStockTotal || 0;
+      return acc;
+    },
+    { libre: 0, bloqueado: 0, total: 0 }
+  );
+  const valoresInventario = {
+    libre:
+      infoAnalisis?.valorInventarioLibre ?? resumenValoresInventario.libre,
+    bloqueado:
+      infoAnalisis?.valorInventarioBloqueado ??
+      resumenValoresInventario.bloqueado,
+    total:
+      infoAnalisis?.valorInventarioTotal ?? resumenValoresInventario.total,
+  };
 
   return (
     <section className="space-y-5">
@@ -309,35 +433,66 @@ export default function BalanceModule({
       </div>
 
       {infoAnalisis && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-slate-500">Componentes</p>
-            <p className="mt-1 text-3xl font-black text-slate-950">
-              {infoAnalisis.totalComponentes}
-            </p>
+        <>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
+              <p className="text-sm font-semibold text-slate-500">
+                Valor inventario libre
+              </p>
+              <p className="mt-1 text-3xl font-black text-emerald-700">
+                {formatoNumero(valoresInventario.libre)}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-[#d4a017]/25 bg-white p-5 shadow-sm">
+              <p className="text-sm font-semibold text-slate-500">
+                Valor inventario bloqueado
+              </p>
+              <p className="mt-1 text-3xl font-black text-[#9a6a00]">
+                {formatoNumero(valoresInventario.bloqueado)}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-sm font-semibold text-slate-500">
+                Valor inventario total
+              </p>
+              <p className="mt-1 text-3xl font-black text-slate-950">
+                {formatoNumero(valoresInventario.total)}
+              </p>
+            </div>
           </div>
 
-          <div className="rounded-2xl border border-red-100 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-slate-500">Faltantes</p>
-            <p className="mt-1 text-3xl font-black text-[#e30613]">
-              {infoAnalisis.totalFaltantes}
-            </p>
-          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-sm font-semibold text-slate-500">Componentes</p>
+              <p className="mt-1 text-3xl font-black text-slate-950">
+                {infoAnalisis.totalComponentes}
+              </p>
+            </div>
 
-          <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-slate-500">Sobrantes</p>
-            <p className="mt-1 text-3xl font-black text-emerald-700">
-              {infoAnalisis.totalSobrantes}
-            </p>
-          </div>
+            <div className="rounded-2xl border border-red-100 bg-white p-5 shadow-sm">
+              <p className="text-sm font-semibold text-slate-500">Faltantes</p>
+              <p className="mt-1 text-3xl font-black text-[#e30613]">
+                {infoAnalisis.totalFaltantes}
+              </p>
+            </div>
 
-          <div className="rounded-2xl border border-[#d4a017]/25 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-slate-500">Base balance</p>
-            <p className="mt-1 text-2xl font-black text-[#9a6a00]">
-              AG01 + AG04
-            </p>
+            <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
+              <p className="text-sm font-semibold text-slate-500">Sobrantes</p>
+              <p className="mt-1 text-3xl font-black text-emerald-700">
+                {infoAnalisis.totalSobrantes}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-[#d4a017]/25 bg-white p-5 shadow-sm">
+              <p className="text-sm font-semibold text-slate-500">Base balance</p>
+              <p className="mt-1 text-2xl font-black text-[#9a6a00]">
+                AG01 + AG04
+              </p>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {analisis.length > 0 && (
@@ -523,87 +678,159 @@ export default function BalanceModule({
                 <thead className="sticky top-0 z-20 bg-[#f8f8f6]">
                   <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                     {visibilidad.codigo && (
-                      <th className="px-4 py-3 text-left font-black">
-                        Componente
-                      </th>
+                      <SortHeader
+                        label="Material"
+                        sortKey="codigo"
+                        orden={orden}
+                        onSort={ordenarPor}
+                      />
                     )}
 
                     {visibilidad.material && (
-                      <th className="px-4 py-3 text-left font-black">
-                        Material
-                      </th>
+                      <SortHeader
+                        label="Texto breve del material"
+                        sortKey="material"
+                        orden={orden}
+                        onSort={ordenarPor}
+                      />
                     )}
 
                     {visibilidad.um && (
-                      <th className="px-4 py-3 text-left font-black">UM</th>
+                      <SortHeader
+                        label="UM"
+                        sortKey="um"
+                        orden={orden}
+                        onSort={ordenarPor}
+                      />
                     )}
 
                     {visibilidad.seccion && (
-                      <th className="px-4 py-3 text-left font-black">
-                        Sección
-                      </th>
+                      <SortHeader
+                        label="Seccion"
+                        sortKey="seccion"
+                        orden={orden}
+                        onSort={ordenarPor}
+                      />
                     )}
 
                     {visibilidad.semanas &&
-                      columnasSemana.map((sem) => (
-                        <th
-                          key={sem}
-                          className="px-4 py-3 text-right font-black"
-                        >
-                          {sem}
-                        </th>
-                      ))}
+                      columnasSemana.map((sem) => {
+                        const activo = semanasTransito.includes(sem);
+
+                        return (
+                          <Fragment key={sem}>
+                            <th className="px-4 py-3 text-right font-black">
+                              <button
+                                type="button"
+                                onClick={() => toggleSemanaTransito(sem)}
+                                className={`w-full text-right uppercase transition ${
+                                  activo
+                                    ? "text-[#e30613]"
+                                    : "text-slate-500 hover:text-slate-950"
+                                }`}
+                                title="Mostrar u ocultar plan en transito"
+                              >
+                                {sem}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => ordenarPor(`sem:${sem}`)}
+                                className="mt-1 text-[10px] font-black text-slate-400 hover:text-slate-950"
+                              >
+                                Orden {orden?.key === `sem:${sem}` ? orden.direction : ""}
+                              </button>
+                            </th>
+                            {activo && (
+                              <>
+                                <SortHeader
+                                  label={`Fecha operativa ${sem}`}
+                                  sortKey={`transitoFecha:${sem}`}
+                                  orden={orden}
+                                  onSort={ordenarPor}
+                                  align="right"
+                                />
+                                <SortHeader
+                                  label={`Cantidad transito ${sem}`}
+                                  sortKey={`transitoCantidad:${sem}`}
+                                  orden={orden}
+                                  onSort={ordenarPor}
+                                  align="right"
+                                />
+                              </>
+                            )}
+                          </Fragment>
+                        );
+                      })}
 
                     {visibilidad.totalNecesidad && (
-                      <th className="px-4 py-3 text-right font-black">
-                        Total necesidad
-                      </th>
+                      <SortHeader
+                        label="Total necesidad"
+                        sortKey="totalNecesidad"
+                        orden={orden}
+                        onSort={ordenarPor}
+                        align="right"
+                      />
                     )}
 
                     {almacenesDetectados.map(
                       (alm) =>
                         visibilidad.almacenes[alm] && (
-                          <th
+                          <SortHeader
                             key={alm}
-                            className="px-4 py-3 text-right font-black"
-                          >
-                            {alm}
-                          </th>
+                            label={alm}
+                            sortKey={`alm:${alm}`}
+                            orden={orden}
+                            onSort={ordenarPor}
+                            align="right"
+                          />
                         )
                     )}
 
                     {visibilidad.totalExistencia && (
-                      <th className="px-4 py-3 text-right font-black">
-                        AG01 + AG04
-                      </th>
+                      <SortHeader
+                        label="AG01 + AG04"
+                        sortKey="totalExistencia"
+                        orden={orden}
+                        onSort={ordenarPor}
+                        align="right"
+                      />
                     )}
 
                     {visibilidad.diferenciaTotal && (
-                      <th className="px-4 py-3 text-right font-black">
-                        Diferencia
-                      </th>
+                      <SortHeader
+                        label="Diferencia"
+                        sortKey="diferenciaTotal"
+                        orden={orden}
+                        onSort={ordenarPor}
+                        align="right"
+                      />
                     )}
 
                     {visibilidad.diferenciasSemana &&
                       columnasSemana.map((sem) => (
-                        <th
+                        <SortHeader
                           key={`dif-${sem}`}
-                          className="px-4 py-3 text-right font-black"
-                        >
-                          Dif. {sem}
-                        </th>
+                          label={`Dif. ${sem}`}
+                          sortKey={`dif:${sem}`}
+                          orden={orden}
+                          onSort={ordenarPor}
+                          align="right"
+                        />
                       ))}
 
                     {visibilidad.estado && (
-                      <th className="px-4 py-3 text-left font-black">
-                        Estado
-                      </th>
+                      <SortHeader
+                        label="Estado"
+                        sortKey="estado"
+                        orden={orden}
+                        onSort={ordenarPor}
+                      />
                     )}
                   </tr>
                 </thead>
 
                 <tbody>
-                  {filtrado.map((row, i) => (
+                  {filtradoOrdenado.map((row, i) => (
                     <tr
                       key={`${row.codigo}-${i}`}
                       className="border-b border-slate-100 bg-white transition hover:bg-[#fbfbfa]"
@@ -633,14 +860,39 @@ export default function BalanceModule({
                       )}
 
                       {visibilidad.semanas &&
-                        columnasSemana.map((sem) => (
-                          <td
-                            key={sem}
-                            className="px-4 py-3 text-right font-medium text-slate-700"
-                          >
-                            {formatoNumero(row.necesidadesPorSemana[sem] || 0)}
-                          </td>
-                        ))}
+                        columnasSemana.map((sem) => {
+                          const activo = semanasTransito.includes(sem);
+                          const transitos = row.transitosPorSemana?.[sem] || [];
+                          const fechas = Array.from(
+                            new Set(
+                              transitos
+                                .map((item) => item.fechaOperativa)
+                                .filter(Boolean)
+                            )
+                          );
+                          const cantidadTransito =
+                            row.recepcionesPorSemana?.[sem] || 0;
+
+                          return (
+                            <Fragment key={sem}>
+                              <td className="px-4 py-3 text-right font-medium text-slate-700">
+                                {formatoNumero(
+                                  row.necesidadesPorSemana[sem] || 0
+                                )}
+                              </td>
+                              {activo && (
+                                <>
+                                  <td className="min-w-[150px] px-4 py-3 text-right font-semibold text-slate-600">
+                                    {fechas.length > 0 ? fechas.join(", ") : "-"}
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-black text-[#9a6a00]">
+                                    {formatoNumero(cantidadTransito)}
+                                  </td>
+                                </>
+                              )}
+                            </Fragment>
+                          );
+                        })}
 
                       {visibilidad.totalNecesidad && (
                         <td className="px-4 py-3 text-right font-black text-slate-950">
@@ -751,5 +1003,42 @@ function Toggle({
       <span className="mr-2 inline-block">{checked ? "●" : "○"}</span>
       {label}
     </button>
+  );
+}
+
+function SortHeader({
+  label,
+  sortKey,
+  orden,
+  onSort,
+  align = "left",
+}: {
+  label: string;
+  sortKey: string;
+  orden: SortConfig;
+  onSort: (key: string) => void;
+  align?: "left" | "right";
+}) {
+  const activo = orden?.key === sortKey;
+  const marca = activo ? (orden.direction === "asc" ? "asc" : "desc") : "";
+
+  return (
+    <th
+      className={`px-4 py-3 font-black ${
+        align === "right" ? "text-right" : "text-left"
+      }`}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={`w-full uppercase transition ${
+          align === "right" ? "text-right" : "text-left"
+        } ${activo ? "text-[#e30613]" : "text-slate-500 hover:text-slate-950"}`}
+        title="Ordenar columna"
+      >
+        {label}
+        {marca && <span className="ml-1 text-[10px]">{marca}</span>}
+      </button>
+    </th>
   );
 }

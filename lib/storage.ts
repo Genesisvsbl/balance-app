@@ -1,28 +1,44 @@
 import { SavedLoad } from "@/types/balance";
 
-const STORAGE_KEY = "balance_cargas_guardadas";
+async function parseResponse<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || "No se pudo completar la operacion.");
+  }
 
-export function guardarCarga(carga: SavedLoad) {
-  const cargas = obtenerCargas();
-  const nuevasCargas = [carga, ...cargas];
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(nuevasCargas));
+  return response.json();
 }
 
-export function obtenerCargas(): SavedLoad[] {
-  if (typeof window === "undefined") return [];
-
-  const data = localStorage.getItem(STORAGE_KEY);
-  return data ? JSON.parse(data) : [];
+export async function guardarCarga(carga: SavedLoad) {
+  await parseResponse<{ ok: boolean }>(
+    await fetch("/api/balance-runs", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(carga),
+    })
+  );
 }
 
-export function eliminarCarga(id: string) {
-  const cargas = obtenerCargas();
-  const nuevasCargas = cargas.filter((carga) => carga.id !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(nuevasCargas));
+export async function obtenerCargas(): Promise<SavedLoad[]> {
+  return parseResponse<SavedLoad[]>(await fetch("/api/balance-runs"));
 }
 
-export function limpiarCargas() {
-  localStorage.removeItem(STORAGE_KEY);
+export async function eliminarCarga(id: string) {
+  await parseResponse<{ ok: boolean }>(
+    await fetch(`/api/balance-runs/${id}`, {
+      method: "DELETE",
+    })
+  );
+}
+
+export async function limpiarCargas() {
+  await parseResponse<{ ok: boolean }>(
+    await fetch("/api/balance-runs", {
+      method: "DELETE",
+    })
+  );
 }
 
 export function crearNombreBalance() {

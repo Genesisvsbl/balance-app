@@ -21,7 +21,13 @@ export function convertirNumero(valor: any) {
       texto = texto.replace(/,/g, "");
     }
   } else if (tieneComa && !tienePunto) {
-    texto = texto.replace(",", ".");
+    const partes = texto.split(",");
+    const esMiles =
+      partes.length > 2 || (partes.length === 2 && partes[1].length === 3);
+    texto = esMiles ? texto.replace(/,/g, "") : texto.replace(",", ".");
+  } else if (tienePunto && !tieneComa) {
+    const partes = texto.split(".");
+    if (partes.length > 2) texto = texto.replace(/\./g, "");
   }
 
   texto = texto.replace(/[^\d.-]/g, "");

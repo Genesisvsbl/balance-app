@@ -8,9 +8,9 @@ type Props = {
 const modules = [
   { id: "importacion", label: "Bases" },
   { id: "balance", label: "Balance" },
-  { id: "historico", label: "Histórico" },
-  { id: "variacion", label: "Variaciones" },
   { id: "dashboard", label: "Dashboard" },
+  { id: "variacion", label: "Variaciones" },
+  { id: "historico", label: "Histórico" },
 ];
 
 export default function TopNav({ active, setActive }: Props) {

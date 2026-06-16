@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { obtenerCargas, limpiarCargas, eliminarCarga } from "@/lib/storage";
 import { SavedLoad } from "@/types/balance";
 
+const CLAVE_AVAL = "balance2026";
+
 type Props = {
   onLoad: (data: SavedLoad) => void;
 };
@@ -12,8 +14,12 @@ export default function HistoricoModule({ onLoad }: Props) {
   const [cargas, setCargas] = useState<SavedLoad[]>([]);
   const [busqueda, setBusqueda] = useState("");
 
-  function cargar() {
-    setCargas(obtenerCargas());
+  async function cargar() {
+    try {
+      setCargas(await obtenerCargas());
+    } catch (error: any) {
+      alert(error.message || "No se pudo cargar el historico.");
+    }
   }
 
   useEffect(() => {
@@ -37,22 +43,30 @@ export default function HistoricoModule({ onLoad }: Props) {
     onLoad(carga);
   }
 
-  function borrarUno(id: string) {
-    const confirmar = confirm(
-      "¿Seguro que deseas eliminar este balance guardado?"
-    );
-    if (!confirmar) return;
+  function pedirAval(mensaje: string) {
+    const clave = prompt(`${mensaje}\n\nIngresa la clave de acceso para avalar:`);
 
-    eliminarCarga(id);
-    cargar();
+    if (clave === null) return false;
+    if (clave !== CLAVE_AVAL) {
+      alert("Clave incorrecta. No se realizo ningun borrado.");
+      return false;
+    }
+
+    return true;
   }
 
-  function borrarTodo() {
-    const confirmar = confirm("¿Seguro que deseas limpiar todo el histórico?");
-    if (!confirmar) return;
+  async function borrarUno(id: string) {
+    if (!pedirAval("Seguro que deseas borrar este balance guardado?")) return;
 
-    limpiarCargas();
-    cargar();
+    await eliminarCarga(id);
+    await cargar();
+  }
+
+  async function borrarTodo() {
+    if (!pedirAval("Seguro que deseas limpiar todo el historico?")) return;
+
+    await limpiarCargas();
+    await cargar();
   }
 
   return (
@@ -193,8 +207,9 @@ export default function HistoricoModule({ onLoad }: Props) {
                         <button
                           onClick={() => borrarUno(carga.id)}
                           className="rounded-lg border border-[#e30613]/30 px-3 py-2 text-xs font-black text-[#e30613] hover:bg-red-50"
+                          title="Borrar balance"
                         >
-                          Eliminar
+                          🗑 Borrar
                         </button>
                       </div>
                     </td>
