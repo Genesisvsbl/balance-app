@@ -13,13 +13,16 @@
   from = "/api/auth-login"
   to = "/.netlify/functions/auth-login"
   status = 200
+  force = true
 
 [[redirects]]
   from = "/api/balance-runs"
   to = "/.netlify/functions/balance-runs"
   status = 200
+  force = true
 
 [[redirects]]
   from = "/api/balance-run"
   to = "/.netlify/functions/balance-run"
   status = 200
+  force = true

@@ -13,7 +13,7 @@ type Props = {
   onLogin: (user: AppUser) => void;
 };
 
-const LOGIN_ENDPOINTS = ["/.netlify/functions/auth-login", "/api/auth-login"];
+const LOGIN_ENDPOINTS = ["/api/auth-login", "/.netlify/functions/auth-login"];
 
 export default function Login({ onLogin }: Props) {
   const [usuario, setUsuario] = useState("");
@@ -43,7 +43,7 @@ export default function Login({ onLogin }: Props) {
         const contentType = response.headers.get("content-type") || "";
 
         if (!contentType.includes("application/json")) {
-          lastError = "La ruta de login devolvio HTML. Reintentando...";
+          lastError = `La ruta ${endpoint} devolvio HTML.`;
           continue;
         }
 
