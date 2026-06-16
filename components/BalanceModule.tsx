@@ -396,10 +396,19 @@ export default function BalanceModule({
     total:
       infoAnalisis?.valorInventarioTotal ?? resumenValoresInventario.total,
   };
-  const stockBaseTotal = analisis.reduce(
-    (acc, row) => acc + (row.totalExistencia || 0),
-    0
-  );
+  const primeraSemanaValidacion = columnasSemana[0] || "";
+  const skusPrimeraSemana = primeraSemanaValidacion
+    ? analisis.filter(
+        (row) => (row.necesidadesPorSemana[primeraSemanaValidacion] || 0) > 0
+      ).length
+    : 0;
+  const necesidadPrimeraSemana = primeraSemanaValidacion
+    ? analisis.reduce(
+        (acc, row) =>
+          acc + (row.necesidadesPorSemana[primeraSemanaValidacion] || 0),
+        0
+      )
+    : 0;
 
   return (
     <section className="space-y-4">
@@ -498,10 +507,13 @@ export default function BalanceModule({
 
             <div className="rounded-xl border border-[#d4a017]/25 bg-white p-4 shadow-sm">
               <p className="text-xs font-semibold text-slate-500">
-                Stock base AG01 + AG04
+                SKU a validar {primeraSemanaValidacion || ""}
               </p>
               <p className="mt-1 truncate text-xl font-black text-[#9a6a00]">
-                {formatoNumero(stockBaseTotal)}
+                {skusPrimeraSemana}
+              </p>
+              <p className="mt-1 truncate text-[11px] font-semibold text-slate-500">
+                Necesidad: {formatoNumero(necesidadPrimeraSemana)}
               </p>
             </div>
           </div>
