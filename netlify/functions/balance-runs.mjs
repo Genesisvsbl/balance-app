@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createSupabaseClient } from "./supabase-client.mjs";
 
 function json(statusCode, body) {
   return {
@@ -8,21 +8,6 @@ function json(statusCode, body) {
     },
     body: JSON.stringify(body),
   };
-}
-
-function client() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SECRET_KEY;
-
-  if (!url || !key) {
-    throw new Error("Supabase environment variables are not configured.");
-  }
-
-  return createClient(url, key, {
-    auth: {
-      persistSession: false,
-    },
-  });
 }
 
 function toSavedLoad(run, rows) {
@@ -98,7 +83,7 @@ function toDbRows(runId, rows) {
 
 export async function handler(event) {
   try {
-    const supabase = client();
+    const supabase = createSupabaseClient();
 
     if (event.httpMethod === "GET") {
       const { data: runs, error: runsError } = await supabase
