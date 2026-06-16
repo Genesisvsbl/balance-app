@@ -13,6 +13,8 @@ type Props = {
   onLogin: (user: AppUser) => void;
 };
 
+const LOGIN_ENDPOINTS = ["/.netlify/functions/auth-login", "/api/auth-login"];
+
 export default function Login({ onLogin }: Props) {
   const [usuario, setUsuario] = useState("");
   const [password, setPassword] = useState("");
@@ -24,26 +26,40 @@ export default function Login({ onLogin }: Props) {
     setError("");
 
     try {
-      const response = await fetch("/.netlify/functions/auth-login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username: usuario,
-          password,
-        }),
-      });
+      let lastError = "No se pudo iniciar sesion.";
 
-      const data = await response.json();
+      for (const endpoint of LOGIN_ENDPOINTS) {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            username: usuario,
+            password,
+          }),
+        });
 
-      if (!response.ok) {
-        throw new Error(data.error || "Usuario o contraseña incorrectos.");
+        const contentType = response.headers.get("content-type") || "";
+
+        if (!contentType.includes("application/json")) {
+          lastError = "La ruta de login devolvio HTML. Reintentando...";
+          continue;
+        }
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Usuario o contrasena incorrectos.");
+        }
+
+        onLogin(data.user);
+        return;
       }
 
-      onLogin(data.user);
+      throw new Error(lastError);
     } catch (error: any) {
-      setError(error.message || "No se pudo iniciar sesión.");
+      setError(error.message || "No se pudo iniciar sesion.");
     } finally {
       setLoading(false);
     }
@@ -87,7 +103,7 @@ export default function Login({ onLogin }: Props) {
           <div>
             <h1 className="text-xl font-black text-slate-950">BALANCE</h1>
             <p className="text-sm font-semibold text-slate-500">
-              Planeación de materiales
+              Planeacion de materiales
             </p>
           </div>
         </div>
@@ -107,11 +123,11 @@ export default function Login({ onLogin }: Props) {
             />
 
             <h2 className="mt-4 text-2xl font-black text-slate-950">
-              Iniciar sesión
+              Iniciar sesion
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              Acceda al sistema de planeación
+              Acceda al sistema de planeacion
             </p>
           </div>
 
@@ -128,7 +144,7 @@ export default function Login({ onLogin }: Props) {
             />
 
             <label className="mt-4 block text-xs font-bold uppercase text-slate-500">
-              Contraseña
+              Contrasena
             </label>
 
             <input
@@ -136,7 +152,7 @@ export default function Login({ onLogin }: Props) {
               onChange={(e) => setPassword(e.target.value)}
               type="password"
               className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#e30613] focus:ring-2 focus:ring-[#e30613]/10"
-              placeholder="Ingrese su contraseña"
+              placeholder="Ingrese su contrasena"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !loading) acceder();
               }}
@@ -158,13 +174,13 @@ export default function Login({ onLogin }: Props) {
           </div>
 
           <div className="border-t border-slate-100 bg-slate-50 px-6 py-3 text-center text-xs font-medium text-slate-400">
-            BALANCE © 2026
+            BALANCE (c) 2026
           </div>
         </div>
       </section>
 
       <footer className="absolute bottom-5 left-0 right-0 text-center text-xs text-slate-400">
-        Versión 1.0.0 · Sistema profesional de planeación de materiales
+        Version 1.0.0 - Sistema profesional de planeacion de materiales
       </footer>
     </main>
   );

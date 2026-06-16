@@ -8,3 +8,18 @@
 [build.environment]
   NODE_VERSION = "20"
   NEXT_TELEMETRY_DISABLED = "1"
+
+[[redirects]]
+  from = "/api/auth-login"
+  to = "/.netlify/functions/auth-login"
+  status = 200
+
+[[redirects]]
+  from = "/api/balance-runs"
+  to = "/.netlify/functions/balance-runs"
+  status = 200
+
+[[redirects]]
+  from = "/api/balance-run"
+  to = "/.netlify/functions/balance-run"
+  status = 200
