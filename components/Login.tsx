@@ -28,63 +28,72 @@ export default function Login({ onLogin }: Props) {
     setError("");
 
     try {
-      if (SUPABASE_URL && SUPABASE_KEY) {
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/login_app_user`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            apikey: SUPABASE_KEY,
-            Authorization: `Bearer ${SUPABASE_KEY}`,
-          },
-          body: JSON.stringify({
-            login_text: usuario,
-            login_password: password,
-          }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(
-            data.message ||
-              data.error ||
-              "Usuario o contrasena incorrectos."
-          );
-        }
-
-        onLogin(data.user);
-        return;
-      }
-
       let lastError = "No se pudo iniciar sesion.";
 
+      if (SUPABASE_URL && SUPABASE_KEY) {
+        try {
+          const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/login_app_user`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              apikey: SUPABASE_KEY,
+              Authorization: `Bearer ${SUPABASE_KEY}`,
+            },
+            body: JSON.stringify({
+              login_text: usuario,
+              login_password: password,
+            }),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(
+              data.message ||
+                data.error ||
+                "Usuario o contrasena incorrectos."
+            );
+          }
+
+          onLogin(data.user);
+          return;
+        } catch (error: any) {
+          lastError = error.message || "Supabase no respondio.";
+        }
+      }
+
       for (const endpoint of LOGIN_ENDPOINTS) {
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            username: usuario,
-            password,
-          }),
-        });
+        try {
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              username: usuario,
+              password,
+            }),
+          });
 
-        const contentType = response.headers.get("content-type") || "";
+          const contentType = response.headers.get("content-type") || "";
 
-        if (!contentType.includes("application/json")) {
-          lastError = `La ruta ${endpoint} devolvio HTML.`;
+          if (!contentType.includes("application/json")) {
+            lastError = `La ruta ${endpoint} devolvio HTML.`;
+            continue;
+          }
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || "Usuario o contrasena incorrectos.");
+          }
+
+          onLogin(data.user);
+          return;
+        } catch (error: any) {
+          lastError = error.message || `No se pudo conectar con ${endpoint}.`;
           continue;
         }
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || "Usuario o contrasena incorrectos.");
-        }
-
-        onLogin(data.user);
-        return;
       }
 
       throw new Error(lastError);
