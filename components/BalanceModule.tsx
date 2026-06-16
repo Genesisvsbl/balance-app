@@ -524,7 +524,10 @@ export default function BalanceModule({
       )}
 
       {analisis.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div
+          className="origin-top-left rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
+          style={{ zoom: 0.8 } as any}
+        >
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h4 className="text-base font-black text-slate-950">
