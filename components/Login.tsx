@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 type AppUser = {
   id: string;
@@ -80,6 +80,26 @@ export default function Login({ onLogin }: Props) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const passwordRef = useRef<HTMLInputElement>(null);
+
+  function usuarioValido(value: string) {
+    const normalized = normalizeLogin(value);
+
+    return LOCAL_USERS.some((item) => {
+      const fullName = normalizeLogin(item.fullName);
+
+      return (
+        normalizeLogin(item.username) === normalized ||
+        fullName === normalized ||
+        fullName.replace(/\s+/g, ".") === normalized
+      );
+    });
+  }
+
+  function enfocarPasswordSiUsuarioValido(value: string) {
+    if (!usuarioValido(value)) return;
+    window.setTimeout(() => passwordRef.current?.focus(), 0);
+  }
 
   async function acceder() {
     setLoading(true);
@@ -241,16 +261,33 @@ export default function Login({ onLogin }: Props) {
 
             <input
               value={usuario}
-              onChange={(e) => setUsuario(e.target.value)}
+              onChange={(e) => {
+                setUsuario(e.target.value);
+                enfocarPasswordSiUsuarioValido(e.target.value);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  passwordRef.current?.focus();
+                }
+              }}
+              list="usuarios-login"
               className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#e30613] focus:ring-2 focus:ring-[#e30613]/10"
               placeholder="Ingrese su usuario"
             />
+
+            <datalist id="usuarios-login">
+              {LOCAL_USERS.map((item) => (
+                <option key={item.id} value={item.fullName} />
+              ))}
+            </datalist>
 
             <label className="mt-4 block text-xs font-bold uppercase text-slate-500">
               Contrasena
             </label>
 
             <input
+              ref={passwordRef}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               type="password"
