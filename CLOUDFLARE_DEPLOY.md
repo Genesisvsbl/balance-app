@@ -2,10 +2,10 @@
 
 ## Configuracion
 
-- Framework preset: `Next.js` o `None`
+- Framework preset: `Worker`
 - Build command: `npm run build`
-- Build output directory: `out`
 - Root directory: `/`
+- Deploy command: `npx wrangler deploy`
 
 ## Variables
 

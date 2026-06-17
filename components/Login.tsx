@@ -13,27 +13,7 @@ type Props = {
   onLogin: (user: AppUser) => void;
 };
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const LOGIN_ENDPOINTS = ["/api/auth-login", "/.netlify/functions/auth-login"];
-const LOCAL_USERS = [
-  {
-    id: "0e478af9-deff-48a6-b042-3d205c5a60e6",
-    username: "genesis.visbal",
-    fullName: "Genesis Visbal",
-    role: "admin",
-    salt: "6728aa204edebd254c75e1f2a6d05850",
-    hash: "31d1e41e125d7d03b76fff0229b632b16e8cd9a9729c29381fa6499baa5f636c",
-  },
-  {
-    id: "b8c4fc6f-916b-40c8-b6df-2cd64170a6c0",
-    username: "jeremy.griego",
-    fullName: "Jeremy Griego",
-    role: "planner",
-    salt: "be5ce946c0ad00adcf4a93722bf8970a",
-    hash: "cfa57a9b6d80f98ed249e7014777e005b2ef23dc1ed304b264ae02b20ce527c9",
-  },
-];
 
 function normalizeLogin(value: string) {
   return value
@@ -43,38 +23,6 @@ function normalizeLogin(value: string) {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-async function sha256Hex(value: string) {
-  const data = new TextEncoder().encode(value);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-async function loginLocal(username: string, password: string) {
-  const normalized = normalizeLogin(username);
-  const user = LOCAL_USERS.find((item) => {
-    const fullName = normalizeLogin(item.fullName);
-    return (
-      normalizeLogin(item.username) === normalized ||
-      fullName === normalized ||
-      fullName.replace(/\s+/g, ".") === normalized
-    );
-  });
-
-  if (!user) return null;
-
-  const passwordHash = await sha256Hex(`${user.salt}:${password}`);
-  if (passwordHash !== user.hash) return null;
-
-  return {
-    id: user.id,
-    username: user.username,
-    fullName: user.fullName,
-    role: user.role,
-  };
-}
-
 export default function Login({ onLogin }: Props) {
   const [usuario, setUsuario] = useState("");
   const [password, setPassword] = useState("");
@@ -82,84 +30,12 @@ export default function Login({ onLogin }: Props) {
   const [loading, setLoading] = useState(false);
   const passwordRef = useRef<HTMLInputElement>(null);
 
-  function usuarioValido(value: string) {
-    const normalized = normalizeLogin(value);
-
-    return LOCAL_USERS.some((item) => {
-      const fullName = normalizeLogin(item.fullName);
-
-      return (
-        normalizeLogin(item.username) === normalized ||
-        fullName === normalized ||
-        fullName.replace(/\s+/g, ".") === normalized
-      );
-    });
-  }
-
-  function completarUsuario(value: string) {
-    const normalized = normalizeLogin(value);
-
-    if (!normalized) return "";
-
-    const user = LOCAL_USERS.find((item) => {
-      const username = normalizeLogin(item.username);
-      const fullName = normalizeLogin(item.fullName);
-
-      return (
-        username === normalized ||
-        fullName === normalized ||
-        fullName.replace(/\s+/g, ".") === normalized ||
-        username.startsWith(normalized) ||
-        fullName.startsWith(normalized)
-      );
-    });
-
-    return user?.fullName || "";
-  }
-
-  function enfocarPasswordSiUsuarioValido(value: string) {
-    if (!usuarioValido(value)) return;
-    window.setTimeout(() => passwordRef.current?.focus(), 0);
-  }
-
   async function acceder() {
     setLoading(true);
     setError("");
 
     try {
       let lastError = "No se pudo iniciar sesion.";
-
-      if (SUPABASE_URL && SUPABASE_KEY) {
-        try {
-          const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/login_app_user`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              apikey: SUPABASE_KEY,
-              Authorization: `Bearer ${SUPABASE_KEY}`,
-            },
-            body: JSON.stringify({
-              login_text: usuario,
-              login_password: password,
-            }),
-          });
-
-          const data = await response.json();
-
-          if (!response.ok) {
-            throw new Error(
-              data.message ||
-                data.error ||
-                "Usuario o contrasena incorrectos."
-            );
-          }
-
-          onLogin(data.user);
-          return;
-        } catch (error: any) {
-          lastError = error.message || "Supabase no respondio.";
-        }
-      }
 
       for (const endpoint of LOGIN_ENDPOINTS) {
         try {
@@ -193,12 +69,6 @@ export default function Login({ onLogin }: Props) {
           lastError = error.message || `No se pudo conectar con ${endpoint}.`;
           continue;
         }
-      }
-
-      const localUser = await loginLocal(usuario, password);
-      if (localUser) {
-        onLogin(localUser);
-        return;
       }
 
       throw new Error(lastError);
@@ -282,24 +152,15 @@ export default function Login({ onLogin }: Props) {
 
             <input
               value={usuario}
-              onChange={(e) => {
-                setUsuario(e.target.value);
-                enfocarPasswordSiUsuarioValido(e.target.value);
-              }}
+              onChange={(e) => setUsuario(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "ArrowDown") {
-                  const usuarioCompleto = completarUsuario(usuario);
-                  if (usuarioCompleto) {
-                    e.preventDefault();
-                    setUsuario(usuarioCompleto);
-                    window.setTimeout(() => passwordRef.current?.focus(), 0);
-                  }
+                  e.preventDefault();
+                  window.setTimeout(() => passwordRef.current?.focus(), 0);
                 }
 
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  const usuarioCompleto = completarUsuario(usuario);
-                  if (usuarioCompleto) setUsuario(usuarioCompleto);
                   window.setTimeout(() => passwordRef.current?.focus(), 0);
                 }
               }}
