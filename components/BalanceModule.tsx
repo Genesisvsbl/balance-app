@@ -922,6 +922,7 @@ export default function BalanceModule({
                   {filtradoOrdenado.map((row, i) => (
                     <tr
                       key={`${row.codigo}-${i}`}
+                      onClickCapture={() => setFilaSeleccionada(row)}
                       onMouseDown={() => setFilaSeleccionada(row)}
                       onDoubleClick={() => setFilaSeleccionada(row)}
                       className="cursor-pointer border-b border-slate-100 bg-white transition hover:bg-[#fff1bf] active:bg-[#ffe7a3]"
