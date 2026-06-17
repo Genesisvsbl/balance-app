@@ -44,7 +44,7 @@ function crearVisibilidadInicial(almacenes: string[]): ColumnVisibility {
   const almacenesVisibles: Record<string, boolean> = {};
 
   almacenes.forEach((alm) => {
-    almacenesVisibles[alm] = alm === "AG01" || alm === "AG04";
+    almacenesVisibles[alm] = false;
   });
 
   return {
@@ -75,6 +75,7 @@ export default function BalanceModule({
   const [filtroSeccion, setFiltroSeccion] = useState("TODAS");
   const [filtroEstado, setFiltroEstado] = useState("TODOS");
   const [mostrarColumnas, setMostrarColumnas] = useState(false);
+  const [semanasSeleccionadas, setSemanasSeleccionadas] = useState<string[]>([]);
   const [semanasTransito, setSemanasTransito] = useState<string[]>([]);
   const [orden, setOrden] = useState<SortConfig>(null);
   const [visibilidad, setVisibilidad] = useState<ColumnVisibility>(
@@ -92,8 +93,7 @@ export default function BalanceModule({
       const nuevosAlmacenes: Record<string, boolean> = {};
 
       almacenesDetectados.forEach((alm) => {
-        nuevosAlmacenes[alm] =
-          actual.almacenes[alm] ?? (alm === "AG01" || alm === "AG04");
+        nuevosAlmacenes[alm] = actual.almacenes[alm] ?? false;
       });
 
       return {
@@ -103,6 +103,16 @@ export default function BalanceModule({
     });
   }, [almacenesDetectados.join("|")]);
 
+  useEffect(() => {
+    setSemanasSeleccionadas((actual) => {
+      const validas = actual.filter((sem) => columnasSemana.includes(sem));
+      return validas.length > 0 ? validas : columnasSemana;
+    });
+    setSemanasTransito((actual) =>
+      actual.filter((sem) => columnasSemana.includes(sem))
+    );
+  }, [columnasSemana.join("|")]);
+
   function toggleCampo(campo: keyof Omit<ColumnVisibility, "almacenes">) {
     setVisibilidad((actual) => ({
       ...actual,
@@ -110,44 +120,10 @@ export default function BalanceModule({
     }));
   }
 
-  function toggleAlmacen(alm: string) {
-    setVisibilidad((actual) => ({
-      ...actual,
-      almacenes: {
-        ...actual.almacenes,
-        [alm]: !actual.almacenes[alm],
-      },
-    }));
-  }
-
-  function mostrarTodosLosAlmacenes() {
-    const todos: Record<string, boolean> = {};
-    almacenesDetectados.forEach((alm) => {
-      todos[alm] = true;
-    });
-
-    setVisibilidad((actual) => ({
-      ...actual,
-      almacenes: todos,
-    }));
-  }
-
-  function ocultarTodosLosAlmacenes() {
-    const todos: Record<string, boolean> = {};
-    almacenesDetectados.forEach((alm) => {
-      todos[alm] = false;
-    });
-
-    setVisibilidad((actual) => ({
-      ...actual,
-      almacenes: todos,
-    }));
-  }
-
   function vistaEjecutiva() {
     const almacenesBase: Record<string, boolean> = {};
     almacenesDetectados.forEach((alm) => {
-      almacenesBase[alm] = alm === "AG01" || alm === "AG04";
+      almacenesBase[alm] = false;
     });
 
     setVisibilidad({
@@ -171,6 +147,27 @@ export default function BalanceModule({
         ? actual.filter((item) => item !== semana)
         : [...actual, semana]
     );
+  }
+
+  const semanasActivas = semanasSeleccionadas;
+
+  function toggleSemanaAnalisis(semana: string) {
+    setSemanasSeleccionadas((actual) =>
+      actual.includes(semana)
+        ? actual.filter((item) => item !== semana)
+        : [...actual, semana]
+    );
+  }
+
+  function totalNecesidadSeleccionada(row: BalanceRow) {
+    return semanasActivas.reduce(
+      (acc, sem) => acc + (row.necesidadesPorSemana[sem] || 0),
+      0
+    );
+  }
+
+  function diferenciaSeleccionada(row: BalanceRow) {
+    return row.totalExistencia - totalNecesidadSeleccionada(row);
   }
 
   function ordenarPor(key: string) {
@@ -212,11 +209,11 @@ export default function BalanceModule({
       case "seccion":
         return row.seccion;
       case "totalNecesidad":
-        return row.totalNecesidad;
+        return totalNecesidadSeleccionada(row);
       case "totalExistencia":
         return row.totalExistencia;
       case "diferenciaTotal":
-        return row.diferenciaTotal;
+        return diferenciaSeleccionada(row);
       case "estado":
         return row.estado;
       default:
@@ -230,6 +227,7 @@ export default function BalanceModule({
 
       setAnalisis(resultado.analisis);
       setInfoAnalisis(resultado.info);
+      setSemanasSeleccionadas(resultado.info.columnasSemana || []);
     } catch (error: any) {
       alert(error.message);
     }
@@ -319,7 +317,7 @@ export default function BalanceModule({
       if (visibilidad.seccion) base.Seccion = row.seccion;
 
       if (visibilidad.semanas) {
-        columnasSemana.forEach((sem) => {
+        semanasActivas.forEach((sem) => {
           base[sem] = row.necesidadesPorSemana[sem] || 0;
           if (semanasTransito.includes(sem)) {
             const transitos = row.transitosPorSemana?.[sem] || [];
@@ -339,25 +337,19 @@ export default function BalanceModule({
       }
 
       if (visibilidad.totalNecesidad) {
-        base["Suma de Total necesidad"] = row.totalNecesidad;
+        base["Suma de Total necesidad"] = totalNecesidadSeleccionada(row);
       }
-
-      almacenesDetectados.forEach((alm) => {
-        if (visibilidad.almacenes[alm]) {
-          base[alm] = row.almacenes[alm] || 0;
-        }
-      });
 
       if (visibilidad.totalExistencia) {
         base["AG01 + AG04"] = row.totalExistencia;
       }
 
       if (visibilidad.diferenciaTotal) {
-        base["Diferencia total"] = row.diferenciaTotal;
+        base["Diferencia total"] = diferenciaSeleccionada(row);
       }
 
       if (visibilidad.diferenciasSemana) {
-        columnasSemana.forEach((sem) => {
+        semanasActivas.forEach((sem) => {
           base[`Dif. ${sem}`] = row.diferenciasPorSemana[sem] || 0;
         });
       }
@@ -373,10 +365,6 @@ export default function BalanceModule({
     XLSX.utils.book_append_sheet(wb, ws, "Analisis");
     XLSX.writeFile(wb, "analisis_balance_materiales.xlsx");
   }
-
-  const almacenesVisibles = almacenesDetectados.filter(
-    (alm) => visibilidad.almacenes[alm]
-  );
 
   const resumenValoresInventario = analisis.reduce(
     (acc, row) => {
@@ -590,6 +578,54 @@ export default function BalanceModule({
             </div>
           </div>
 
+          <div className="mt-3 rounded-xl border border-slate-200 bg-[#fbfbfa] p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h5 className="text-sm font-black text-slate-950">
+                  Filtro de semanas
+                </h5>
+                <p className="mt-0.5 text-xs font-semibold text-slate-500">
+                  Por defecto se evaluan todas. Desmarca las semanas que no quieras analizar.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => setSemanasSeleccionadas(columnasSemana)}
+                  className="h-8 rounded-lg border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50"
+                >
+                  Todas
+                </button>
+                <button
+                  onClick={() => setSemanasSeleccionadas([])}
+                  className="h-8 rounded-lg border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50"
+                >
+                  Limpiar
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {columnasSemana.map((sem) => {
+                const activo = semanasActivas.includes(sem);
+
+                return (
+                  <button
+                    key={sem}
+                    onClick={() => toggleSemanaAnalisis(sem)}
+                    className={`h-8 rounded-lg border px-3 text-xs font-black transition ${
+                      activo
+                        ? "border-[#e30613]/30 bg-red-50 text-[#e30613]"
+                        : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                    }`}
+                  >
+                    {sem}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {mostrarColumnas && (
             <div className="mt-3 rounded-xl border border-slate-200 bg-[#fbfbfa] p-3">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -608,20 +644,6 @@ export default function BalanceModule({
                     className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-black text-slate-700 hover:bg-slate-50"
                   >
                     Vista ejecutiva
-                  </button>
-
-                  <button
-                    onClick={mostrarTodosLosAlmacenes}
-                    className="rounded-md border border-emerald-200 bg-white px-2.5 py-1.5 text-[11px] font-black text-emerald-700 hover:bg-emerald-50"
-                  >
-                    Mostrar almacenes
-                  </button>
-
-                  <button
-                    onClick={ocultarTodosLosAlmacenes}
-                    className="rounded-md border border-red-200 bg-white px-2.5 py-1.5 text-[11px] font-black text-[#e30613] hover:bg-red-50"
-                  >
-                    Ocultar almacenes
                   </button>
                 </div>
               </div>
@@ -678,28 +700,6 @@ export default function BalanceModule({
                   onClick={() => toggleCampo("estado")}
                 />
               </div>
-
-              <div className="mt-3">
-                <h6 className="mb-2 text-[11px] font-black uppercase tracking-wide text-slate-500">
-                  Almacenes
-                </h6>
-
-                <div className="grid grid-cols-2 gap-2 md:grid-cols-6 xl:grid-cols-10">
-                  {almacenesDetectados.map((alm) => (
-                    <Toggle
-                      key={alm}
-                      label={alm}
-                      checked={!!visibilidad.almacenes[alm]}
-                      onClick={() => toggleAlmacen(alm)}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <p className="mt-3 text-[11px] font-semibold text-slate-500">
-                Almacenes visibles:{" "}
-                <b>{almacenesVisibles.length > 0 ? almacenesVisibles.join(", ") : "ninguno"}</b>
-              </p>
             </div>
           )}
 
@@ -745,7 +745,7 @@ export default function BalanceModule({
                     )}
 
                     {visibilidad.semanas &&
-                      columnasSemana.map((sem) => {
+                      semanasActivas.map((sem) => {
                         const activo = semanasTransito.includes(sem);
 
                         return (
@@ -803,20 +803,6 @@ export default function BalanceModule({
                       />
                     )}
 
-                    {almacenesDetectados.map(
-                      (alm) =>
-                        visibilidad.almacenes[alm] && (
-                          <SortHeader
-                            key={alm}
-                            label={alm}
-                            sortKey={`alm:${alm}`}
-                            orden={orden}
-                            onSort={ordenarPor}
-                            align="right"
-                          />
-                        )
-                    )}
-
                     {visibilidad.totalExistencia && (
                       <SortHeader
                         label="AG01 + AG04"
@@ -838,7 +824,7 @@ export default function BalanceModule({
                     )}
 
                     {visibilidad.diferenciasSemana &&
-                      columnasSemana.map((sem) => (
+                      semanasActivas.map((sem) => (
                         <SortHeader
                           key={`dif-${sem}`}
                           label={`Dif. ${sem}`}
@@ -891,7 +877,7 @@ export default function BalanceModule({
                       )}
 
                       {visibilidad.semanas &&
-                        columnasSemana.map((sem) => {
+                        semanasActivas.map((sem) => {
                           const activo = semanasTransito.includes(sem);
                           const transitos = row.transitosPorSemana?.[sem] || [];
                           const fechas = Array.from(
@@ -927,20 +913,8 @@ export default function BalanceModule({
 
                       {visibilidad.totalNecesidad && (
                         <td className="px-2.5 py-1.5 text-right font-black text-slate-950">
-                          {formatoNumero(row.totalNecesidad)}
+                          {formatoNumero(totalNecesidadSeleccionada(row))}
                         </td>
-                      )}
-
-                      {almacenesDetectados.map(
-                        (alm) =>
-                          visibilidad.almacenes[alm] && (
-                            <td
-                              key={alm}
-                              className="px-2.5 py-1.5 text-right font-medium text-slate-700"
-                            >
-                              {formatoNumero(row.almacenes[alm] || 0)}
-                            </td>
-                          )
                       )}
 
                       {visibilidad.totalExistencia && (
@@ -952,17 +926,17 @@ export default function BalanceModule({
                       {visibilidad.diferenciaTotal && (
                         <td
                           className={`px-2.5 py-1.5 text-right font-black ${
-                            row.diferenciaTotal < 0
+                            diferenciaSeleccionada(row) < 0
                               ? "text-[#e30613]"
                               : "text-emerald-700"
                           }`}
                         >
-                          {formatoNumero(row.diferenciaTotal)}
+                          {formatoNumero(diferenciaSeleccionada(row))}
                         </td>
                       )}
 
                       {visibilidad.diferenciasSemana &&
-                        columnasSemana.map((sem) => (
+                        semanasActivas.map((sem) => (
                           <td
                             key={`dif-${sem}`}
                             className={`px-2.5 py-1.5 text-right font-black ${
