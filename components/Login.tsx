@@ -96,6 +96,27 @@ export default function Login({ onLogin }: Props) {
     });
   }
 
+  function completarUsuario(value: string) {
+    const normalized = normalizeLogin(value);
+
+    if (!normalized) return "";
+
+    const user = LOCAL_USERS.find((item) => {
+      const username = normalizeLogin(item.username);
+      const fullName = normalizeLogin(item.fullName);
+
+      return (
+        username === normalized ||
+        fullName === normalized ||
+        fullName.replace(/\s+/g, ".") === normalized ||
+        username.startsWith(normalized) ||
+        fullName.startsWith(normalized)
+      );
+    });
+
+    return user?.fullName || "";
+  }
+
   function enfocarPasswordSiUsuarioValido(value: string) {
     if (!usuarioValido(value)) return;
     window.setTimeout(() => passwordRef.current?.focus(), 0);
@@ -266,21 +287,25 @@ export default function Login({ onLogin }: Props) {
                 enfocarPasswordSiUsuarioValido(e.target.value);
               }}
               onKeyDown={(e) => {
+                if (e.key === "ArrowDown") {
+                  const usuarioCompleto = completarUsuario(usuario);
+                  if (usuarioCompleto) {
+                    e.preventDefault();
+                    setUsuario(usuarioCompleto);
+                    window.setTimeout(() => passwordRef.current?.focus(), 0);
+                  }
+                }
+
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  passwordRef.current?.focus();
+                  const usuarioCompleto = completarUsuario(usuario);
+                  if (usuarioCompleto) setUsuario(usuarioCompleto);
+                  window.setTimeout(() => passwordRef.current?.focus(), 0);
                 }
               }}
-              list="usuarios-login"
               className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#e30613] focus:ring-2 focus:ring-[#e30613]/10"
               placeholder="Ingrese su usuario"
             />
-
-            <datalist id="usuarios-login">
-              {LOCAL_USERS.map((item) => (
-                <option key={item.id} value={item.fullName} />
-              ))}
-            </datalist>
 
             <label className="mt-4 block text-xs font-bold uppercase text-slate-500">
               Contrasena
