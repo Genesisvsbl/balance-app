@@ -78,6 +78,12 @@ export default function BalanceModule({
   const [semanasSeleccionadas, setSemanasSeleccionadas] = useState<string[]>([]);
   const [semanasTransito, setSemanasTransito] = useState<string[]>([]);
   const [orden, setOrden] = useState<SortConfig>(null);
+  const [nombreGuardado, setNombreGuardado] = useState("");
+  const [guardandoBalance, setGuardandoBalance] = useState(false);
+  const [mensajeGuardado, setMensajeGuardado] = useState<{
+    tipo: "ok" | "error";
+    texto: string;
+  } | null>(null);
   const [visibilidad, setVisibilidad] = useState<ColumnVisibility>(
     crearVisibilidadInicial([])
   );
@@ -230,6 +236,57 @@ export default function BalanceModule({
       setSemanasSeleccionadas(resultado.info.columnasSemana || []);
     } catch (error: any) {
       alert(error.message);
+    }
+  }
+
+  function abrirModalGuardarBalance() {
+    if (!infoAnalisis || analisis.length === 0) {
+      setMensajeGuardado({
+        tipo: "error",
+        texto: "Primero genera un balance.",
+      });
+      return;
+    }
+
+    setNombreGuardado(crearNombreBalance());
+  }
+
+  async function confirmarGuardarBalance() {
+    if (!infoAnalisis || analisis.length === 0 || !nombreGuardado.trim()) {
+      setMensajeGuardado({
+        tipo: "error",
+        texto: "No hay balance listo para guardar.",
+      });
+      return;
+    }
+
+    setGuardandoBalance(true);
+    setMensajeGuardado(null);
+
+    const carga: SavedLoad = {
+      id: crypto.randomUUID(),
+      fecha: new Date().toISOString(),
+      createdBy: currentUser,
+      archivo: nombreGuardado.trim(),
+      hojas: Object.keys(datos),
+      analisis,
+      info: infoAnalisis,
+    };
+
+    try {
+      await guardarCarga(carga);
+      setNombreGuardado("");
+      setMensajeGuardado({
+        tipo: "ok",
+        texto: "Balance guardado correctamente.",
+      });
+    } catch (error: any) {
+      setMensajeGuardado({
+        tipo: "error",
+        texto: error.message || "No se pudo guardar el balance.",
+      });
+    } finally {
+      setGuardandoBalance(false);
     }
   }
 
@@ -425,7 +482,7 @@ export default function BalanceModule({
             {analisis.length > 0 && (
               <>
                 <button
-                  onClick={guardarBalanceActual}
+                  onClick={abrirModalGuardarBalance}
                   className="rounded-xl border border-[#d4a017] bg-white px-5 py-3 text-sm font-black text-[#9a6a00] shadow-sm transition hover:bg-[#fff8df]"
                 >
                   Guardar balance
@@ -442,6 +499,18 @@ export default function BalanceModule({
           </div>
         </div>
       </div>
+
+      {mensajeGuardado && (
+        <div
+          className={`rounded-xl border px-4 py-3 text-sm font-bold shadow-sm ${
+            mensajeGuardado.tipo === "ok"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : "border-red-200 bg-red-50 text-[#e30613]"
+          }`}
+        >
+          {mensajeGuardado.texto}
+        </div>
+      )}
 
       {infoAnalisis && (
         <>
@@ -979,6 +1048,50 @@ export default function BalanceModule({
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {nombreGuardado && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="border-b border-slate-100 px-6 py-5">
+              <h3 className="text-lg font-black text-slate-950">
+                Guardar balance
+              </h3>
+              <p className="mt-1 text-sm font-semibold text-slate-500">
+                Confirma el nombre con el que quedara en el historico.
+              </p>
+            </div>
+
+            <div className="space-y-3 px-6 py-5">
+              <label className="text-xs font-black uppercase text-slate-500">
+                Nombre del balance
+              </label>
+              <input
+                value={nombreGuardado}
+                onChange={(e) => setNombreGuardado(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-[#e30613] focus:ring-4 focus:ring-[#e30613]/10"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-100 bg-[#fbfbfa] px-6 py-4">
+              <button
+                onClick={() => setNombreGuardado("")}
+                disabled={guardandoBalance}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarGuardarBalance}
+                disabled={guardandoBalance || !nombreGuardado.trim()}
+                className="rounded-xl bg-[#e30613] px-5 py-2.5 text-sm font-black text-white shadow-sm hover:bg-[#b8000f] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {guardandoBalance ? "Guardando..." : "Guardar"}
+              </button>
             </div>
           </div>
         </div>
