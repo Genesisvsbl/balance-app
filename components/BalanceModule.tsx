@@ -80,6 +80,9 @@ export default function BalanceModule({
   const [orden, setOrden] = useState<SortConfig>(null);
   const [nombreGuardado, setNombreGuardado] = useState("");
   const [guardandoBalance, setGuardandoBalance] = useState(false);
+  const [filaSeleccionada, setFilaSeleccionada] = useState<BalanceRow | null>(
+    null
+  );
   const [mensajeGuardado, setMensajeGuardado] = useState<{
     tipo: "ok" | "error";
     texto: string;
@@ -919,7 +922,8 @@ export default function BalanceModule({
                   {filtradoOrdenado.map((row, i) => (
                     <tr
                       key={`${row.codigo}-${i}`}
-                      className="border-b border-slate-100 bg-white transition hover:bg-[#fbfbfa]"
+                      onClick={() => setFilaSeleccionada(row)}
+                      className="cursor-pointer border-b border-slate-100 bg-white transition hover:bg-[#fff8df]"
                     >
                       {visibilidad.codigo && (
                         <td className="px-2.5 py-1.5 font-black text-slate-950">
@@ -1092,6 +1096,142 @@ export default function BalanceModule({
               >
                 {guardandoBalance ? "Guardando..." : "Guardar"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {filaSeleccionada && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
+          <div className="w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-6 py-5">
+              <div>
+                <p className="text-xs font-black uppercase text-slate-500">
+                  Detalle del componente
+                </p>
+                <h3 className="mt-1 text-xl font-black text-slate-950">
+                  {filaSeleccionada.codigo} · {filaSeleccionada.material}
+                </h3>
+                <p className="mt-1 text-sm font-semibold text-slate-500">
+                  {filaSeleccionada.um || "-"} · {filaSeleccionada.seccion || "Sin seccion"}
+                </p>
+              </div>
+
+              <button
+                onClick={() => setFilaSeleccionada(null)}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-50"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="max-h-[70vh] overflow-auto px-6 py-5">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div className="rounded-xl border border-slate-200 bg-[#fbfbfa] p-4">
+                  <p className="text-xs font-black uppercase text-slate-500">
+                    AG01 + AG04
+                  </p>
+                  <p className="mt-1 text-lg font-black text-slate-950">
+                    {formatoNumero(filaSeleccionada.totalExistencia)}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-[#fbfbfa] p-4">
+                  <p className="text-xs font-black uppercase text-slate-500">
+                    Necesidad seleccionada
+                  </p>
+                  <p className="mt-1 text-lg font-black text-slate-950">
+                    {formatoNumero(totalNecesidadSeleccionada(filaSeleccionada))}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-[#fbfbfa] p-4">
+                  <p className="text-xs font-black uppercase text-slate-500">
+                    Diferencia
+                  </p>
+                  <p
+                    className={`mt-1 text-lg font-black ${
+                      diferenciaSeleccionada(filaSeleccionada) < 0
+                        ? "text-[#e30613]"
+                        : "text-emerald-700"
+                    }`}
+                  >
+                    {formatoNumero(diferenciaSeleccionada(filaSeleccionada))}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-[#fbfbfa] p-4">
+                  <p className="text-xs font-black uppercase text-slate-500">
+                    Estado
+                  </p>
+                  <p
+                    className={`mt-1 text-lg font-black ${
+                      filaSeleccionada.estado === "FALTANTE"
+                        ? "text-[#e30613]"
+                        : filaSeleccionada.estado === "SOBRANTE"
+                          ? "text-emerald-700"
+                          : "text-slate-950"
+                    }`}
+                  >
+                    {filaSeleccionada.estado}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
+                <table className="w-full border-collapse text-xs">
+                  <thead className="bg-[#f8f8f6] text-slate-500">
+                    <tr className="border-b border-slate-200 uppercase">
+                      <th className="px-3 py-2 text-left font-black">Semana</th>
+                      <th className="px-3 py-2 text-right font-black">
+                        Necesidad
+                      </th>
+                      <th className="px-3 py-2 text-right font-black">
+                        Transito
+                      </th>
+                      <th className="px-3 py-2 text-right font-black">
+                        Diferencia
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {semanasActivas.map((sem) => {
+                      const diferencia =
+                        filaSeleccionada.diferenciasPorSemana[sem] || 0;
+
+                      return (
+                        <tr
+                          key={sem}
+                          className="border-b border-slate-100 last:border-b-0"
+                        >
+                          <td className="px-3 py-2 font-black text-slate-950">
+                            {sem}
+                          </td>
+                          <td className="px-3 py-2 text-right font-semibold text-slate-700">
+                            {formatoNumero(
+                              filaSeleccionada.necesidadesPorSemana[sem] || 0
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right font-semibold text-[#9a6a00]">
+                            {formatoNumero(
+                              filaSeleccionada.recepcionesPorSemana?.[sem] || 0
+                            )}
+                          </td>
+                          <td
+                            className={`px-3 py-2 text-right font-black ${
+                              diferencia < 0
+                                ? "text-[#e30613]"
+                                : "text-emerald-700"
+                            }`}
+                          >
+                            {formatoNumero(diferencia)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
