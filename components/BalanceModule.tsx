@@ -922,8 +922,9 @@ export default function BalanceModule({
                   {filtradoOrdenado.map((row, i) => (
                     <tr
                       key={`${row.codigo}-${i}`}
-                      onClick={() => setFilaSeleccionada(row)}
-                      className="cursor-pointer border-b border-slate-100 bg-white transition hover:bg-[#fff8df]"
+                      onMouseDown={() => setFilaSeleccionada(row)}
+                      onDoubleClick={() => setFilaSeleccionada(row)}
+                      className="cursor-pointer border-b border-slate-100 bg-white transition hover:bg-[#fff1bf] active:bg-[#ffe7a3]"
                     >
                       {visibilidad.codigo && (
                         <td className="px-2.5 py-1.5 font-black text-slate-950">
