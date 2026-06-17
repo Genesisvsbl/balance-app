@@ -1,0 +1,188 @@
+import { app } from "@azure/functions";
+import { createSupabaseClient } from "../supabase-client.js";
+
+function response(status, body) {
+  return {
+    status,
+    jsonBody: body,
+    headers: {
+      "content-type": "application/json",
+    },
+  };
+}
+
+function toSavedLoad(run, rows) {
+  return {
+    id: run.id,
+    fecha: run.created_at,
+    archivo: run.archivo,
+    hojas: run.hojas || [],
+    info: run.info,
+    createdBy: run.created_by
+      ? {
+          id: run.created_by,
+          username: run.created_by_username || "",
+          fullName: run.created_by_name || "",
+        }
+      : undefined,
+    analisis: rows.map((row) => ({
+      codigo: row.codigo,
+      material: row.material || "",
+      um: row.um || "",
+      seccion: row.seccion || "",
+      seccionesArray: row.secciones_array || [],
+      estado: row.estado,
+      totalNecesidad: Number(row.total_necesidad || 0),
+      totalRecepcion: Number(row.total_recepcion || 0),
+      totalExistencia: Number(row.total_existencia || 0),
+      diferenciaTotal: Number(row.diferencia_total || 0),
+      inventarioLibre: Number(row.inventario_libre || 0),
+      inventarioBloqueado: Number(row.inventario_bloqueado || 0),
+      stockTotal: Number(row.stock_total || 0),
+      valorInventarioLibre: Number(row.valor_inventario_libre || 0),
+      valorInventarioBloqueado: Number(row.valor_inventario_bloqueado || 0),
+      valorStockTotal: Number(row.valor_stock_total || 0),
+      necesidadesPorSemana: row.necesidades_por_semana || {},
+      recepcionesPorSemana: row.recepciones_por_semana || {},
+      fechasRecepcionPorSemana: row.fechas_recepcion_por_semana || {},
+      transitosPorSemana: row.transitos_por_semana || {},
+      coberturaPorSemana: row.cobertura_por_semana || {},
+      almacenes: row.almacenes || {},
+      diferenciasPorSemana: row.diferencias_por_semana || {},
+    })),
+  };
+}
+
+function toDbRows(runId, rows) {
+  return rows.map((row) => ({
+    run_id: runId,
+    codigo: row.codigo,
+    material: row.material,
+    um: row.um,
+    seccion: row.seccion,
+    secciones_array: row.seccionesArray || [],
+    estado: row.estado,
+    total_necesidad: row.totalNecesidad || 0,
+    total_recepcion: row.totalRecepcion || 0,
+    total_existencia: row.totalExistencia || 0,
+    diferencia_total: row.diferenciaTotal || 0,
+    inventario_libre: row.inventarioLibre || 0,
+    inventario_bloqueado: row.inventarioBloqueado || 0,
+    stock_total: row.stockTotal || 0,
+    valor_inventario_libre: row.valorInventarioLibre || 0,
+    valor_inventario_bloqueado: row.valorInventarioBloqueado || 0,
+    valor_stock_total: row.valorStockTotal || 0,
+    necesidades_por_semana: row.necesidadesPorSemana || {},
+    recepciones_por_semana: row.recepcionesPorSemana || {},
+    fechas_recepcion_por_semana: row.fechasRecepcionPorSemana || {},
+    transitos_por_semana: row.transitosPorSemana || {},
+    cobertura_por_semana: row.coberturaPorSemana || {},
+    almacenes: row.almacenes || {},
+    diferencias_por_semana: row.diferenciasPorSemana || {},
+  }));
+}
+
+app.http("balance-runs", {
+  methods: ["GET", "POST", "DELETE"],
+  authLevel: "anonymous",
+  handler: async (request) => {
+    try {
+      const supabase = createSupabaseClient();
+
+      if (request.method === "GET") {
+        const { data: runs, error: runsError } = await supabase
+          .from("balance_runs")
+          .select("id, created_at, created_by, archivo, hojas, info")
+          .order("created_at", { ascending: false });
+
+        if (runsError) return response(500, { error: runsError.message });
+
+        const runIds = (runs || []).map((run) => run.id);
+        if (runIds.length === 0) return response(200, []);
+
+        const { data: rows, error: rowsError } = await supabase
+          .from("balance_rows")
+          .select("*")
+          .in("run_id", runIds);
+
+        if (rowsError) return response(500, { error: rowsError.message });
+
+        const rowsByRun = new Map();
+        for (const row of rows || []) {
+          const list = rowsByRun.get(row.run_id) || [];
+          list.push(row);
+          rowsByRun.set(row.run_id, list);
+        }
+
+        return response(
+          200,
+          (runs || []).map((run) => toSavedLoad(run, rowsByRun.get(run.id) || []))
+        );
+      }
+
+      if (request.method === "POST") {
+        const carga = await request.json().catch(() => ({}));
+
+        const { error: runError } = await supabase.from("balance_runs").insert({
+          id: carga.id,
+          created_at: carga.fecha,
+          created_by: carga.createdBy?.id || null,
+          archivo: carga.archivo,
+          hojas: carga.hojas || [],
+          info: carga.info,
+        });
+
+        if (runError) return response(500, { error: runError.message });
+
+        const rows = toDbRows(carga.id, carga.analisis || []);
+        for (let i = 0; i < rows.length; i += 500) {
+          const { error: rowsError } = await supabase
+            .from("balance_rows")
+            .insert(rows.slice(i, i + 500));
+
+          if (rowsError) {
+            await supabase.from("balance_runs").delete().eq("id", carga.id);
+            return response(500, { error: rowsError.message });
+          }
+        }
+
+        await supabase.from("audit_events").insert({
+          user_id: carga.createdBy?.id || null,
+          username: carga.createdBy?.username || null,
+          action: "BALANCE_CREATED",
+          entity: "balance_run",
+          entity_id: carga.id,
+          details: {
+            archivo: carga.archivo,
+            hojas: carga.hojas || [],
+            componentes: carga.info?.totalComponentes || 0,
+            faltantes: carga.info?.totalFaltantes || 0,
+            sobrantes: carga.info?.totalSobrantes || 0,
+          },
+        });
+
+        return response(200, { ok: true });
+      }
+
+      if (request.method === "DELETE") {
+        const { data: runs, error: readError } = await supabase
+          .from("balance_runs")
+          .select("id");
+
+        if (readError) return response(500, { error: readError.message });
+
+        for (const run of runs || []) {
+          const { error } = await supabase.from("balance_runs").delete().eq("id", run.id);
+
+          if (error) return response(500, { error: error.message });
+        }
+
+        return response(200, { ok: true });
+      }
+
+      return response(405, { error: "Method not allowed." });
+    } catch (error) {
+      return response(500, { error: error.message || "Unexpected error." });
+    }
+  },
+});

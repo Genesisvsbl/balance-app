@@ -1,0 +1,9 @@
+{
+  "type": "module",
+  "main": "src/functions/*.js",
+  "dependencies": {
+    "@azure/functions": "^4.7.0",
+    "@supabase/supabase-js": "^2.50.0",
+    "ws": "^8.18.0"
+  }
+}
