@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import { publicPath } from "@/lib/site";
-import { supabase } from "@/lib/supabase-browser";
 
 type AppUser = {
   id: string;
@@ -27,13 +26,27 @@ export default function Login({ onLogin }: Props) {
     setError("");
 
     try {
-      const { data, error } = await supabase.rpc("login_app_user", {
-        login_text: usuario,
-        login_password: password,
+      const response = await fetch("/api/auth-login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: usuario,
+          password,
+        }),
       });
 
-      if (error) {
-        throw new Error(error.message || "Usuario o contrasena incorrectos.");
+      const contentType = response.headers.get("content-type") || "";
+
+      if (!contentType.includes("application/json")) {
+        throw new Error("La ruta de login devolvio HTML. Revisa Functions directory en Netlify.");
+      }
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Usuario o contrasena incorrectos.");
       }
 
       onLogin(data.user);

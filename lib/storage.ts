@@ -1,38 +1,46 @@
 import { SavedLoad } from "@/types/balance";
-import { supabase } from "./supabase-browser";
 
-function throwIfSupabaseError(error: { message?: string } | null) {
-  if (error) {
-    throw new Error(error.message || "No se pudo completar la operacion.");
+const API_BASE = "/api";
+
+async function parseResponse<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || "No se pudo completar la operacion.");
   }
+
+  return response.json();
 }
 
 export async function guardarCarga(carga: SavedLoad) {
-  const { error } = await supabase.rpc("save_balance_load", {
-    carga: carga as any,
-  });
-
-  throwIfSupabaseError(error);
+  await parseResponse<{ ok: boolean }>(
+    await fetch(`${API_BASE}/balance-runs`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(carga),
+    })
+  );
 }
 
 export async function obtenerCargas(): Promise<SavedLoad[]> {
-  const { data, error } = await supabase.rpc("get_balance_loads");
-  throwIfSupabaseError(error);
-
-  return (data || []) as SavedLoad[];
+  return parseResponse<SavedLoad[]>(await fetch(`${API_BASE}/balance-runs`));
 }
 
 export async function eliminarCarga(id: string) {
-  const { error } = await supabase.rpc("delete_balance_load", {
-    load_id: id,
-  });
-
-  throwIfSupabaseError(error);
+  await parseResponse<{ ok: boolean }>(
+    await fetch(`${API_BASE}/balance-run?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    })
+  );
 }
 
 export async function limpiarCargas() {
-  const { error } = await supabase.rpc("clear_balance_loads");
-  throwIfSupabaseError(error);
+  await parseResponse<{ ok: boolean }>(
+    await fetch(`${API_BASE}/balance-runs`, {
+      method: "DELETE",
+    })
+  );
 }
 
 export function crearNombreBalance() {
