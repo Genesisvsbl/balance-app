@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { publicPath } from "@/lib/site";
+import { supabase } from "@/lib/supabase-browser";
 
 type AppUser = {
   id: string;
@@ -12,16 +14,6 @@ type AppUser = {
 type Props = {
   onLogin: (user: AppUser) => void;
 };
-
-const LOGIN_ENDPOINTS = ["/api/auth-login", "/.netlify/functions/auth-login"];
-
-function normalizeLogin(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
 
 export default function Login({ onLogin }: Props) {
   const [usuario, setUsuario] = useState("");
@@ -35,43 +27,16 @@ export default function Login({ onLogin }: Props) {
     setError("");
 
     try {
-      let lastError = "No se pudo iniciar sesion.";
+      const { data, error } = await supabase.rpc("login_app_user", {
+        login_text: usuario,
+        login_password: password,
+      });
 
-      for (const endpoint of LOGIN_ENDPOINTS) {
-        try {
-          const response = await fetch(endpoint, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              username: usuario,
-              password,
-            }),
-          });
-
-          const contentType = response.headers.get("content-type") || "";
-
-          if (!contentType.includes("application/json")) {
-            lastError = `La ruta ${endpoint} devolvio HTML.`;
-            continue;
-          }
-
-          const data = await response.json();
-
-          if (!response.ok) {
-            throw new Error(data.error || "Usuario o contrasena incorrectos.");
-          }
-
-          onLogin(data.user);
-          return;
-        } catch (error: any) {
-          lastError = error.message || `No se pudo conectar con ${endpoint}.`;
-          continue;
-        }
+      if (error) {
+        throw new Error(error.message || "Usuario o contrasena incorrectos.");
       }
 
-      throw new Error(lastError);
+      onLogin(data.user);
     } catch (error: any) {
       setError(error.message || "No se pudo iniciar sesion.");
     } finally {
@@ -107,7 +72,7 @@ export default function Login({ onLogin }: Props) {
       <header className="relative z-10 flex h-[72px] items-center justify-between border-b border-slate-200 bg-white px-8">
         <div className="flex items-center gap-4">
           <img
-            src="/LOGO.png"
+            src={publicPath("/LOGO.png")}
             alt="Bavaria"
             className="h-9 object-contain"
           />
@@ -131,7 +96,7 @@ export default function Login({ onLogin }: Props) {
         <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white shadow-[0_18px_50px_rgba(0,0,0,0.10)]">
           <div className="flex flex-col items-center border-b border-slate-100 px-6 py-6 text-center">
             <img
-              src="/LOGO.png"
+              src={publicPath("/LOGO.png")}
               alt="Bavaria"
               className="h-12 object-contain"
             />

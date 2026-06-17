@@ -1,5 +1,7 @@
 "use client";
 
+import { publicPath } from "@/lib/site";
+
 type Props = {
   active: string;
   setActive: (value: string) => void;
@@ -17,7 +19,7 @@ export default function Sidebar({ active, setActive }: Props) {
     <aside className="min-h-screen w-72 bg-[#071b33] text-white">
       <div className="border-b border-white/10 p-6">
         <div className="flex items-center gap-3">
-          <img src="/LOGO.png" alt="Logo" className="h-12 w-12 object-contain" />
+          <img src={publicPath("/LOGO.png")} alt="Logo" className="h-12 w-12 object-contain" />
           <div>
             <h1 className="text-lg font-black">BALANCE ERP</h1>
             <p className="text-xs text-blue-200">Material Planning</p>

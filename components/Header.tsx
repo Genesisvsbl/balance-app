@@ -1,6 +1,7 @@
 "use client";
 
 import TopNav from "./TopNav";
+import { publicPath } from "@/lib/site";
 
 type Props = {
   title: string;
@@ -22,7 +23,7 @@ export default function Header({
       <div className="flex h-14 items-center justify-between px-4">
         <div className="flex items-center gap-3">
           <img
-            src="/LOGO.png"
+            src={publicPath("/LOGO.png")}
             alt="Bavaria"
             className="h-7 w-24 object-contain"
           />
