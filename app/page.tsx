@@ -63,7 +63,7 @@ export default function Home() {
     setAnalisis(carga.analisis || []);
     setInfoAnalisis(carga.info || null);
     setArchivoNombre(carga.archivo || "Balance historico");
-    setActiveModule("dashboard");
+    setActiveModule("balance");
   }
 
   if (!logged || !currentUser) {
