@@ -155,6 +155,9 @@ export function generarBalance(datos: ExcelData): {
 
   const mapaExistencias: any = {};
   const almacenesSet = new Set<string>();
+  const skuLibreSet = new Set<string>();
+  const skuBloqueadoSet = new Set<string>();
+  const skuExistenciasSet = new Set<string>();
 
   existencias.forEach((fila: ExcelRow) => {
     const material = String(
@@ -197,6 +200,11 @@ export function generarBalance(datos: ExcelData): {
 
     if (!material) return;
 
+    const skuExistenciaKey = `${material}::${almacen || "SIN_ALMACEN"}`;
+    if (libre > 0) skuLibreSet.add(skuExistenciaKey);
+    if (bloqueado > 0) skuBloqueadoSet.add(skuExistenciaKey);
+    skuExistenciasSet.add(skuExistenciaKey);
+
     if (!mapaExistencias[material]) {
       mapaExistencias[material] = {
         total: 0,
@@ -238,6 +246,10 @@ export function generarBalance(datos: ExcelData): {
   );
   valoresInventario.libre =
     valoresInventario.total - valoresInventario.bloqueado;
+
+  const totalSkuLibre = skuLibreSet.size;
+  const totalSkuBloqueado = skuBloqueadoSet.size;
+  const totalSkuExistencias = skuExistenciasSet.size;
 
   const materialesBloqueados: InventarioBloqueadoRow[] = (
     Object.entries(mapaExistencias) as [string, any][]
@@ -496,6 +508,9 @@ export function generarBalance(datos: ExcelData): {
       valorInventarioLibre: valoresInventario.libre,
       valorInventarioBloqueado: valoresInventario.bloqueado,
       valorInventarioTotal: valoresInventario.total,
+      totalSkuLibre,
+      totalSkuBloqueado,
+      totalSkuExistencias,
       materialesBloqueados,
       consumosPorMaterial,
     },

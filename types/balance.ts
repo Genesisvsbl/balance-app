@@ -60,6 +60,9 @@ export type BalanceInfo = {
   valorInventarioLibre?: number;
   valorInventarioBloqueado?: number;
   valorInventarioTotal?: number;
+  totalSkuLibre?: number;
+  totalSkuBloqueado?: number;
+  totalSkuExistencias?: number;
   materialesBloqueados?: InventarioBloqueadoRow[];
   consumosPorMaterial?: Record<string, number>;
 };

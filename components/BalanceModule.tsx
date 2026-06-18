@@ -448,7 +448,10 @@ export default function BalanceModule({
   const materialesEnRiesgo = analisis.filter((row) =>
     semanasResumen.some((sem) => (row.diferenciasPorSemana[sem] || 0) < 0)
   ).length;
-  const indicadoresPorSemana = semanasResumen.map((sem, index) => {
+  const totalSkuLibre = infoAnalisis?.totalSkuLibre ?? analisis.filter((row) => (row.inventarioLibre || 0) > 0).length;
+  const totalSkuBloqueado = infoAnalisis?.totalSkuBloqueado ?? analisis.filter((row) => (row.inventarioBloqueado || 0) > 0).length;
+  const totalSkuExistencias = infoAnalisis?.totalSkuExistencias ?? analisis.filter((row) => ((row.inventarioLibre || 0) + (row.inventarioBloqueado || 0)) > 0).length;
+  const indicadoresPorSemana = semanasResumen.map((sem) => {
     const criticos = analisis.filter(
       (row) => (row.diferenciasPorSemana[sem] || 0) < 0
     ).length;
@@ -459,7 +462,7 @@ export default function BalanceModule({
 
     return {
       semana: sem,
-      label: `SKU Criticos Sem${index + 1}`,
+      label: "SKU Criticos",
       criticos,
       faltante,
     };
@@ -530,7 +533,7 @@ export default function BalanceModule({
                 {formatoNumero(valoresInventario.libre)}
               </p>
               <p className="mt-1 text-[11px] font-semibold text-slate-500">
-                No. Total SKU: {analisis.length}
+                No. Total SKU: {totalSkuLibre}
               </p>
             </div>
 
@@ -542,7 +545,7 @@ export default function BalanceModule({
                 {formatoNumero(valoresInventario.bloqueado)}
               </p>
               <p className="mt-1 text-[11px] font-semibold text-slate-500">
-                No. Total SKU: {analisis.length}
+                No. Total SKU: {totalSkuBloqueado}
               </p>
             </div>
 
@@ -554,12 +557,12 @@ export default function BalanceModule({
                 {formatoNumero(valoresInventario.total)}
               </p>
               <p className="mt-1 text-[11px] font-semibold text-slate-500">
-                No. Total SKU: {analisis.length}
+                No. Total SKU: {totalSkuExistencias}
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
             <div className="rounded-xl border border-red-100 bg-white p-4 shadow-sm">
               <p className="text-xs font-semibold text-slate-500">
                 No. Materiales en riesgo
