@@ -92,7 +92,7 @@ export default function Login({ onLogin }: Props) {
       let data;
 
       try {
-        data = await solicitarLogin("/.netlify/functions/auth-login");
+        data = await solicitarLogin("/auth-login");
       } catch (firstError: any) {
         const puedeUsarSupabase =
           firstError?.message === "HTML_RESPONSE" ||
