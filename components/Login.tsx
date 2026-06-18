@@ -21,37 +21,54 @@ export default function Login({ onLogin }: Props) {
   const [loading, setLoading] = useState(false);
   const passwordRef = useRef<HTMLInputElement>(null);
 
+  async function solicitarLogin(endpoint: string) {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        username: usuario,
+        password,
+      }),
+    });
+
+    const contentType = response.headers.get("content-type") || "";
+
+    if (!contentType.includes("application/json")) {
+      throw new Error("HTML_RESPONSE");
+    }
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Usuario o contrasena incorrectos.");
+    }
+
+    return data;
+  }
+
   async function acceder() {
     setLoading(true);
     setError("");
 
     try {
-      const response = await fetch("/api/auth-login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username: usuario,
-          password,
-        }),
-      });
+      let data;
 
-      const contentType = response.headers.get("content-type") || "";
-
-      if (!contentType.includes("application/json")) {
-        throw new Error("La ruta de login devolvio HTML. Revisa Functions directory en Netlify.");
-      }
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Usuario o contrasena incorrectos.");
+      try {
+        data = await solicitarLogin("/.netlify/functions/auth-login");
+      } catch (firstError: any) {
+        if (firstError?.message !== "HTML_RESPONSE") throw firstError;
+        data = await solicitarLogin("/api/auth-login");
       }
 
       onLogin(data.user);
     } catch (error: any) {
-      setError(error.message || "No se pudo iniciar sesion.");
+      if (error?.message === "HTML_RESPONSE") {
+        setError("La red esta devolviendo HTML en la ruta de login. Abre directamente /.netlify/functions/auth-login para validar si la funcion esta permitida.");
+      } else {
+        setError(error.message || "No se pudo iniciar sesion.");
+      }
     } finally {
       setLoading(false);
     }
