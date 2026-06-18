@@ -448,9 +448,15 @@ export default function BalanceModule({
   const materialesEnRiesgo = analisis.filter((row) =>
     semanasResumen.some((sem) => (row.diferenciasPorSemana[sem] || 0) < 0)
   ).length;
-  const totalSkuLibre = infoAnalisis?.totalSkuLibre ?? analisis.filter((row) => (row.inventarioLibre || 0) > 0).length;
-  const totalSkuBloqueado = infoAnalisis?.totalSkuBloqueado ?? analisis.filter((row) => (row.inventarioBloqueado || 0) > 0).length;
-  const totalSkuExistencias = infoAnalisis?.totalSkuExistencias ?? analisis.filter((row) => ((row.inventarioLibre || 0) + (row.inventarioBloqueado || 0)) > 0).length;
+  const totalSkuLibre = infoAnalisis?.totalSkuLibre;
+  const totalSkuBloqueado = infoAnalisis?.totalSkuBloqueado;
+  const totalSkuExistencias = infoAnalisis?.totalSkuExistencias;
+  const conteosSkuActualizados =
+    totalSkuLibre !== undefined &&
+    totalSkuBloqueado !== undefined &&
+    totalSkuExistencias !== undefined;
+  const mostrarSku = (valor?: number) =>
+    typeof valor === "number" ? valor.toLocaleString("en-US") : "Regenerar";
   const indicadoresPorSemana = semanasResumen.map((sem) => {
     const criticos = analisis.filter(
       (row) => (row.diferenciasPorSemana[sem] || 0) < 0
@@ -533,7 +539,7 @@ export default function BalanceModule({
                 {formatoNumero(valoresInventario.libre)}
               </p>
               <p className="mt-1 text-[11px] font-semibold text-slate-500">
-                No. Total SKU: {totalSkuLibre}
+                No. Total SKU: {mostrarSku(totalSkuLibre)}
               </p>
             </div>
 
@@ -545,7 +551,7 @@ export default function BalanceModule({
                 {formatoNumero(valoresInventario.bloqueado)}
               </p>
               <p className="mt-1 text-[11px] font-semibold text-slate-500">
-                No. Total SKU: {totalSkuBloqueado}
+                No. Total SKU: {mostrarSku(totalSkuBloqueado)}
               </p>
             </div>
 
@@ -557,10 +563,16 @@ export default function BalanceModule({
                 {formatoNumero(valoresInventario.total)}
               </p>
               <p className="mt-1 text-[11px] font-semibold text-slate-500">
-                No. Total SKU: {totalSkuExistencias}
+                No. Total SKU: {mostrarSku(totalSkuExistencias)}
               </p>
             </div>
           </div>
+
+          {!conteosSkuActualizados && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800">
+              Este balance fue guardado antes de calcular los SKU desde Existencias. Genera el balance nuevamente desde el Excel y vuelve a guardarlo para ver 318 / 10 / 321.
+            </div>
+          )}
 
           <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
             <div className="rounded-xl border border-red-100 bg-white p-4 shadow-sm">
