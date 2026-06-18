@@ -48,6 +48,42 @@ export default function Login({ onLogin }: Props) {
     return data;
   }
 
+  async function solicitarLoginSupabase() {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error("Faltan variables publicas de Supabase en Netlify.");
+    }
+
+    const response = await fetch(
+      `${supabaseUrl.replace(/\/$/, "")}/rest/v1/rpc/login_app_user`,
+      {
+        method: "POST",
+        headers: {
+          apikey: supabaseKey,
+          authorization: `Bearer ${supabaseKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          login_text: usuario,
+          login_password: password,
+        }),
+      }
+    );
+
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : null;
+
+    if (!response.ok) {
+      throw new Error(
+        data?.message || data?.error || "Usuario o contrasena incorrectos."
+      );
+    }
+
+    return data;
+  }
+
   async function acceder() {
     setLoading(true);
     setError("");
@@ -58,17 +94,17 @@ export default function Login({ onLogin }: Props) {
       try {
         data = await solicitarLogin("/.netlify/functions/auth-login");
       } catch (firstError: any) {
-        if (firstError?.message !== "HTML_RESPONSE") throw firstError;
-        data = await solicitarLogin("/api/auth-login");
+        const puedeUsarSupabase =
+          firstError?.message === "HTML_RESPONSE" ||
+          firstError?.name === "TypeError";
+
+        if (!puedeUsarSupabase) throw firstError;
+        data = await solicitarLoginSupabase();
       }
 
       onLogin(data.user);
     } catch (error: any) {
-      if (error?.message === "HTML_RESPONSE") {
-        setError("La red esta devolviendo HTML en la ruta de login. Abre directamente /.netlify/functions/auth-login para validar si la funcion esta permitida.");
-      } else {
-        setError(error.message || "No se pudo iniciar sesion.");
-      }
+      setError(error.message || "No se pudo iniciar sesion.");
     } finally {
       setLoading(false);
     }
