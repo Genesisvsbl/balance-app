@@ -14,6 +14,66 @@ type Props = {
   onLogin: (user: AppUser) => void;
 };
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const LOGIN_ENDPOINTS = ["/api/auth-login", "/.netlify/functions/auth-login"];
+
+const LOCAL_USERS = [
+  {
+    id: "0e478af9-deff-48a6-b042-3d205c5a60e6",
+    username: "genesis.visbal",
+    fullName: "Genesis Visbal",
+    role: "admin",
+    salt: "6728aa204edebd254c75e1f2a6d05850",
+    hash: "31d1e41e125d7d03b76fff0229b632b16e8cd9a9729c29381fa6499baa5f636c",
+  },
+  {
+    id: "b8c4fc6f-916b-40c8-b6df-2cd64170a6c0",
+    username: "jeremy.griego",
+    fullName: "Jeremy Griego",
+    role: "planner",
+    salt: "be5ce946c0ad00adcf4a93722bf8970a",
+    hash: "cfa57a9b6d80f98ed249e7014777e005b2ef23dc1ed304b264ae02b20ce527c9",
+  },
+];
+
+function normalizeLogin(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, ".");
+}
+
+async function sha256Hex(value: string) {
+  const data = new TextEncoder().encode(value);
+  const buffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(buffer))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function loginLocal(username: string, password: string): Promise<AppUser | null> {
+  const normalized = normalizeLogin(username);
+
+  for (const user of LOCAL_USERS) {
+    const userMatches = [user.username, user.fullName]
+      .map(normalizeLogin)
+      .includes(normalized);
+
+    if (!userMatches) continue;
+
+    const hash = await sha256Hex(`${user.salt}:${password}`);
+
+    if (hash === user.hash) {
+      return {
+        id: user.id,
+        username: user.username,
+        fullName: user.fullName,
+        role: user.role,
+      };
+    }
+  }
+
+  return null;
+}
+
 export default function Login({ onLogin }: Props) {
   const [usuario, setUsuario] = useState("");
   const [password, setPassword] = useState("");
@@ -26,30 +86,77 @@ export default function Login({ onLogin }: Props) {
     setError("");
 
     try {
-      const response = await fetch("/api/auth-login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username: usuario,
-          password,
-        }),
-      });
+      let lastError = "No se pudo iniciar sesion.";
 
-      const contentType = response.headers.get("content-type") || "";
+      if (SUPABASE_URL && SUPABASE_KEY) {
+        try {
+          const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/login_app_user`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              apikey: SUPABASE_KEY,
+              Authorization: `Bearer ${SUPABASE_KEY}`,
+            },
+            body: JSON.stringify({
+              p_username: usuario,
+              p_password: password,
+            }),
+          });
 
-      if (!contentType.includes("application/json")) {
-        throw new Error("La ruta de login devolvio HTML. Revisa Functions directory en Netlify.");
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.message || data.error || "Usuario o contrasena incorrectos.");
+          }
+
+          onLogin(data.user);
+          return;
+        } catch (error: any) {
+          lastError = error.message || "Supabase no respondio.";
+        }
       }
 
-      const data = await response.json();
+      for (const endpoint of LOGIN_ENDPOINTS) {
+        try {
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              username: usuario,
+              password,
+            }),
+          });
 
-      if (!response.ok) {
-        throw new Error(data.error || "Usuario o contrasena incorrectos.");
+          const contentType = response.headers.get("content-type") || "";
+
+          if (!contentType.includes("application/json")) {
+            lastError = `La ruta ${endpoint} devolvio HTML.`;
+            continue;
+          }
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || "Usuario o contrasena incorrectos.");
+          }
+
+          onLogin(data.user);
+          return;
+        } catch (error: any) {
+          lastError = error.message || `No se pudo conectar con ${endpoint}.`;
+        }
       }
 
-      onLogin(data.user);
+      const localUser = await loginLocal(usuario, password);
+
+      if (localUser) {
+        onLogin(localUser);
+        return;
+      }
+
+      throw new Error(lastError);
     } catch (error: any) {
       setError(error.message || "No se pudo iniciar sesion.");
     } finally {
