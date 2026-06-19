@@ -1,7 +1,0 @@
-/auth-login /.netlify/functions/auth-login 200!
-/balance-runs /.netlify/functions/balance-runs 200!
-/balance-run /.netlify/functions/balance-run 200!
-/api/auth-login /.netlify/functions/auth-login 200!
-/api/balance-runs /.netlify/functions/balance-runs 200!
-/api/balance-run /.netlify/functions/balance-run 200!
-/* /index.html 200

@@ -1,4 +1,4 @@
-﻿import crypto from "node:crypto";
+import crypto from "node:crypto";
 import { createSupabaseClient } from "./supabase-client.mjs";
 
 function json(statusCode, body) {
@@ -9,44 +9,6 @@ function json(statusCode, body) {
     },
     body: JSON.stringify(body),
   };
-}
-
-function htmlMessage(body) {
-  const payload = JSON.stringify(body).replace(/</g, "\\u003c");
-
-  return {
-    statusCode: 200,
-    headers: {
-      "content-type": "text/html; charset=utf-8",
-    },
-    body: `<!doctype html><html><body><script>window.parent.postMessage(${payload}, window.location.origin);</script></body></html>`,
-  };
-}
-
-function response(statusCode, body, asIframe) {
-  if (asIframe) {
-    return htmlMessage({
-      source: "balance-auth",
-      ok: statusCode >= 200 && statusCode < 300,
-      body,
-    });
-  }
-
-  return json(statusCode, body);
-}
-
-function parseBody(event) {
-  const rawBody = event.isBase64Encoded
-    ? Buffer.from(event.body || "", "base64").toString("utf8")
-    : event.body || "";
-  const contentType =
-    event.headers?.["content-type"] || event.headers?.["Content-Type"] || "";
-
-  if (contentType.includes("application/x-www-form-urlencoded")) {
-    return Object.fromEntries(new URLSearchParams(rawBody));
-  }
-
-  return JSON.parse(rawBody || "{}");
 }
 
 function hashPassword(salt, password) {
@@ -62,20 +24,16 @@ function normalizeLogin(value) {
 }
 
 export async function handler(event) {
-  let asIframe = false;
-
   try {
     if (event.httpMethod !== "POST") {
       return json(405, { error: "Method not allowed." });
     }
 
-    const body = parseBody(event);
-    asIframe = body.mode === "iframe";
-    const { username, password } = body;
+    const { username, password } = JSON.parse(event.body || "{}");
     const normalizedUsername = normalizeLogin(username);
 
     if (!normalizedUsername || !password) {
-      return response(400, { error: "Usuario y contrasena son obligatorios." }, asIframe);
+      return json(400, { error: "Usuario y contraseña son obligatorios." });
     }
 
     const supabase = createSupabaseClient();
@@ -84,7 +42,7 @@ export async function handler(event) {
       .select("id, username, full_name, password_salt, password_hash, role, active")
       .eq("active", true);
 
-    if (error) return response(500, { error: error.message }, asIframe);
+    if (error) return json(500, { error: error.message });
 
     const user = (users || []).find((item) => {
       const usernameMatch = normalizeLogin(item.username) === normalizedUsername;
@@ -111,7 +69,7 @@ export async function handler(event) {
     });
 
     if (!valid) {
-      return response(401, { error: "Usuario o contrasena incorrectos." }, asIframe);
+      return json(401, { error: "Usuario o contraseña incorrectos." });
     }
 
     await supabase
@@ -119,19 +77,15 @@ export async function handler(event) {
       .update({ last_login_at: new Date().toISOString() })
       .eq("id", user.id);
 
-    return response(
-      200,
-      {
-        user: {
-          id: user.id,
-          username: user.username,
-          fullName: user.full_name,
-          role: user.role,
-        },
+    return json(200, {
+      user: {
+        id: user.id,
+        username: user.username,
+        fullName: user.full_name,
+        role: user.role,
       },
-      asIframe
-    );
+    });
   } catch (error) {
-    return response(500, { error: error.message || "Unexpected error." }, asIframe);
+    return json(500, { error: error.message || "Unexpected error." });
   }
 }

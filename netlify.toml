@@ -10,23 +10,6 @@
   NEXT_TELEMETRY_DISABLED = "1"
 
 [[redirects]]
-  from = "/auth-login"
-  to = "/.netlify/functions/auth-login"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/balance-runs"
-  to = "/.netlify/functions/balance-runs"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/balance-run"
-  to = "/.netlify/functions/balance-run"
-  status = 200
-  force = true
-[[redirects]]
   from = "/api/auth-login"
   to = "/.netlify/functions/auth-login"
   status = 200
@@ -43,5 +26,3 @@
   to = "/.netlify/functions/balance-run"
   status = 200
   force = true
-
-
