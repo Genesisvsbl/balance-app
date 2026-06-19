@@ -48,6 +48,67 @@ export default function Login({ onLogin }: Props) {
     return data;
   }
 
+  async function solicitarLoginIframe() {
+    return new Promise<any>((resolve, reject) => {
+      const iframeName = `balance_auth_${Date.now()}`;
+      const iframe = document.createElement("iframe");
+      const form = document.createElement("form");
+      const timeout = window.setTimeout(() => {
+        cleanup();
+        reject(new Error("La red no permitio validar el login."));
+      }, 20000);
+
+      function cleanup() {
+        window.clearTimeout(timeout);
+        window.removeEventListener("message", onMessage);
+        iframe.remove();
+        form.remove();
+      }
+
+      function addField(name: string, value: string) {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = name;
+        input.value = value;
+        form.appendChild(input);
+      }
+
+      function onMessage(event: MessageEvent) {
+        if (event.origin !== window.location.origin) return;
+        if (event.data?.source !== "balance-auth") return;
+
+        cleanup();
+
+        if (event.data.ok) {
+          resolve(event.data.body);
+        } else {
+          reject(
+            new Error(
+              event.data.body?.error || "Usuario o contrasena incorrectos."
+            )
+          );
+        }
+      }
+
+      iframe.name = iframeName;
+      iframe.style.display = "none";
+
+      form.method = "POST";
+      form.action = "/auth-login";
+      form.target = iframeName;
+      form.enctype = "application/x-www-form-urlencoded";
+      form.style.display = "none";
+
+      addField("username", usuario);
+      addField("password", password);
+      addField("mode", "iframe");
+
+      window.addEventListener("message", onMessage);
+      document.body.appendChild(iframe);
+      document.body.appendChild(form);
+      form.submit();
+    });
+  }
   async function solicitarLoginSupabase() {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -94,12 +155,18 @@ export default function Login({ onLogin }: Props) {
       try {
         data = await solicitarLogin("/auth-login");
       } catch (firstError: any) {
-        const puedeUsarSupabase =
+        const puedeUsarFallback =
           firstError?.message === "HTML_RESPONSE" ||
-          firstError?.name === "TypeError";
+          firstError?.name === "TypeError" ||
+          firstError?.message === "Failed to fetch";
 
-        if (!puedeUsarSupabase) throw firstError;
-        data = await solicitarLoginSupabase();
+        if (!puedeUsarFallback) throw firstError;
+
+        try {
+          data = await solicitarLoginIframe();
+        } catch (iframeError: any) {
+          data = await solicitarLoginSupabase();
+        }
       }
 
       onLogin(data.user);
