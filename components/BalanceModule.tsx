@@ -738,7 +738,7 @@ export default function BalanceModule({
                 }}
                 className="h-9 min-w-[220px] rounded-lg border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-[#e30613] focus:ring-2 focus:ring-[#e30613]/10"
               >
-                <option value="">Todos los SAP</option>
+                <option value="">Selecciona SAP del Plan...</option>
                 {opcionesSkuProduccion.map((sku) => (
                   <option key={sku.codigo} value={sku.codigo}>
                     {sku.codigo} - {sku.descripcion}
