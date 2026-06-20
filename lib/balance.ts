@@ -266,6 +266,7 @@ export function generarBalance(datos: ExcelData): {
     .sort((a, b) => b.valor - a.valor);
 
   const skuProduccionDescripcion = new Map<string, string>();
+  const skuProduccionSemanas = new Map<string, Set<string>>();
 
   planProduccion.forEach((fila: ExcelRow) => {
     const codigoSap = String(
@@ -275,8 +276,14 @@ export function generarBalance(datos: ExcelData): {
       obtenerValor(fila, ["SKU", "Descripcion SKU", "Descripción SKU", "Producto", "Descripcion"])
     ).trim();
 
+    const semanaSap = obtenerSemanaDePlan(fila, etiquetasSemana);
+
     if (codigoSap) {
       skuProduccionDescripcion.set(codigoSap, descripcionSku || codigoSap);
+      if (!skuProduccionSemanas.has(codigoSap)) {
+        skuProduccionSemanas.set(codigoSap, new Set());
+      }
+      if (semanaSap) skuProduccionSemanas.get(codigoSap)?.add(semanaSap);
     }
   });
 
@@ -496,7 +503,11 @@ export function generarBalance(datos: ExcelData): {
         transitosPorSemana,
         coberturaPorSemana,
         skusProduccion: Array.from(skusPorComponente[codigo]?.entries() || []).map(
-          ([codigoSku, descripcion]) => ({ codigo: codigoSku, descripcion })
+          ([codigoSku, descripcion]) => ({
+            codigo: codigoSku,
+            descripcion,
+            semanas: Array.from(skuProduccionSemanas.get(codigoSku) || []),
+          })
         ),
         totalNecesidad: item.totalNecesidad,
         totalRecepcion,
@@ -541,7 +552,11 @@ export function generarBalance(datos: ExcelData): {
       materialesBloqueados,
       consumosPorMaterial,
       skusProduccionDetectados: Array.from(skuProduccionDescripcion.entries()).map(
-        ([codigo, descripcion]) => ({ codigo, descripcion })
+        ([codigo, descripcion]) => ({
+          codigo,
+          descripcion,
+          semanas: Array.from(skuProduccionSemanas.get(codigo) || []),
+        })
       ),
     },
   };

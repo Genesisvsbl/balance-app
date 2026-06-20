@@ -96,6 +96,7 @@ export default function BalanceModule({
 }: Props) {
   const [filtroTexto, setFiltroTexto] = useState("");
   const [filtroSkuProduccion, setFiltroSkuProduccion] = useState("");
+  const [mostrarTodoSkuProduccion, setMostrarTodoSkuProduccion] = useState(false);
   const [filtroSeccion, setFiltroSeccion] = useState("TODAS");
   const [filtroEstado, setFiltroEstado] = useState("TODOS");
   const [mostrarColumnas, setMostrarColumnas] = useState(false);
@@ -118,6 +119,7 @@ export default function BalanceModule({
   const columnasSemana = infoAnalisis?.columnasSemana || [];
   const almacenesDetectados = infoAnalisis?.almacenesDetectados || [];
   const seccionesDetectadas = infoAnalisis?.seccionesDetectadas || [];
+  const skusProduccionDetectados = infoAnalisis?.skusProduccionDetectados || [];
 
   useEffect(() => {
     if (almacenesDetectados.length === 0) return;
@@ -183,6 +185,36 @@ export default function BalanceModule({
   }
 
   const semanasActivas = semanasSeleccionadas;
+
+  const opcionesSkuProduccion = useMemo(() => {
+    const semanasSet = new Set(semanasActivas);
+
+    return skusProduccionDetectados
+      .filter((sku) => {
+        if (semanasSet.size === 0 || !sku.semanas || sku.semanas.length === 0) {
+          return true;
+        }
+
+        return sku.semanas.some((sem) => semanasSet.has(sem));
+      })
+      .sort((a, b) =>
+        String(a.codigo).localeCompare(String(b.codigo), "es", {
+          numeric: true,
+          sensitivity: "base",
+        })
+      );
+  }, [skusProduccionDetectados, semanasActivas.join("|")]);
+
+  const skuProduccionSeleccionado = opcionesSkuProduccion.find(
+    (sku) => sku.codigo === filtroSkuProduccion
+  );
+
+  useEffect(() => {
+    if (!filtroSkuProduccion) return;
+    if (opcionesSkuProduccion.some((sku) => sku.codigo === filtroSkuProduccion)) return;
+    setFiltroSkuProduccion("");
+    setMostrarTodoSkuProduccion(false);
+  }, [filtroSkuProduccion, opcionesSkuProduccion]);
 
   function toggleSemanaAnalisis(semana: string) {
     setSemanasSeleccionadas((actual) =>
@@ -376,8 +408,8 @@ export default function BalanceModule({
 
   const filtrado = analisis.filter((row) => {
     const texto = normalizarBusqueda(filtroTexto);
-    const textoSkuProduccion = normalizarBusqueda(filtroSkuProduccion);
     const estadoActual = estadoSeleccionado(row);
+    const necesidadSeleccionada = totalNecesidadSeleccionada(row);
 
     const coincideTexto =
       texto === "" ||
@@ -387,12 +419,15 @@ export default function BalanceModule({
       normalizarBusqueda(estadoActual).includes(texto);
 
     const coincideSkuProduccion =
-      textoSkuProduccion === "" ||
+      filtroSkuProduccion === "" ||
       (row.skusProduccion || []).some(
-        (sku) =>
-          normalizarBusqueda(sku.codigo).includes(textoSkuProduccion) ||
-          normalizarBusqueda(sku.descripcion).includes(textoSkuProduccion)
+        (sku) => sku.codigo === filtroSkuProduccion
       );
+
+    const coincideNecesidadSku =
+      filtroSkuProduccion === "" ||
+      mostrarTodoSkuProduccion ||
+      necesidadSeleccionada > 0;
 
     const coincideSeccion =
       filtroSeccion === "TODAS" ||
@@ -401,7 +436,13 @@ export default function BalanceModule({
     const coincideEstado =
       filtroEstado === "TODOS" || estadoActual === filtroEstado;
 
-    return coincideTexto && coincideSkuProduccion && coincideSeccion && coincideEstado;
+    return (
+      coincideTexto &&
+      coincideSkuProduccion &&
+      coincideNecesidadSku &&
+      coincideSeccion &&
+      coincideEstado
+    );
   });
 
   const filtradoOrdenado = useMemo(() => {
@@ -689,14 +730,21 @@ export default function BalanceModule({
                 className="h-9 min-w-[280px] rounded-lg border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-[#e30613] focus:ring-2 focus:ring-[#e30613]/10"
               />
 
-              
-
-              <input
+              <select
                 value={filtroSkuProduccion}
-                onChange={(e) => setFiltroSkuProduccion(e.target.value)}
-                placeholder="Buscar SAP o SKU produccion..."
+                onChange={(e) => {
+                  setFiltroSkuProduccion(e.target.value);
+                  setMostrarTodoSkuProduccion(false);
+                }}
                 className="h-9 min-w-[220px] rounded-lg border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-[#e30613] focus:ring-2 focus:ring-[#e30613]/10"
-              />
+              >
+                <option value="">Todos los SAP</option>
+                {opcionesSkuProduccion.map((sku) => (
+                  <option key={sku.codigo} value={sku.codigo}>
+                    {sku.codigo} - {sku.descripcion}
+                  </option>
+                ))}
+              </select>
 
               <select
                 value={filtroSeccion}
@@ -735,6 +783,7 @@ export default function BalanceModule({
                 onClick={() => {
                   setFiltroTexto("");
                   setFiltroSkuProduccion("");
+                  setMostrarTodoSkuProduccion(false);
                   setFiltroSeccion("TODAS");
                   setFiltroEstado("TODOS");
                 }}
@@ -744,6 +793,26 @@ export default function BalanceModule({
               </button>
             </div>
           </div>
+
+          {filtroSkuProduccion && (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#d4a017]/30 bg-[#fff8df] px-3 py-2">
+              <p className="text-xs font-bold text-[#6f4b00]">
+                SAP {filtroSkuProduccion}
+                {skuProduccionSeleccionado?.descripcion
+                  ? ` - ${skuProduccionSeleccionado.descripcion}`
+                  : ""}{" "}
+                · {mostrarTodoSkuProduccion
+                  ? "Mostrando receta completa"
+                  : "Mostrando solo materiales con necesidad en las semanas filtradas"}
+              </p>
+              <button
+                onClick={() => setMostrarTodoSkuProduccion((actual) => !actual)}
+                className="h-8 rounded-lg border border-[#d4a017]/50 bg-white px-3 text-xs font-black text-[#9a6a00] transition hover:bg-[#fff1bf]"
+              >
+                {mostrarTodoSkuProduccion ? "Ocultar sin necesidad" : "Ver todo SAP"}
+              </button>
+            </div>
+          )}
 
           <div className="mt-3 rounded-xl border border-slate-200 bg-[#fbfbfa] p-3">
             <div className="flex flex-wrap items-center justify-between gap-3">

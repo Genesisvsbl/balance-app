@@ -16,6 +16,7 @@ export type RecepcionTransito = {
 export type SkuProduccion = {
   codigo: string;
   descripcion: string;
+  semanas?: string[];
 };
 
 export type InventarioBloqueadoRow = {
