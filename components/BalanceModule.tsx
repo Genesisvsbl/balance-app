@@ -3,7 +3,7 @@
 import * as XLSX from "xlsx";
 import { generarBalance } from "@/lib/balance";
 import { guardarCarga, crearNombreBalance } from "@/lib/storage";
-import { BalanceInfo, BalanceRow, ExcelData, SavedLoad } from "@/types/balance";
+import { BalanceInfo, BalanceRow, ExcelData, SavedLoad, SkuProduccion } from "@/types/balance";
 import { formatoNumero } from "@/lib/format";
 import { Fragment, useEffect, useMemo, useState } from "react";
 
@@ -63,6 +63,48 @@ function normalizarBusqueda(valor: string) {
     .trim();
 }
 
+function normalizarClave(valor: string) {
+  return normalizarBusqueda(valor).replace(/[^a-z0-9]/g, "");
+}
+
+function obtenerHojaLocal(datos: ExcelData, nombres: string[]) {
+  const objetivos = nombres.map(normalizarClave);
+  return (
+    Object.entries(datos).find(([nombre]) =>
+      objetivos.includes(normalizarClave(nombre))
+    )?.[1] || null
+  );
+}
+
+function obtenerValorLocal(fila: Record<string, any>, nombres: string[]) {
+  for (const nombre of nombres) {
+    const objetivo = normalizarClave(nombre);
+    const key = Object.keys(fila || {}).find(
+      (columna) =>
+        normalizarClave(columna) === objetivo &&
+        fila[columna] !== undefined &&
+        fila[columna] !== ""
+    );
+
+    if (key) return fila[key];
+  }
+
+  return "";
+}
+
+function obtenerSemanaPlanLocal(fila: Record<string, any>, semanas: string[]) {
+  const semana = String(
+    obtenerValorLocal(fila, ["sem", "Semana", "Week"])
+  ).trim();
+
+  if (!semana) return "";
+
+  return (
+    semanas.find((sem) => normalizarClave(sem) === normalizarClave(semana)) ||
+    semana
+  );
+}
+
 function crearVisibilidadInicial(almacenes: string[]): ColumnVisibility {
   const almacenesVisibles: Record<string, boolean> = {};
 
@@ -95,10 +137,10 @@ export default function BalanceModule({
   currentUser,
 }: Props) {
   const [filtroTexto, setFiltroTexto] = useState("");
-  const [filtroSkuProduccion, setFiltroSkuProduccion] = useState("");
+  const [filtrosSkuProduccion, setFiltrosSkuProduccion] = useState<string[]>([]);
   const [mostrarTodoSkuProduccion, setMostrarTodoSkuProduccion] = useState(false);
-  const [filtroSeccion, setFiltroSeccion] = useState("TODAS");
-  const [filtroEstado, setFiltroEstado] = useState("TODOS");
+  const [filtrosSeccion, setFiltrosSeccion] = useState<string[]>([]);
+  const [filtrosEstado, setFiltrosEstado] = useState<EstadoAnalisis[]>([]);
   const [mostrarColumnas, setMostrarColumnas] = useState(false);
   const [semanasSeleccionadas, setSemanasSeleccionadas] = useState<string[]>([]);
   const [semanasTransito, setSemanasTransito] = useState<string[]>([]);
@@ -186,10 +228,91 @@ export default function BalanceModule({
 
   const semanasActivas = semanasSeleccionadas;
 
+  const skusProduccionDesdePlan = useMemo<SkuProduccion[]>(() => {
+    const hojaPlan = obtenerHojaLocal(datos, ["Plan"]);
+    const mapa = new Map<string, SkuProduccion & { semanas: string[] }>();
+
+    (hojaPlan?.datos || []).forEach((fila: Record<string, any>) => {
+      const codigo = String(
+        obtenerValorLocal(fila, ["SAP", "Codigo SAP", "Código SAP"])
+      ).trim();
+      if (!codigo) return;
+
+      const descripcion = String(
+        obtenerValorLocal(fila, ["SKU", "Descripcion SKU", "Descripción SKU", "Producto"])
+      ).trim();
+      const semana = obtenerSemanaPlanLocal(fila, columnasSemana);
+
+      if (!mapa.has(codigo)) {
+        mapa.set(codigo, {
+          codigo,
+          descripcion: descripcion || codigo,
+          semanas: [],
+        });
+      }
+
+      const item = mapa.get(codigo);
+      if (item && descripcion && item.descripcion === codigo) item.descripcion = descripcion;
+      if (item && semana && !item.semanas.includes(semana)) item.semanas.push(semana);
+    });
+
+    return Array.from(mapa.values());
+  }, [datos, columnasSemana.join("|")]);
+
+  const componentesPorSkuProduccion = useMemo(() => {
+    const hojaReceta = obtenerHojaLocal(datos, ["Receta"]);
+    const mapa = new Map<string, Set<string>>();
+
+    (hojaReceta?.datos || []).forEach((fila: Record<string, any>) => {
+      const codigoSku = String(
+        obtenerValorLocal(fila, ["Codigo", "Código", "SAP", "SKU", "Material padre"])
+      ).trim();
+      const componente = String(
+        obtenerValorLocal(fila, [
+          "N° componente",
+          "Nº componente",
+          "N° Componente",
+          "Nº Componente",
+          "Material",
+          "Código",
+          "Codigo",
+        ])
+      ).trim();
+
+      if (!codigoSku || !componente) return;
+      if (!mapa.has(codigoSku)) mapa.set(codigoSku, new Set());
+      mapa.get(codigoSku)?.add(componente);
+    });
+
+    return mapa;
+  }, [datos]);
+
   const opcionesSkuProduccion = useMemo(() => {
     const semanasSet = new Set(semanasActivas);
+    const mapa = new Map<string, SkuProduccion>();
 
-    return skusProduccionDetectados
+    [...skusProduccionDetectados, ...skusProduccionDesdePlan].forEach((sku) => {
+      if (!sku.codigo) return;
+      const actual = mapa.get(sku.codigo);
+      mapa.set(sku.codigo, {
+        codigo: sku.codigo,
+        descripcion: sku.descripcion || actual?.descripcion || sku.codigo,
+        semanas: Array.from(new Set([...(actual?.semanas || []), ...(sku.semanas || [])])),
+      });
+    });
+
+    analisis.forEach((row) => {
+      (row.skusProduccion || []).forEach((sku) => {
+        if (!sku.codigo || mapa.has(sku.codigo)) return;
+        mapa.set(sku.codigo, {
+          codigo: sku.codigo,
+          descripcion: sku.descripcion || sku.codigo,
+          semanas: sku.semanas || [],
+        });
+      });
+    });
+
+    return Array.from(mapa.values())
       .filter((sku) => {
         if (semanasSet.size === 0 || !sku.semanas || sku.semanas.length === 0) {
           return true;
@@ -203,24 +326,42 @@ export default function BalanceModule({
           sensitivity: "base",
         })
       );
-  }, [skusProduccionDetectados, semanasActivas.join("|")]);
+  }, [
+    skusProduccionDetectados,
+    skusProduccionDesdePlan,
+    analisis,
+    semanasActivas.join("|"),
+  ]);
 
-  const skuProduccionSeleccionado = opcionesSkuProduccion.find(
-    (sku) => sku.codigo === filtroSkuProduccion
+  const skusProduccionSeleccionados = opcionesSkuProduccion.filter((sku) =>
+    filtrosSkuProduccion.includes(sku.codigo)
   );
 
   useEffect(() => {
-    if (!filtroSkuProduccion) return;
-    if (opcionesSkuProduccion.some((sku) => sku.codigo === filtroSkuProduccion)) return;
-    setFiltroSkuProduccion("");
+    if (filtrosSkuProduccion.length === 0) return;
+    const validos = new Set(opcionesSkuProduccion.map((sku) => sku.codigo));
+    const siguientes = filtrosSkuProduccion.filter((codigo) => validos.has(codigo));
+    if (siguientes.length === filtrosSkuProduccion.length) return;
+    setFiltrosSkuProduccion(siguientes);
     setMostrarTodoSkuProduccion(false);
-  }, [filtroSkuProduccion, opcionesSkuProduccion]);
+  }, [filtrosSkuProduccion, opcionesSkuProduccion]);
 
   function toggleSemanaAnalisis(semana: string) {
     setSemanasSeleccionadas((actual) =>
       actual.includes(semana)
         ? actual.filter((item) => item !== semana)
         : [...actual, semana]
+    );
+  }
+
+  function toggleFiltroLista<T extends string>(
+    valor: T,
+    setter: (updater: (actual: T[]) => T[]) => void
+  ) {
+    setter((actual) =>
+      actual.includes(valor)
+        ? actual.filter((item) => item !== valor)
+        : [...actual, valor]
     );
   }
 
@@ -419,22 +560,29 @@ export default function BalanceModule({
       normalizarBusqueda(estadoActual).includes(texto);
 
     const coincideSkuProduccion =
-      filtroSkuProduccion === "" ||
-      (row.skusProduccion || []).some(
-        (sku) => sku.codigo === filtroSkuProduccion
-      );
+      filtrosSkuProduccion.length === 0 ||
+      filtrosSkuProduccion.some((codigoSku) => {
+        const estaEnFila = (row.skusProduccion || []).some(
+          (sku) => sku.codigo === codigoSku
+        );
+        const estaEnReceta = componentesPorSkuProduccion
+          .get(codigoSku)
+          ?.has(String(row.codigo));
+
+        return estaEnFila || estaEnReceta;
+      });
 
     const coincideNecesidadSku =
-      filtroSkuProduccion === "" ||
+      filtrosSkuProduccion.length === 0 ||
       mostrarTodoSkuProduccion ||
       necesidadSeleccionada > 0;
 
     const coincideSeccion =
-      filtroSeccion === "TODAS" ||
-      (row.seccionesArray || []).includes(filtroSeccion);
+      filtrosSeccion.length === 0 ||
+      filtrosSeccion.some((seccion) => (row.seccionesArray || []).includes(seccion));
 
     const coincideEstado =
-      filtroEstado === "TODOS" || estadoActual === filtroEstado;
+      filtrosEstado.length === 0 || filtrosEstado.includes(estadoActual);
 
     return (
       coincideTexto &&
@@ -722,55 +870,106 @@ export default function BalanceModule({
               </p>
             </div>
 
-            <div className="grid w-full grid-cols-1 gap-2 md:w-auto md:grid-cols-6">
+            <div className="grid w-full grid-cols-1 gap-2 md:grid-cols-[minmax(240px,1fr)_minmax(260px,1fr)_minmax(220px,0.85fr)_minmax(220px,0.85fr)_140px_160px]">
               <input
                 value={filtroTexto}
                 onChange={(e) => setFiltroTexto(e.target.value)}
                 placeholder="Buscar componente, descripción, sección..."
-                className="h-9 min-w-[280px] rounded-lg border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-[#e30613] focus:ring-2 focus:ring-[#e30613]/10"
+                className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-[#e30613] focus:ring-2 focus:ring-[#e30613]/10"
               />
 
-              <select
-                value={filtroSkuProduccion}
-                onChange={(e) => {
-                  setFiltroSkuProduccion(e.target.value);
-                  setMostrarTodoSkuProduccion(false);
-                }}
-                className="h-9 min-w-[220px] rounded-lg border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-[#e30613] focus:ring-2 focus:ring-[#e30613]/10"
-              >
-                <option value="">Selecciona SAP del Plan...</option>
-                {opcionesSkuProduccion.map((sku) => (
-                  <option key={sku.codigo} value={sku.codigo}>
-                    {sku.codigo} - {sku.descripcion}
-                  </option>
-                ))}
-              </select>
+              <details className="rounded-lg border border-slate-300 bg-white">
+                <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-2 px-3 text-xs font-bold text-slate-700">
+                  <span className="truncate">
+                    {filtrosSkuProduccion.length === 0
+                      ? "Selecciona SAP del Plan"
+                      : `${filtrosSkuProduccion.length} SAP seleccionados`}
+                  </span>
+                  <span className="text-[10px] text-slate-400">▼</span>
+                </summary>
+                <div className="max-h-56 overflow-auto border-t border-slate-200 p-2">
+                  {opcionesSkuProduccion.length === 0 ? (
+                    <p className="px-2 py-1 text-xs font-bold text-red-600">
+                      No hay SAP detectados en la hoja Plan.
+                    </p>
+                  ) : (
+                    opcionesSkuProduccion.map((sku) => (
+                      <label
+                        key={sku.codigo}
+                        className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-xs font-bold text-slate-700 hover:bg-red-50"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={filtrosSkuProduccion.includes(sku.codigo)}
+                          onChange={() => {
+                            toggleFiltroLista(sku.codigo, setFiltrosSkuProduccion);
+                            setMostrarTodoSkuProduccion(false);
+                          }}
+                          className="mt-0.5"
+                        />
+                        <span className="min-w-0">
+                          <span className="font-black text-slate-950">{sku.codigo}</span>
+                          <span className="block truncate text-slate-500">
+                            {sku.descripcion}
+                          </span>
+                        </span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </details>
 
-              <select
-                value={filtroSeccion}
-                onChange={(e) => setFiltroSeccion(e.target.value)}
-                className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-[#e30613]"
-              >
-                <option value="TODAS">Todas las secciones</option>
-                {seccionesDetectadas.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
+              <details className="rounded-lg border border-slate-300 bg-white">
+                <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-2 px-3 text-xs font-bold text-slate-700">
+                  <span className="truncate">
+                    {filtrosSeccion.length === 0
+                      ? "Todas las secciones"
+                      : `${filtrosSeccion.length} secciones`}
+                  </span>
+                  <span className="text-[10px] text-slate-400">▼</span>
+                </summary>
+                <div className="max-h-56 overflow-auto border-t border-slate-200 p-2">
+                  {seccionesDetectadas.map((s) => (
+                    <label
+                      key={s}
+                      className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs font-bold text-slate-700 hover:bg-red-50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filtrosSeccion.includes(s)}
+                        onChange={() => toggleFiltroLista(s, setFiltrosSeccion)}
+                      />
+                      <span className="truncate">{s}</span>
+                    </label>
+                  ))}
+                </div>
+              </details>
 
-              <select
-                value={filtroEstado}
-                onChange={(e) => setFiltroEstado(e.target.value)}
-                className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-[#e30613]"
-              >
-                <option value="TODOS">Todos los estados</option>
-                {ESTADOS_ANALISIS.map((estado) => (
-                  <option key={estado} value={estado}>
-                    {estado}
-                  </option>
-                ))}
-              </select>
+              <details className="rounded-lg border border-slate-300 bg-white">
+                <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-2 px-3 text-xs font-bold text-slate-700">
+                  <span className="truncate">
+                    {filtrosEstado.length === 0
+                      ? "Todos los estados"
+                      : `${filtrosEstado.length} estados`}
+                  </span>
+                  <span className="text-[10px] text-slate-400">▼</span>
+                </summary>
+                <div className="max-h-56 overflow-auto border-t border-slate-200 p-2">
+                  {ESTADOS_ANALISIS.map((estado) => (
+                    <label
+                      key={estado}
+                      className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs font-bold text-slate-700 hover:bg-red-50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filtrosEstado.includes(estado)}
+                        onChange={() => toggleFiltroLista(estado, setFiltrosEstado)}
+                      />
+                      <span className="truncate">{estado}</span>
+                    </label>
+                  ))}
+                </div>
+              </details>
 
               <button
                 onClick={() => setMostrarColumnas(!mostrarColumnas)}
@@ -782,10 +981,10 @@ export default function BalanceModule({
               <button
                 onClick={() => {
                   setFiltroTexto("");
-                  setFiltroSkuProduccion("");
+                  setFiltrosSkuProduccion([]);
                   setMostrarTodoSkuProduccion(false);
-                  setFiltroSeccion("TODAS");
-                  setFiltroEstado("TODOS");
+                  setFiltrosSeccion([]);
+                  setFiltrosEstado([]);
                 }}
                 className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-50"
               >
@@ -794,13 +993,13 @@ export default function BalanceModule({
             </div>
           </div>
 
-          {filtroSkuProduccion && (
+          {filtrosSkuProduccion.length > 0 && (
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#d4a017]/30 bg-[#fff8df] px-3 py-2">
               <p className="text-xs font-bold text-[#6f4b00]">
-                SAP {filtroSkuProduccion}
-                {skuProduccionSeleccionado?.descripcion
-                  ? ` - ${skuProduccionSeleccionado.descripcion}`
-                  : ""}{" "}
+                SAP seleccionados:{" "}
+                {skusProduccionSeleccionados
+                  .map((sku) => `${sku.codigo} - ${sku.descripcion}`)
+                  .join(" · ")}{" "}
                 · {mostrarTodoSkuProduccion
                   ? "Mostrando receta completa"
                   : "Mostrando solo materiales con necesidad en las semanas filtradas"}
