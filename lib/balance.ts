@@ -125,6 +125,7 @@ export function generarBalance(datos: ExcelData): {
   const hojaReceta: any = obtenerHoja(datos, ["Receta"]);
   const hojaExistencias: any = obtenerHoja(datos, ["Existencias"]);
   const hojaConsumos: any = obtenerHoja(datos, ["Consumos", "Consumo"]);
+  const hojaPlanProduccion: any = obtenerHoja(datos, ["Plan"]);
   const hojaPlan: any = obtenerHoja(datos, [
     "Plan de Recibo",
     "PLAN DE RECIBO",
@@ -144,6 +145,7 @@ export function generarBalance(datos: ExcelData): {
   const existencias = hojaExistencias.datos || [];
   const consumos = hojaConsumos?.datos || [];
   const planRecepcion = hojaPlan?.datos || [];
+  const planProduccion = hojaPlanProduccion?.datos || [];
 
   if (receta.length === 0 || existencias.length === 0) {
     throw new Error("Receta o Existencias no tienen datos.");
@@ -263,6 +265,21 @@ export function generarBalance(datos: ExcelData): {
     .filter((item) => item.cantidad > 0 || item.valor > 0)
     .sort((a, b) => b.valor - a.valor);
 
+  const skuProduccionDescripcion = new Map<string, string>();
+
+  planProduccion.forEach((fila: ExcelRow) => {
+    const codigoSap = String(
+      obtenerValor(fila, ["SAP", "Codigo SAP", "Código SAP", "Sku SAP", "SKU SAP"])
+    ).trim();
+    const descripcionSku = String(
+      obtenerValor(fila, ["SKU", "Descripcion SKU", "Descripción SKU", "Producto", "Descripcion"])
+    ).trim();
+
+    if (codigoSap) {
+      skuProduccionDescripcion.set(codigoSap, descripcionSku || codigoSap);
+    }
+  });
+
   const mapaRecepciones: Record<string, any> = {};
 
   planRecepcion.forEach((fila: ExcelRow) => {
@@ -329,6 +346,7 @@ export function generarBalance(datos: ExcelData): {
     string,
     { componente: string; cantidadBase: number }[]
   > = {};
+  const skusPorComponente: Record<string, Map<string, string>> = {};
   const seccionesSet = new Set<string>();
 
   receta.forEach((fila: ExcelRow) => {
@@ -395,6 +413,12 @@ export function generarBalance(datos: ExcelData): {
           obtenerValor(fila, ["Cantidad", "Cantidad base"])
         ),
       });
+
+      if (!skusPorComponente[codigo]) skusPorComponente[codigo] = new Map();
+      skusPorComponente[codigo].set(
+        skuPlan,
+        skuProduccionDescripcion.get(skuPlan) || skuPlan
+      );
     }
 
     columnasSemana.forEach(({ key, label }) => {
@@ -471,6 +495,9 @@ export function generarBalance(datos: ExcelData): {
         fechasRecepcionPorSemana,
         transitosPorSemana,
         coberturaPorSemana,
+        skusProduccion: Array.from(skusPorComponente[codigo]?.entries() || []).map(
+          ([codigoSku, descripcion]) => ({ codigo: codigoSku, descripcion })
+        ),
         totalNecesidad: item.totalNecesidad,
         totalRecepcion,
         almacenes,
@@ -513,6 +540,9 @@ export function generarBalance(datos: ExcelData): {
       totalSkuExistencias,
       materialesBloqueados,
       consumosPorMaterial,
+      skusProduccionDetectados: Array.from(skuProduccionDescripcion.entries()).map(
+        ([codigo, descripcion]) => ({ codigo, descripcion })
+      ),
     },
   };
 }

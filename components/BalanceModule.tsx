@@ -40,6 +40,29 @@ type SortConfig = {
   direction: "asc" | "desc";
 } | null;
 
+type EstadoAnalisis =
+  | "DISPONIBLE"
+  | "RESERVADO"
+  | "REPOSICION"
+  | "REABASTECIMIENTO"
+  | "SIN_NECESIDAD";
+
+const ESTADOS_ANALISIS: EstadoAnalisis[] = [
+  "DISPONIBLE",
+  "RESERVADO",
+  "REPOSICION",
+  "REABASTECIMIENTO",
+  "SIN_NECESIDAD",
+];
+
+function normalizarBusqueda(valor: string) {
+  return valor
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
 function crearVisibilidadInicial(almacenes: string[]): ColumnVisibility {
   const almacenesVisibles: Record<string, boolean> = {};
 
@@ -72,6 +95,7 @@ export default function BalanceModule({
   currentUser,
 }: Props) {
   const [filtroTexto, setFiltroTexto] = useState("");
+  const [filtroSkuProduccion, setFiltroSkuProduccion] = useState("");
   const [filtroSeccion, setFiltroSeccion] = useState("TODAS");
   const [filtroEstado, setFiltroEstado] = useState("TODOS");
   const [mostrarColumnas, setMostrarColumnas] = useState(false);
@@ -179,6 +203,31 @@ export default function BalanceModule({
     return row.totalExistencia - totalNecesidadSeleccionada(row);
   }
 
+  function estadoSeleccionado(row: BalanceRow): EstadoAnalisis {
+    const necesidad = totalNecesidadSeleccionada(row);
+    const diferencia = diferenciaSeleccionada(row);
+
+    if (necesidad <= 0) return "SIN_NECESIDAD";
+    if (diferencia > 0) return "DISPONIBLE";
+    if (diferencia === 0) return "RESERVADO";
+    return row.totalExistencia > 0 ? "REPOSICION" : "REABASTECIMIENTO";
+  }
+
+  function estadoClasses(estado: EstadoAnalisis) {
+    if (estado === "DISPONIBLE") return "bg-emerald-50 text-emerald-700";
+    if (estado === "RESERVADO") return "bg-blue-50 text-blue-700";
+    if (estado === "REPOSICION") return "bg-amber-50 text-[#9a6a00]";
+    if (estado === "REABASTECIMIENTO") return "bg-red-50 text-[#e30613]";
+    return "bg-slate-100 text-slate-600";
+  }
+
+  function estadoTone(estado: EstadoAnalisis): "neutral" | "success" | "danger" | "warning" {
+    if (estado === "DISPONIBLE") return "success";
+    if (estado === "REPOSICION") return "warning";
+    if (estado === "REABASTECIMIENTO") return "danger";
+    return "neutral";
+  }
+
   function ordenarPor(key: string) {
     setOrden((actual) => {
       if (actual?.key !== key) return { key, direction: "asc" };
@@ -224,7 +273,7 @@ export default function BalanceModule({
       case "diferenciaTotal":
         return diferenciaSeleccionada(row);
       case "estado":
-        return row.estado;
+        return estadoSeleccionado(row);
       default:
         return "";
     }
@@ -326,23 +375,33 @@ export default function BalanceModule({
   }
 
   const filtrado = analisis.filter((row) => {
-    const texto = filtroTexto.toLowerCase().trim();
+    const texto = normalizarBusqueda(filtroTexto);
+    const textoSkuProduccion = normalizarBusqueda(filtroSkuProduccion);
+    const estadoActual = estadoSeleccionado(row);
 
     const coincideTexto =
       texto === "" ||
-      String(row.codigo).toLowerCase().includes(texto) ||
-      String(row.material).toLowerCase().includes(texto) ||
-      String(row.seccion).toLowerCase().includes(texto) ||
-      String(row.estado).toLowerCase().includes(texto);
+      normalizarBusqueda(String(row.codigo)).includes(texto) ||
+      normalizarBusqueda(String(row.material)).includes(texto) ||
+      normalizarBusqueda(String(row.seccion)).includes(texto) ||
+      normalizarBusqueda(estadoActual).includes(texto);
+
+    const coincideSkuProduccion =
+      textoSkuProduccion === "" ||
+      (row.skusProduccion || []).some(
+        (sku) =>
+          normalizarBusqueda(sku.codigo).includes(textoSkuProduccion) ||
+          normalizarBusqueda(sku.descripcion).includes(textoSkuProduccion)
+      );
 
     const coincideSeccion =
       filtroSeccion === "TODAS" ||
       (row.seccionesArray || []).includes(filtroSeccion);
 
     const coincideEstado =
-      filtroEstado === "TODOS" || row.estado === filtroEstado;
+      filtroEstado === "TODOS" || estadoActual === filtroEstado;
 
-    return coincideTexto && coincideSeccion && coincideEstado;
+    return coincideTexto && coincideSkuProduccion && coincideSeccion && coincideEstado;
   });
 
   const filtradoOrdenado = useMemo(() => {
@@ -376,6 +435,9 @@ export default function BalanceModule({
       if (visibilidad.um) base.UM = row.um;
       if (visibilidad.seccion) base.Seccion = row.seccion;
 
+      almacenesDetectados.forEach((alm) => {
+        if (visibilidad.almacenes[alm]) base[alm] = row.almacenes[alm] || 0;
+      });
       if (visibilidad.semanas) {
         semanasActivas.forEach((sem) => {
           base[sem] = row.necesidadesPorSemana[sem] || 0;
@@ -414,7 +476,7 @@ export default function BalanceModule({
         });
       }
 
-      if (visibilidad.estado) base.Estado = row.estado;
+      if (visibilidad.estado) base.Estado = estadoSeleccionado(row);
 
       return base;
     });
@@ -619,12 +681,21 @@ export default function BalanceModule({
               </p>
             </div>
 
-            <div className="grid w-full grid-cols-1 gap-2 md:w-auto md:grid-cols-5">
+            <div className="grid w-full grid-cols-1 gap-2 md:w-auto md:grid-cols-6">
               <input
                 value={filtroTexto}
                 onChange={(e) => setFiltroTexto(e.target.value)}
                 placeholder="Buscar componente, descripción, sección..."
                 className="h-9 min-w-[280px] rounded-lg border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-[#e30613] focus:ring-2 focus:ring-[#e30613]/10"
+              />
+
+              
+
+              <input
+                value={filtroSkuProduccion}
+                onChange={(e) => setFiltroSkuProduccion(e.target.value)}
+                placeholder="Buscar SAP o SKU produccion..."
+                className="h-9 min-w-[220px] rounded-lg border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-[#e30613] focus:ring-2 focus:ring-[#e30613]/10"
               />
 
               <select
@@ -646,9 +717,11 @@ export default function BalanceModule({
                 className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-[#e30613]"
               >
                 <option value="TODOS">Todos los estados</option>
-                <option value="FALTANTE">Faltante</option>
-                <option value="SOBRANTE">Sobrante</option>
-                <option value="JUSTO">Justo</option>
+                {ESTADOS_ANALISIS.map((estado) => (
+                  <option key={estado} value={estado}>
+                    {estado}
+                  </option>
+                ))}
               </select>
 
               <button
@@ -661,6 +734,7 @@ export default function BalanceModule({
               <button
                 onClick={() => {
                   setFiltroTexto("");
+                  setFiltroSkuProduccion("");
                   setFiltroSeccion("TODAS");
                   setFiltroEstado("TODOS");
                 }}
@@ -793,6 +867,31 @@ export default function BalanceModule({
                   onClick={() => toggleCampo("estado")}
                 />
               </div>
+              {almacenesDetectados.length > 0 && (
+                <div className="mt-3 border-t border-slate-200 pt-3">
+                  <p className="mb-2 text-xs font-black uppercase text-slate-500">
+                    Subalmacenes
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-6 xl:grid-cols-10">
+                    {almacenesDetectados.map((alm) => (
+                      <Toggle
+                        key={alm}
+                        label={alm}
+                        checked={visibilidad.almacenes[alm] || false}
+                        onClick={() =>
+                          setVisibilidad((actual) => ({
+                            ...actual,
+                            almacenes: {
+                              ...actual.almacenes,
+                              [alm]: !actual.almacenes[alm],
+                            },
+                          }))
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -906,7 +1005,19 @@ export default function BalanceModule({
                       />
                     )}
 
-                    {visibilidad.diferenciaTotal && (
+                    
+                    {almacenesDetectados
+                      .filter((alm) => visibilidad.almacenes[alm])
+                      .map((alm) => (
+                        <SortHeader
+                          key={`alm-${alm}`}
+                          label={alm}
+                          sortKey={`alm:${alm}`}
+                          orden={orden}
+                          onSort={ordenarPor}
+                          align="right"
+                        />
+                      ))}                    {visibilidad.diferenciaTotal && (
                       <SortHeader
                         label="Diferencia"
                         sortKey="diferenciaTotal"
@@ -1019,7 +1130,14 @@ export default function BalanceModule({
                         </td>
                       )}
 
-                      {visibilidad.diferenciaTotal && (
+                      
+                      {almacenesDetectados
+                        .filter((alm) => visibilidad.almacenes[alm])
+                        .map((alm) => (
+                          <td key={`alm-${alm}`} className="px-2.5 py-1.5 text-right font-black text-slate-700">
+                            {formatoNumero(row.almacenes[alm] || 0)}
+                          </td>
+                        ))}                      {visibilidad.diferenciaTotal && (
                         <td
                           className={`px-2.5 py-1.5 text-right font-black ${
                             diferenciaSeleccionada(row) < 0
@@ -1047,20 +1165,16 @@ export default function BalanceModule({
 
                       {visibilidad.estado && (
                         <td className="px-2.5 py-1.5">
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
-                              row.estado === "FALTANTE"
-                                ? "bg-red-50 text-[#e30613]"
-                                : row.estado === "SOBRANTE"
-                                ? "bg-emerald-50 text-emerald-700"
-                                : "bg-slate-100 text-slate-600"
-                            }`}
-                          >
-                            {row.estado}
-                          </span>
+                          {(() => {
+                            const estadoActual = estadoSeleccionado(row);
+                            return (
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${estadoClasses(estadoActual)}`}>
+                                {estadoActual}
+                              </span>
+                            );
+                          })()}
                         </td>
-                      )}
-                    </tr>
+                      )}                    </tr>
                   ))}
 
                   {filtrado.length === 0 && (
@@ -1171,14 +1285,8 @@ export default function BalanceModule({
                 />
                 <DetalleCard
                   label="Estado"
-                  value={filaSeleccionada.estado}
-                  tone={
-                    filaSeleccionada.estado === "FALTANTE"
-                      ? "danger"
-                      : filaSeleccionada.estado === "SOBRANTE"
-                        ? "success"
-                        : "neutral"
-                  }
+                  value={estadoSeleccionado(filaSeleccionada)}
+                  tone={estadoTone(estadoSeleccionado(filaSeleccionada))}
                 />
               </div>
 
@@ -1208,8 +1316,16 @@ export default function BalanceModule({
                             .filter(Boolean)
                         )
                       );
-                      const estadoSemana =
-                        diferencia < 0 ? "FALTANTE" : diferencia > 0 ? "SOBRANTE" : "JUSTO";
+                      const estadoSemana: EstadoAnalisis =
+                        necesidad <= 0
+                          ? "SIN_NECESIDAD"
+                          : diferencia > 0
+                            ? "DISPONIBLE"
+                            : diferencia === 0
+                              ? "RESERVADO"
+                              : filaSeleccionada.totalExistencia > 0
+                                ? "REPOSICION"
+                                : "REABASTECIMIENTO";
 
                       return (
                         <tr
@@ -1238,13 +1354,7 @@ export default function BalanceModule({
                           </td>
                           <td className="px-3 py-2">
                             <span
-                              className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
-                                estadoSemana === "FALTANTE"
-                                  ? "bg-red-50 text-[#e30613]"
-                                  : estadoSemana === "SOBRANTE"
-                                    ? "bg-emerald-50 text-emerald-700"
-                                    : "bg-slate-100 text-slate-600"
-                              }`}
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-black ${estadoClasses(estadoSemana)}`}
                             >
                               {estadoSemana}
                             </span>

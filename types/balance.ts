@@ -13,6 +13,11 @@ export type RecepcionTransito = {
   cantidad: number;
 };
 
+export type SkuProduccion = {
+  codigo: string;
+  descripcion: string;
+};
+
 export type InventarioBloqueadoRow = {
   material: string;
   textoBreve: string;
@@ -31,6 +36,7 @@ export type BalanceRow = {
   fechasRecepcionPorSemana?: Record<string, string[]>;
   transitosPorSemana?: Record<string, RecepcionTransito[]>;
   coberturaPorSemana?: Record<string, number>;
+  skusProduccion?: SkuProduccion[];
   totalNecesidad: number;
   totalRecepcion?: number;
   almacenes: Record<string, number>;
@@ -43,7 +49,7 @@ export type BalanceRow = {
   totalExistencia: number;
   diferenciaTotal: number;
   diferenciasPorSemana: Record<string, number>;
-  estado: "FALTANTE" | "SOBRANTE" | "JUSTO" | "OK";
+  estado: "FALTANTE" | "SOBRANTE" | "JUSTO" | "OK" | "DISPONIBLE" | "RESERVADO" | "REPOSICION" | "REABASTECIMIENTO" | "SIN_NECESIDAD";
 };
 
 export type BalanceInfo = {
@@ -65,6 +71,7 @@ export type BalanceInfo = {
   totalSkuExistencias?: number;
   materialesBloqueados?: InventarioBloqueadoRow[];
   consumosPorMaterial?: Record<string, number>;
+  skusProduccionDetectados?: SkuProduccion[];
 };
 
 export type SavedLoad = {
