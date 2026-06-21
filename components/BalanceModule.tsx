@@ -141,6 +141,7 @@ export default function BalanceModule({
   const [busquedaSkuProduccion, setBusquedaSkuProduccion] = useState("");
   const [mostrarTodoSkuProduccion, setMostrarTodoSkuProduccion] = useState(false);
   const [filtrosSeccion, setFiltrosSeccion] = useState<string[]>([]);
+  const [busquedaSeccion, setBusquedaSeccion] = useState("");
   const [filtrosEstado, setFiltrosEstado] = useState<EstadoAnalisis[]>([]);
   const [mostrarColumnas, setMostrarColumnas] = useState(false);
   const [semanasSeleccionadas, setSemanasSeleccionadas] = useState<string[]>([]);
@@ -334,6 +335,29 @@ export default function BalanceModule({
         normalizarBusqueda(sku.descripcion).includes(texto)
     );
   }, [opcionesSkuProduccion, busquedaSkuProduccion]);
+
+  const seccionesFiltradas = useMemo(() => {
+    const texto = normalizarBusqueda(busquedaSeccion);
+    if (!texto) return seccionesDetectadas;
+
+    return seccionesDetectadas.filter((seccion) =>
+      normalizarBusqueda(seccion).includes(texto)
+    );
+  }, [seccionesDetectadas, busquedaSeccion]);
+
+  useEffect(() => {
+    function cerrarMenus(event: MouseEvent) {
+      const objetivo = event.target as HTMLElement | null;
+      if (objetivo?.closest("[data-filter-menu]")) return;
+
+      document.querySelectorAll<HTMLDetailsElement>("[data-filter-menu][open]").forEach((menu) => {
+        menu.open = false;
+      });
+    }
+
+    document.addEventListener("mousedown", cerrarMenus);
+    return () => document.removeEventListener("mousedown", cerrarMenus);
+  }, []);
 
   useEffect(() => {
     if (filtrosSkuProduccion.length === 0) return;
@@ -876,7 +900,7 @@ export default function BalanceModule({
                 className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-[#e30613] focus:ring-2 focus:ring-[#e30613]/10"
               />
 
-              <details className="relative rounded-lg border border-slate-300 bg-white">
+              <details data-filter-menu className="relative rounded-lg border border-slate-300 bg-white">
                 <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-2 px-3 text-xs font-bold text-slate-700">
                   <span className="truncate">
                     {filtrosSkuProduccion.length === 0
@@ -927,7 +951,7 @@ export default function BalanceModule({
                 </div>
               </details>
 
-              <details className="relative rounded-lg border border-slate-300 bg-white">
+              <details data-filter-menu className="relative rounded-lg border border-slate-300 bg-white">
                 <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-2 px-3 text-xs font-bold text-slate-700">
                   <span className="truncate">
                     {filtrosSeccion.length === 0
@@ -937,7 +961,17 @@ export default function BalanceModule({
                   <span className="text-[10px] text-slate-400">▼</span>
                 </summary>
                 <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-auto rounded-lg border border-slate-300 bg-white p-2 shadow-xl">
-                  {seccionesDetectadas.map((s) => (
+                  <input
+                    value={busquedaSeccion}
+                    onChange={(e) => setBusquedaSeccion(e.target.value)}
+                    placeholder="Buscar seccion..."
+                    className="mb-2 h-8 w-full rounded-md border border-slate-300 px-2 text-xs font-semibold outline-none focus:border-[#e30613]"
+                  />
+                  {seccionesFiltradas.length === 0 ? (
+                    <p className="px-2 py-1 text-xs font-bold text-slate-500">
+                      Sin resultados para esa busqueda.
+                    </p>
+                  ) : seccionesFiltradas.map((s) => (
                     <label
                       key={s}
                       className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs font-bold text-slate-700 hover:bg-red-50"
@@ -953,7 +987,7 @@ export default function BalanceModule({
                 </div>
               </details>
 
-              <details className="relative rounded-lg border border-slate-300 bg-white">
+              <details data-filter-menu className="relative rounded-lg border border-slate-300 bg-white">
                 <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-2 px-3 text-xs font-bold text-slate-700">
                   <span className="truncate">
                     {filtrosEstado.length === 0
@@ -993,6 +1027,7 @@ export default function BalanceModule({
                   setBusquedaSkuProduccion("");
                   setMostrarTodoSkuProduccion(false);
                   setFiltrosSeccion([]);
+                  setBusquedaSeccion("");
                   setFiltrosEstado([]);
                 }}
                 className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-50"
