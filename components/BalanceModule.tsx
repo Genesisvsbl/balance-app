@@ -138,6 +138,7 @@ export default function BalanceModule({
 }: Props) {
   const [filtroTexto, setFiltroTexto] = useState("");
   const [filtrosSkuProduccion, setFiltrosSkuProduccion] = useState<string[]>([]);
+  const [busquedaSkuProduccion, setBusquedaSkuProduccion] = useState("");
   const [mostrarTodoSkuProduccion, setMostrarTodoSkuProduccion] = useState(false);
   const [filtrosSeccion, setFiltrosSeccion] = useState<string[]>([]);
   const [filtrosEstado, setFiltrosEstado] = useState<EstadoAnalisis[]>([]);
@@ -161,7 +162,6 @@ export default function BalanceModule({
   const columnasSemana = infoAnalisis?.columnasSemana || [];
   const almacenesDetectados = infoAnalisis?.almacenesDetectados || [];
   const seccionesDetectadas = infoAnalisis?.seccionesDetectadas || [];
-  const skusProduccionDetectados = infoAnalisis?.skusProduccionDetectados || [];
 
   useEffect(() => {
     if (almacenesDetectados.length === 0) return;
@@ -291,24 +291,13 @@ export default function BalanceModule({
     const semanasSet = new Set(semanasActivas);
     const mapa = new Map<string, SkuProduccion>();
 
-    [...skusProduccionDetectados, ...skusProduccionDesdePlan].forEach((sku) => {
+    skusProduccionDesdePlan.forEach((sku) => {
       if (!sku.codigo) return;
       const actual = mapa.get(sku.codigo);
       mapa.set(sku.codigo, {
         codigo: sku.codigo,
         descripcion: sku.descripcion || actual?.descripcion || sku.codigo,
         semanas: Array.from(new Set([...(actual?.semanas || []), ...(sku.semanas || [])])),
-      });
-    });
-
-    analisis.forEach((row) => {
-      (row.skusProduccion || []).forEach((sku) => {
-        if (!sku.codigo || mapa.has(sku.codigo)) return;
-        mapa.set(sku.codigo, {
-          codigo: sku.codigo,
-          descripcion: sku.descripcion || sku.codigo,
-          semanas: sku.semanas || [],
-        });
       });
     });
 
@@ -327,15 +316,24 @@ export default function BalanceModule({
         })
       );
   }, [
-    skusProduccionDetectados,
     skusProduccionDesdePlan,
-    analisis,
     semanasActivas.join("|"),
   ]);
 
   const skusProduccionSeleccionados = opcionesSkuProduccion.filter((sku) =>
     filtrosSkuProduccion.includes(sku.codigo)
   );
+
+  const opcionesSkuProduccionFiltradas = useMemo(() => {
+    const texto = normalizarBusqueda(busquedaSkuProduccion);
+    if (!texto) return opcionesSkuProduccion;
+
+    return opcionesSkuProduccion.filter(
+      (sku) =>
+        normalizarBusqueda(sku.codigo).includes(texto) ||
+        normalizarBusqueda(sku.descripcion).includes(texto)
+    );
+  }, [opcionesSkuProduccion, busquedaSkuProduccion]);
 
   useEffect(() => {
     if (filtrosSkuProduccion.length === 0) return;
@@ -878,7 +876,7 @@ export default function BalanceModule({
                 className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-[#e30613] focus:ring-2 focus:ring-[#e30613]/10"
               />
 
-              <details className="rounded-lg border border-slate-300 bg-white">
+              <details className="relative rounded-lg border border-slate-300 bg-white">
                 <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-2 px-3 text-xs font-bold text-slate-700">
                   <span className="truncate">
                     {filtrosSkuProduccion.length === 0
@@ -887,13 +885,23 @@ export default function BalanceModule({
                   </span>
                   <span className="text-[10px] text-slate-400">▼</span>
                 </summary>
-                <div className="max-h-56 overflow-auto border-t border-slate-200 p-2">
+                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-64 overflow-auto rounded-lg border border-slate-300 bg-white p-2 shadow-xl">
+                  <input
+                    value={busquedaSkuProduccion}
+                    onChange={(e) => setBusquedaSkuProduccion(e.target.value)}
+                    placeholder="Buscar SAP o descripcion..."
+                    className="mb-2 h-8 w-full rounded-md border border-slate-300 px-2 text-xs font-semibold outline-none focus:border-[#e30613]"
+                  />
                   {opcionesSkuProduccion.length === 0 ? (
                     <p className="px-2 py-1 text-xs font-bold text-red-600">
                       No hay SAP detectados en la hoja Plan.
                     </p>
+                  ) : opcionesSkuProduccionFiltradas.length === 0 ? (
+                    <p className="px-2 py-1 text-xs font-bold text-slate-500">
+                      Sin resultados para esa busqueda.
+                    </p>
                   ) : (
-                    opcionesSkuProduccion.map((sku) => (
+                    opcionesSkuProduccionFiltradas.map((sku) => (
                       <label
                         key={sku.codigo}
                         className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-xs font-bold text-slate-700 hover:bg-red-50"
@@ -919,7 +927,7 @@ export default function BalanceModule({
                 </div>
               </details>
 
-              <details className="rounded-lg border border-slate-300 bg-white">
+              <details className="relative rounded-lg border border-slate-300 bg-white">
                 <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-2 px-3 text-xs font-bold text-slate-700">
                   <span className="truncate">
                     {filtrosSeccion.length === 0
@@ -928,7 +936,7 @@ export default function BalanceModule({
                   </span>
                   <span className="text-[10px] text-slate-400">▼</span>
                 </summary>
-                <div className="max-h-56 overflow-auto border-t border-slate-200 p-2">
+                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-auto rounded-lg border border-slate-300 bg-white p-2 shadow-xl">
                   {seccionesDetectadas.map((s) => (
                     <label
                       key={s}
@@ -945,7 +953,7 @@ export default function BalanceModule({
                 </div>
               </details>
 
-              <details className="rounded-lg border border-slate-300 bg-white">
+              <details className="relative rounded-lg border border-slate-300 bg-white">
                 <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-2 px-3 text-xs font-bold text-slate-700">
                   <span className="truncate">
                     {filtrosEstado.length === 0
@@ -954,7 +962,7 @@ export default function BalanceModule({
                   </span>
                   <span className="text-[10px] text-slate-400">▼</span>
                 </summary>
-                <div className="max-h-56 overflow-auto border-t border-slate-200 p-2">
+                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-auto rounded-lg border border-slate-300 bg-white p-2 shadow-xl">
                   {ESTADOS_ANALISIS.map((estado) => (
                     <label
                       key={estado}
@@ -982,6 +990,7 @@ export default function BalanceModule({
                 onClick={() => {
                   setFiltroTexto("");
                   setFiltrosSkuProduccion([]);
+                  setBusquedaSkuProduccion("");
                   setMostrarTodoSkuProduccion(false);
                   setFiltrosSeccion([]);
                   setFiltrosEstado([]);
