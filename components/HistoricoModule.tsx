@@ -10,9 +10,26 @@ type Props = {
   onLoad: (data: SavedLoad) => void;
 };
 
+type AvalPendiente =
+  | {
+      tipo: "uno";
+      id: string;
+      titulo: string;
+      mensaje: string;
+    }
+  | {
+      tipo: "todo";
+      titulo: string;
+      mensaje: string;
+    };
+
 export default function HistoricoModule({ onLoad }: Props) {
   const [cargas, setCargas] = useState<SavedLoad[]>([]);
   const [busqueda, setBusqueda] = useState("");
+  const [avalPendiente, setAvalPendiente] = useState<AvalPendiente | null>(null);
+  const [claveAval, setClaveAval] = useState("");
+  const [errorAval, setErrorAval] = useState("");
+  const [procesandoAval, setProcesandoAval] = useState(false);
 
   async function cargar() {
     try {
@@ -43,30 +60,59 @@ export default function HistoricoModule({ onLoad }: Props) {
     onLoad(carga);
   }
 
-  function pedirAval(mensaje: string) {
-    const clave = prompt(`${mensaje}\n\nIngresa la clave de acceso para avalar:`);
+  function cerrarAval() {
+    if (procesandoAval) return;
+    setAvalPendiente(null);
+    setClaveAval("");
+    setErrorAval("");
+  }
 
-    if (clave === null) return false;
-    if (clave !== CLAVE_AVAL) {
-      alert("Clave incorrecta. No se realizo ningun borrado.");
-      return false;
+  function pedirAvalBorrado(carga: SavedLoad) {
+    setAvalPendiente({
+      tipo: "uno",
+      id: carga.id,
+      titulo: "Borrar balance guardado",
+      mensaje: `Vas a borrar definitivamente "${carga.archivo}".`,
+    });
+    setClaveAval("");
+    setErrorAval("");
+  }
+
+  function pedirAvalLimpiar() {
+    setAvalPendiente({
+      tipo: "todo",
+      titulo: "Limpiar historico",
+      mensaje: "Vas a borrar todos los balances guardados del historico.",
+    });
+    setClaveAval("");
+    setErrorAval("");
+  }
+
+  async function confirmarAval() {
+    if (!avalPendiente) return;
+
+    if (claveAval.trim() !== CLAVE_AVAL) {
+      setErrorAval("Clave incorrecta. No se realizo ningun borrado.");
+      return;
     }
 
-    return true;
-  }
+    setProcesandoAval(true);
+    setErrorAval("");
 
-  async function borrarUno(id: string) {
-    if (!pedirAval("Seguro que deseas borrar este balance guardado?")) return;
+    try {
+      if (avalPendiente.tipo === "uno") {
+        await eliminarCarga(avalPendiente.id);
+      } else {
+        await limpiarCargas();
+      }
 
-    await eliminarCarga(id);
-    await cargar();
-  }
-
-  async function borrarTodo() {
-    if (!pedirAval("Seguro que deseas limpiar todo el historico?")) return;
-
-    await limpiarCargas();
-    await cargar();
+      await cargar();
+      cerrarAval();
+    } catch (error: any) {
+      setErrorAval(error.message || "No se pudo completar el borrado.");
+    } finally {
+      setProcesandoAval(false);
+    }
   }
 
   return (
@@ -84,7 +130,7 @@ export default function HistoricoModule({ onLoad }: Props) {
           </div>
 
           <button
-            onClick={borrarTodo}
+            onClick={pedirAvalLimpiar}
             className="rounded-xl border border-[#e30613] px-5 py-3 text-sm font-black text-[#e30613] transition hover:bg-[#e30613] hover:text-white"
           >
             Limpiar histórico
@@ -205,11 +251,11 @@ export default function HistoricoModule({ onLoad }: Props) {
                         </button>
 
                         <button
-                          onClick={() => borrarUno(carga.id)}
+                          onClick={() => pedirAvalBorrado(carga)}
                           className="rounded-lg border border-[#e30613]/30 px-3 py-2 text-xs font-black text-[#e30613] hover:bg-red-50"
                           title="Borrar balance"
                         >
-                          🗑 Borrar
+                          Borrar
                         </button>
                       </div>
                     </td>
@@ -231,6 +277,72 @@ export default function HistoricoModule({ onLoad }: Props) {
           </div>
         </div>
       </div>
+
+      {avalPendiente && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4">
+          <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="border-b border-slate-100 bg-[#F8FAFC] px-6 py-5">
+              <p className="text-xs font-black uppercase tracking-wide text-[#0B4EA2]">
+                Confirmacion requerida
+              </p>
+              <h3 className="mt-1 text-xl font-black text-slate-950">
+                {avalPendiente.titulo}
+              </h3>
+              <p className="mt-2 text-sm font-semibold text-slate-600">
+                {avalPendiente.mensaje}
+              </p>
+            </div>
+
+            <div className="space-y-3 px-6 py-5">
+              <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-[#e30613]">
+                Esta accion no se puede deshacer. Ingresa la clave de aval para continuar.
+              </div>
+
+              <label className="text-xs font-black uppercase text-slate-500">
+                Clave de acceso
+              </label>
+              <input
+                value={claveAval}
+                onChange={(e) => {
+                  setClaveAval(e.target.value);
+                  setErrorAval("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") confirmarAval();
+                  if (e.key === "Escape") cerrarAval();
+                }}
+                type="password"
+                autoFocus
+                placeholder="Ingresa la clave de aval"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-semibold outline-none transition focus:border-[#0057B8] focus:ring-4 focus:ring-[#0057B8]/10"
+              />
+
+              {errorAval && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-[#e30613]">
+                  {errorAval}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-100 bg-[#F8FAFC] px-6 py-4">
+              <button
+                onClick={cerrarAval}
+                disabled={procesandoAval}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarAval}
+                disabled={procesandoAval}
+                className="rounded-xl bg-[#e30613] px-5 py-2.5 text-sm font-black text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {procesandoAval ? "Procesando..." : "Confirmar borrado"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
