@@ -2,18 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import {
   BalanceInfo,
   BalanceRow,
   ExcelData,
@@ -37,6 +25,18 @@ type RiesgoSemana = BalanceRow & {
   consumoNotificado: number;
 };
 
+type TipoMovimiento = "APROVISIONAMIENTO" | "REABASTECIMIENTO";
+
+type MovimientoDashboard = {
+  tipo: TipoMovimiento;
+  codigo: string;
+  material: string;
+  seccion: string;
+  semana: string;
+  fecha: string;
+  cantidad: number;
+};
+
 export default function DashboardModule({
   datos,
   analisis,
@@ -49,6 +49,11 @@ export default function DashboardModule({
   const [busqueda, setBusqueda] = useState("");
   const [materialSeleccionado, setMaterialSeleccionado] = useState("");
   const [cargasHistoricas, setCargasHistoricas] = useState<any[]>([]);
+  const [movimientoSeleccionado, setMovimientoSeleccionado] =
+    useState<TipoMovimiento | null>(null);
+  const [filtroMovimientoSemana, setFiltroMovimientoSemana] = useState("");
+  const [filtroMovimientoFecha, setFiltroMovimientoFecha] = useState("");
+  const [filtroMovimientoSeccion, setFiltroMovimientoSeccion] = useState("");
 
   useEffect(() => {
     obtenerCargas()
@@ -303,6 +308,124 @@ export default function DashboardModule({
     )
     .sort((a, b) => b.cantidad - a.cantidad);
 
+  const movimientosDashboard = useMemo<MovimientoDashboard[]>(() => {
+    const movimientos: MovimientoDashboard[] = [];
+
+    riesgos.forEach((row) => {
+      const ag40 = row.almacenes?.["AG40"] || 0;
+      const seccion = row.seccion || "SIN SECCION";
+
+      if (ag40 > 0) {
+        semanasActivas
+          .filter((sem) => (row.necesidadesPorSemana[sem] || 0) > 0)
+          .forEach((sem) => {
+            movimientos.push({
+              tipo: "REABASTECIMIENTO",
+              codigo: row.codigo,
+              material: row.material,
+              seccion,
+              semana: sem,
+              fecha: "AG40",
+              cantidad: ag40,
+            });
+          });
+        return;
+      }
+
+      semanasActivas.forEach((sem) => {
+        const detalles = row.transitosPorSemana?.[sem] || [];
+        const detalleValido = detalles.filter(
+          (detalle) => (detalle.cantidad || 0) > 0
+        );
+
+        if (detalleValido.length > 0) {
+          detalleValido.forEach((detalle) => {
+            movimientos.push({
+              tipo: "APROVISIONAMIENTO",
+              codigo: row.codigo,
+              material: row.material,
+              seccion,
+              semana: sem,
+              fecha: detalle.fechaOperativa || "-",
+              cantidad: detalle.cantidad || 0,
+            });
+          });
+          return;
+        }
+
+        const cantidad = row.recepcionesPorSemana?.[sem] || 0;
+        if (cantidad <= 0) return;
+
+        const fechas = row.fechasRecepcionPorSemana?.[sem] || ["-"];
+        fechas.forEach((fecha) => {
+          movimientos.push({
+            tipo: "APROVISIONAMIENTO",
+            codigo: row.codigo,
+            material: row.material,
+            seccion,
+            semana: sem,
+            fecha,
+            cantidad,
+          });
+        });
+      });
+    });
+
+    return movimientos.sort((a, b) => b.cantidad - a.cantidad);
+  }, [riesgos, semanasActivas]);
+
+  const reabastecimientoDetalle = movimientosDashboard.filter(
+    (row) => row.tipo === "REABASTECIMIENTO"
+  );
+  const aprovisionamientoDetalle = movimientosDashboard.filter(
+    (row) => row.tipo === "APROVISIONAMIENTO"
+  );
+
+  const totalReabastecimiento = riesgos.reduce(
+    (acc, row) => acc + (row.almacenes?.["AG40"] || 0),
+    0
+  );
+  const totalAprovisionamiento = aprovisionamientoDetalle.reduce(
+    (acc, row) => acc + row.cantidad,
+    0
+  );
+  const skuReabastecimiento = new Set(
+    reabastecimientoDetalle.map((row) => row.codigo)
+  ).size;
+  const skuAprovisionamiento = new Set(
+    aprovisionamientoDetalle.map((row) => row.codigo)
+  ).size;
+
+  const movimientosPorSemana = semanasActivas.map((sem) => {
+    const movimientos = movimientosDashboard
+      .filter((row) => row.semana === sem)
+      .sort((a, b) => b.cantidad - a.cantidad);
+
+    return {
+      semana: sem,
+      movimientos,
+      cantidad: movimientos.length,
+      total: movimientos.reduce((acc, row) => acc + row.cantidad, 0),
+    };
+  });
+
+  const movimientosModal = movimientosDashboard.filter((row) => {
+    const coincideTipo = row.tipo === movimientoSeleccionado;
+    const coincideSemana =
+      !filtroMovimientoSemana || row.semana === filtroMovimientoSemana;
+    const coincideFecha =
+      !filtroMovimientoFecha ||
+      row.fecha.toLowerCase().includes(filtroMovimientoFecha.toLowerCase());
+    const coincideSeccion =
+      !filtroMovimientoSeccion ||
+      row.seccion.toLowerCase().includes(filtroMovimientoSeccion.toLowerCase());
+
+    return coincideTipo && coincideSemana && coincideFecha && coincideSeccion;
+  });
+  const seccionesMovimiento = Array.from(
+    new Set(movimientosDashboard.map((row) => row.seccion).filter(Boolean))
+  ).sort();
+
   const detalleMaterial = useMemo(() => {
     if (!materialSeleccionado) return null;
 
@@ -429,25 +552,13 @@ export default function DashboardModule({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <Kpi titulo="Semanas evaluadas" valor={semanasActivas.length} />
             <Kpi
               titulo="Materiales criticos"
               valor={materialesCriticos.length}
               color="text-[#e30613]"
               border="border-red-100"
-            />
-            <Kpi
-              titulo="Faltante acumulado"
-              valor={formatoNumero(faltanteSeleccionado)}
-              color="text-[#e30613]"
-              border="border-red-100"
-            />
-            <Kpi
-              titulo="Transito programado"
-              valor={formatoNumero(transitoSeleccionado)}
-              color="text-[#0B4EA2]"
-              border="border-[#2F80ED]/25"
             />
             <Kpi
               titulo="Cobertura transito"
@@ -463,34 +574,20 @@ export default function DashboardModule({
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-            <SignalCard
-              titulo="Necesidad seleccionada"
-              valor={formatoNumero(necesidadSeleccionada)}
-              texto="Demanda total de las semanas filtradas."
-              tipo="base"
-            />
-            <SignalCard
-              titulo="Materiales con transito"
-              valor={materialesConTransito.length}
-              texto="Recepciones pendientes sin fecha de recibo."
-              tipo="dorado"
-            />
-            <SignalCard
-              titulo="Consumo notificado"
-              valor={formatoNumero(consumoSeleccionado)}
-              texto={`${materialesConConsumo.length} materiales con consumo aplicado.`}
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+            <ActionCard
+              titulo="Reabastecimiento"
+              valor={`${skuReabastecimiento} SKU`}
+              texto={`AG40 disponible para movimiento interno. Total: ${formatoNumero(totalReabastecimiento)}.`}
               tipo="verde"
+              onClick={() => setMovimientoSeleccionado("REABASTECIMIENTO")}
             />
-            <SignalCard
-              titulo="Seccion mas expuesta"
-              valor={(dataSecciones[0] as any)?.seccion || "-"}
-              texto={
-                dataSecciones.length > 0
-                  ? `${(dataSecciones[0] as any).materiales} materiales criticos.`
-                  : "Sin riesgo concentrado."
-              }
-              tipo="rojo"
+            <ActionCard
+              titulo="Aprovisionamiento"
+              valor={`${skuAprovisionamiento} SKU`}
+              texto={`Plan de recibo sin duplicar materiales cubiertos por AG40. Total: ${formatoNumero(totalAprovisionamiento)}.`}
+              tipo="azul"
+              onClick={() => setMovimientoSeleccionado("APROVISIONAMIENTO")}
             />
           </div>
 
@@ -531,8 +628,8 @@ export default function DashboardModule({
                     <p className="mt-1 truncate text-[11px] font-semibold text-slate-500">
                       Faltante: {formatoNumero(grupo.faltante)}
                     </p>
-                    <div className="compact-scroll mt-2 max-h-[190px] space-y-1.5 overflow-auto pr-1">
-                      {grupo.materiales.slice(0, 25).map((row) => (
+                    <div className="compact-scroll mt-2 max-h-[260px] space-y-1.5 overflow-auto pr-1">
+                      {grupo.materiales.map((row) => (
                         <button
                           key={`${grupo.semana}-${row.codigo}`}
                           onClick={() => toggleMaterial(row.codigo)}
@@ -555,11 +652,6 @@ export default function DashboardModule({
                           </p>
                         </button>
                       ))}
-                      {grupo.materiales.length > 25 && (
-                        <p className="rounded-lg bg-white px-3 py-2 text-[11px] font-semibold text-slate-500">
-                          +{grupo.materiales.length - 25} materiales adicionales.
-                        </p>
-                      )}
                       {grupo.materiales.length === 0 && (
                         <p className="rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-500">
                           Sin materiales criticos.
@@ -571,24 +663,84 @@ export default function DashboardModule({
               </div>
             </div>
 
-            <ChartCard titulo="Necesidad por semana">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={dataSemanas}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="semana" />
-                  <YAxis />
-                  <Tooltip formatter={(v: any) => formatoNumero(v)} />
-                  <Line
-                    type="monotone"
-                    dataKey="necesidad"
-                    name="Necesidad"
-                    stroke="#2F80ED"
-                    strokeWidth={4}
-                    dot={{ r: 5 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </ChartCard>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-base font-black text-slate-950">
+                    Llegadas por semana
+                  </h4>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    Reabastecimiento AG40 y aprovisionamiento por plan de recibo.
+                  </p>
+                </div>
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black text-emerald-700">
+                  {movimientosDashboard.length} movimientos
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {movimientosPorSemana.map((grupo) => (
+                  <div
+                    key={grupo.semana}
+                    className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-black text-slate-950">
+                        {grupo.semana}
+                      </p>
+                      <p className="text-xs font-black text-emerald-700">
+                        {grupo.cantidad} mov.
+                      </p>
+                    </div>
+                    <p className="mt-1 truncate text-[11px] font-semibold text-slate-500">
+                      Cantidad: {formatoNumero(grupo.total)}
+                    </p>
+                    <div className="compact-scroll mt-2 max-h-[260px] space-y-1.5 overflow-auto pr-1">
+                      {grupo.movimientos.map((row, index) => (
+                        <button
+                          key={`${grupo.semana}-${row.codigo}-${row.tipo}-${index}`}
+                          onClick={() => setMovimientoSeleccionado(row.tipo)}
+                          className="grid w-full grid-cols-[minmax(0,1fr)_94px] items-start gap-2 rounded-lg bg-white px-3 py-2 text-left transition hover:bg-[#fbfbfa]"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs font-black text-slate-950">
+                                {row.codigo}
+                              </p>
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-[9px] font-black ${
+                                  row.tipo === "REABASTECIMIENTO"
+                                    ? "bg-emerald-50 text-emerald-700"
+                                    : "bg-[#EAF4FF] text-[#0B4EA2]"
+                                }`}
+                              >
+                                {row.tipo === "REABASTECIMIENTO"
+                                  ? "AG40"
+                                  : "RECIBO"}
+                              </span>
+                            </div>
+                            <p className="truncate text-[11px] font-semibold text-slate-500">
+                              {row.material}
+                            </p>
+                            <p className="truncate text-[10px] font-semibold text-slate-400">
+                              {row.fecha}
+                            </p>
+                          </div>
+                          <p className="truncate text-right text-[11px] font-black text-emerald-700">
+                            {formatoNumero(row.cantidad)}
+                          </p>
+                        </button>
+                      ))}
+                      {grupo.movimientos.length === 0 && (
+                        <p className="rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-500">
+                          Sin llegadas para esta semana.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -894,46 +1046,25 @@ export default function DashboardModule({
             )}
           </div>
 
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-            <DataTable
-              titulo="Recepciones en transito"
-              subtitulo="Materiales con plan de recibo pendiente en semanas filtradas."
-              registro={`${new Set(transitosDetalle.map((row) => row.codigo)).size} SKU`}
-              columns={["Material", "Texto breve", "Semana", "Fecha", "Cantidad"]}
-              empty="No hay recepciones en transito para las semanas seleccionadas."
-            >
-              {transitosDetalle.slice(0, 40).map((row, index) => (
-                <tr key={`${row.codigo}-${row.semana}-${index}`} className="border-b border-slate-100">
-                  <td className="px-4 py-3 font-black text-slate-950">{row.codigo}</td>
-                  <td className="px-4 py-3 font-medium text-slate-700">{row.material}</td>
-                  <td className="px-4 py-3 font-black text-[#0B4EA2]">{row.semana}</td>
-                  <td className="px-4 py-3 font-semibold text-slate-600">
-                    {row.fechas.length > 0 ? row.fechas.join(", ") : "-"}
-                  </td>
-                  <td className="px-4 py-3 text-right font-black text-[#0B4EA2]">
-                    {formatoNumero(row.cantidad)}
-                  </td>
-                </tr>
-              ))}
-            </DataTable>
-
+          <div className="grid grid-cols-1 gap-5">
             <DataTable
               titulo="Inventario bloqueado"
-              subtitulo="Mayor valor bloqueado para revisar liberacion o decision de uso."
+              subtitulo={`Valor total bloqueado: ${formatoNumero(valorBloqueado)}. Mayor valor bloqueado para revisar liberacion o decision de uso.`}
               registro={`${materialesBloqueados.length} SKU`}
               columns={["Material", "Texto breve", "Cantidad", "Valor"]}
               empty="No hay inventario bloqueado."
+              compact
             >
-              {materialesBloqueados.slice(0, 40).map((row) => (
+              {materialesBloqueados.map((row) => (
                 <tr key={row.material} className="border-b border-slate-100">
-                  <td className="px-4 py-3 font-black text-slate-950">{row.material}</td>
-                  <td className="px-4 py-3 font-medium text-slate-700">
+                  <td className="px-3 py-2 font-black text-slate-950">{row.material}</td>
+                  <td className="px-3 py-2 font-medium text-slate-700">
                     {row.textoBreve || "-"}
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold">
+                  <td className="px-3 py-2 text-right font-semibold">
                     {formatoNumero(row.cantidad)}
                   </td>
-                  <td className="px-4 py-3 text-right font-black text-[#0B4EA2]">
+                  <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">
                     {formatoNumero(row.valor)}
                   </td>
                 </tr>
@@ -1017,6 +1148,158 @@ export default function DashboardModule({
               ))}
             </DataTable>
           </div>
+
+          {movimientoSeleccionado && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4">
+              <div className="w-full max-w-6xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-wide text-[#0B4EA2]">
+                      Detalle operativo
+                    </p>
+                    <h4 className="mt-1 text-2xl font-black text-slate-950">
+                      {movimientoSeleccionado === "REABASTECIMIENTO"
+                        ? "Reabastecimiento AG40"
+                        : "Aprovisionamiento plan de recibo"}
+                    </h4>
+                    <p className="mt-1 text-sm font-semibold text-slate-500">
+                      {movimientoSeleccionado === "REABASTECIMIENTO"
+                        ? "Movimientos internos desde AG40. Estos materiales no se duplican en aprovisionamiento."
+                        : "Materiales con llegada por compras, excluyendo los que ya tienen cobertura en AG40."}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setMovimientoSeleccionado(null);
+                      setFiltroMovimientoSemana("");
+                      setFiltroMovimientoFecha("");
+                      setFiltroMovimientoSeccion("");
+                    }}
+                    className="rounded-xl border border-slate-300 bg-white px-5 py-2 text-sm font-black text-slate-700 hover:bg-slate-50"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+
+                <div className="grid gap-3 border-b border-slate-200 bg-slate-50 px-6 py-4 md:grid-cols-3">
+                  <select
+                    value={filtroMovimientoSemana}
+                    onChange={(e) => setFiltroMovimientoSemana(e.target.value)}
+                    className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold outline-none focus:border-[#0057B8]"
+                  >
+                    <option value="">Todas las semanas</option>
+                    {semanasActivas.map((sem) => (
+                      <option key={sem} value={sem}>
+                        {sem}
+                      </option>
+                    ))}
+                  </select>
+
+                  <input
+                    value={filtroMovimientoFecha}
+                    onChange={(e) => setFiltroMovimientoFecha(e.target.value)}
+                    placeholder="Buscar fecha..."
+                    className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold outline-none focus:border-[#0057B8]"
+                  />
+
+                  <select
+                    value={filtroMovimientoSeccion}
+                    onChange={(e) => setFiltroMovimientoSeccion(e.target.value)}
+                    className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold outline-none focus:border-[#0057B8]"
+                  >
+                    <option value="">Todas las secciones</option>
+                    {seccionesMovimiento.map((seccion) => (
+                      <option key={seccion} value={seccion}>
+                        {seccion}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="px-6 py-4">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <div className="rounded-xl border border-[#2F80ED]/30 bg-[#EAF4FF] px-4 py-2 text-xs font-black text-[#0B4EA2]">
+                      {new Set(movimientosModal.map((row) => row.codigo)).size} SKU
+                    </div>
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black text-emerald-700">
+                      Total:{" "}
+                      {formatoNumero(
+                        movimientosModal.reduce((acc, row) => acc + row.cantidad, 0)
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="overflow-hidden rounded-xl border border-slate-200">
+                    <div className="compact-scroll max-h-[430px] overflow-auto">
+                      <table className="w-full min-w-[980px] border-collapse text-sm">
+                        <thead className="sticky top-0 z-20 bg-[#f8f8f6]">
+                          <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                            <th className="px-4 py-3 text-left font-black">
+                              Semana
+                            </th>
+                            <th className="px-4 py-3 text-left font-black">
+                              Material
+                            </th>
+                            <th className="px-4 py-3 text-left font-black">
+                              Texto breve
+                            </th>
+                            <th className="px-4 py-3 text-left font-black">
+                              Seccion
+                            </th>
+                            <th className="px-4 py-3 text-left font-black">
+                              Fecha
+                            </th>
+                            <th className="px-4 py-3 text-right font-black">
+                              Cantidad
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {movimientosModal.map((row, index) => (
+                            <tr
+                              key={`${row.tipo}-${row.codigo}-${row.semana}-${row.fecha}-${index}`}
+                              className="border-b border-slate-100"
+                            >
+                              <td className="px-4 py-3 font-black text-[#0B4EA2]">
+                                {row.semana}
+                              </td>
+                              <td className="px-4 py-3 font-black text-slate-950">
+                                {row.codigo}
+                              </td>
+                              <td className="px-4 py-3 font-medium text-slate-700">
+                                {row.material}
+                              </td>
+                              <td className="px-4 py-3 font-semibold text-slate-500">
+                                {row.seccion}
+                              </td>
+                              <td className="px-4 py-3 font-semibold text-slate-600">
+                                {row.fecha}
+                              </td>
+                              <td className="px-4 py-3 text-right font-black text-emerald-700">
+                                {formatoNumero(row.cantidad)}
+                              </td>
+                            </tr>
+                          ))}
+
+                          {movimientosModal.length === 0 && (
+                            <tr>
+                              <td
+                                colSpan={6}
+                                className="px-4 py-10 text-center text-sm font-semibold text-slate-500"
+                              >
+                                No hay movimientos con los filtros seleccionados.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </section>
@@ -1071,6 +1354,39 @@ function SignalCard({
   );
 }
 
+function ActionCard({
+  titulo,
+  valor,
+  texto,
+  tipo,
+  onClick,
+}: {
+  titulo: string;
+  valor: string | number;
+  texto: string;
+  tipo: "azul" | "verde";
+  onClick: () => void;
+}) {
+  const style =
+    tipo === "verde"
+      ? "border-emerald-200 bg-emerald-50/70 text-emerald-700 hover:bg-emerald-50"
+      : "border-[#2F80ED]/30 bg-[#EAF4FF] text-[#0B4EA2] hover:bg-blue-50";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-xl border ${style} p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md`}
+    >
+      <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+        {titulo}
+      </p>
+      <p className="mt-1 text-2xl font-black">{valor}</p>
+      <p className="mt-1 text-xs font-semibold text-slate-600">{texto}</p>
+    </button>
+  );
+}
+
 function MiniDato({
   titulo,
   valor,
@@ -1121,6 +1437,7 @@ function DataTable({
   columns,
   children,
   empty,
+  compact = false,
 }: {
   titulo: string;
   subtitulo: string;
@@ -1128,6 +1445,7 @@ function DataTable({
   columns: string[];
   children: React.ReactNode;
   empty: string;
+  compact?: boolean;
 }) {
   const hasRows = Array.isArray(children) ? children.length > 0 : !!children;
 
@@ -1147,7 +1465,11 @@ function DataTable({
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200">
-        <div className="compact-scroll max-h-[340px] overflow-auto">
+        <div
+          className={`compact-scroll overflow-auto ${
+            compact ? "max-h-[260px]" : "max-h-[340px]"
+          }`}
+        >
           <table className="w-full min-w-[760px] border-collapse text-xs">
             <thead className="sticky top-0 z-20 bg-[#f8f8f6]">
               <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
