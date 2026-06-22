@@ -76,6 +76,26 @@ function obtenerHojaLocal(datos: ExcelData, nombres: string[]) {
   );
 }
 
+function extraerBasesHistorico(datos: ExcelData): ExcelData {
+  const nombresNecesarios = [
+    "Plan",
+    "Receta",
+    "Existencias",
+    "Consumos",
+    "Consumo",
+    "Plan recepcion",
+    "Plan recepcion MP",
+    "Plan recepcion materiales",
+    "Plan de recepcion",
+  ].map(normalizarClave);
+
+  return Object.fromEntries(
+    Object.entries(datos).filter(([nombre]) =>
+      nombresNecesarios.includes(normalizarClave(nombre))
+    )
+  );
+}
+
 function obtenerValorLocal(fila: Record<string, any>, nombres: string[]) {
   for (const nombre of nombres) {
     const objetivo = normalizarClave(nombre);
@@ -516,6 +536,7 @@ export default function BalanceModule({
       createdBy: currentUser,
       archivo: nombreGuardado.trim(),
       hojas: Object.keys(datos),
+      datos: extraerBasesHistorico(datos),
       analisis,
       info: infoAnalisis,
     };
@@ -557,6 +578,7 @@ export default function BalanceModule({
       createdBy: currentUser,
       archivo: nombreBalance,
       hojas: Object.keys(datos),
+      datos: extraerBasesHistorico(datos),
       analisis,
       info: infoAnalisis,
     };

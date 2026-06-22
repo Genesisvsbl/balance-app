@@ -85,6 +85,7 @@ export type SavedLoad = {
   };
   archivo: string;
   hojas: string[];
+  datos?: ExcelData;
   analisis: BalanceRow[];
   info: BalanceInfo | null;
 };

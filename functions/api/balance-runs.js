@@ -1,12 +1,15 @@
 import { json, supabaseRequest } from "../_shared/supabase-rest.js";
 
 function toSavedLoad(run, rows) {
+  const info = run.info || {};
+
   return {
     id: run.id,
     fecha: run.created_at,
     archivo: run.archivo,
     hojas: run.hojas || [],
-    info: run.info,
+    datos: info.datosHistorico || {},
+    info,
     createdBy: run.created_by
       ? {
           id: run.created_by,
@@ -103,6 +106,10 @@ export async function onRequestGet({ env }) {
 export async function onRequestPost({ request, env }) {
   try {
     const carga = await request.json().catch(() => ({}));
+    const info = {
+      ...(carga.info || {}),
+      datosHistorico: carga.datos || carga.info?.datosHistorico || {},
+    };
 
     await supabaseRequest(env, "/balance_runs", {
       method: "POST",
@@ -115,7 +122,7 @@ export async function onRequestPost({ request, env }) {
         created_by: carga.createdBy?.id || null,
         archivo: carga.archivo,
         hojas: carga.hojas || [],
-        info: carga.info,
+        info,
       }),
     });
 

@@ -11,12 +11,15 @@ function json(statusCode, body) {
 }
 
 function toSavedLoad(run, rows) {
+  const info = run.info || {};
+
   return {
     id: run.id,
     fecha: run.created_at,
     archivo: run.archivo,
       hojas: run.hojas || [],
-      info: run.info,
+      datos: info.datosHistorico || {},
+      info,
       createdBy: run.created_by
         ? {
             id: run.created_by,
@@ -118,6 +121,10 @@ export async function handler(event) {
 
     if (event.httpMethod === "POST") {
       const carga = JSON.parse(event.body || "{}");
+      const info = {
+        ...(carga.info || {}),
+        datosHistorico: carga.datos || carga.info?.datosHistorico || {},
+      };
 
       const { error: runError } = await supabase.from("balance_runs").insert({
         id: carga.id,
@@ -125,7 +132,7 @@ export async function handler(event) {
         created_by: carga.createdBy?.id || null,
         archivo: carga.archivo,
         hojas: carga.hojas || [],
-        info: carga.info,
+        info,
       });
 
       if (runError) return json(500, { error: runError.message });

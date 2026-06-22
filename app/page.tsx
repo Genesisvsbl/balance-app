@@ -57,7 +57,7 @@ export default function Home() {
   }
 
   function cargarBalanceHistorico(carga: SavedLoad) {
-    setDatos({});
+    setDatos(carga.datos || {});
     setHojasEncontradas(carga.hojas || []);
     setHojaActiva(carga.hojas?.[0] || "");
     setAnalisis(carga.analisis || []);
