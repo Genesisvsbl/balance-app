@@ -23,9 +23,9 @@ export default function Header({
       <div className="flex h-14 items-center justify-between px-4">
         <div className="flex items-center gap-3">
           <img
-            src={publicPath("/LOGO.png")}
+            src={publicPath("/LOGO_WHITE.png")}
             alt="Bavaria"
-            className="h-7 w-24 object-contain brightness-0 invert"
+            className="h-7 w-24 object-contain"
           />
 
           <div className="h-7 w-px bg-white/25" />

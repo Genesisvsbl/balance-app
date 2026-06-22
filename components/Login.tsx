@@ -192,9 +192,9 @@ export default function Login({ onLogin }: Props) {
       <header className="relative z-10 flex h-[72px] items-center justify-between border-b border-[#003B7A] bg-[#0057B8] px-8 text-white shadow-sm">
         <div className="flex items-center gap-4">
           <img
-            src={publicPath("/LOGO.png")}
+            src={publicPath("/LOGO_WHITE.png")}
             alt="Bavaria"
-            className="h-9 object-contain brightness-0 invert"
+            className="h-9 object-contain"
           />
 
           <div className="h-9 w-px bg-white/25" />
@@ -216,9 +216,9 @@ export default function Login({ onLogin }: Props) {
         <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white shadow-[0_18px_50px_rgba(0,0,0,0.10)]">
           <div className="flex flex-col items-center border-b border-slate-100 bg-[#0057B8] px-6 py-6 text-center text-white">
             <img
-              src={publicPath("/LOGO.png")}
+              src={publicPath("/LOGO_WHITE.png")}
               alt="Bavaria"
-              className="h-12 object-contain brightness-0 invert"
+              className="h-12 object-contain"
             />
 
             <h2 className="mt-4 text-2xl font-black text-white">
