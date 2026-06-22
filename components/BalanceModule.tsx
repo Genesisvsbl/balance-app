@@ -1551,18 +1551,18 @@ export default function BalanceModule({
       )}
 
       {filaSeleccionada && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
-          <div className="w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-6 py-5">
-              <div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-3 py-4">
+          <div className="flex max-h-[92vh] w-full max-w-[min(1680px,calc(100vw-24px))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-6 py-4">
+              <div className="min-w-0">
                 <p className="text-xs font-black uppercase text-slate-500">
-                  Detalle del componente
+                  Detalle ampliado del componente
                 </p>
                 <h3 className="mt-1 text-xl font-black text-slate-950">
-                  {filaSeleccionada.codigo} · {filaSeleccionada.material}
+                  {filaSeleccionada.codigo} - {filaSeleccionada.material}
                 </h3>
                 <p className="mt-1 text-sm font-semibold text-slate-500">
-                  {filaSeleccionada.um || "-"} · {filaSeleccionada.seccion || "Sin seccion"}
+                  {filaSeleccionada.um || "-"} - {filaSeleccionada.seccion || "Sin seccion"}
                 </p>
               </div>
 
@@ -1574,12 +1574,10 @@ export default function BalanceModule({
               </button>
             </div>
 
-            <div className="max-h-[70vh] overflow-auto px-6 py-5">
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
+            <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
+              <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
+                <DetalleCard label="Total necesidad" value={formatoNumero(totalNecesidadSeleccionada(filaSeleccionada))} />
                 <DetalleCard label="AG01 + AG04" value={formatoNumero(filaSeleccionada.totalExistencia)} />
-                <DetalleCard label="AG01" value={formatoNumero(filaSeleccionada.almacenes["AG01"] || 0)} />
-                <DetalleCard label="AG04" value={formatoNumero(filaSeleccionada.almacenes["AG04"] || 0)} />
-                <DetalleCard label="Necesidad" value={formatoNumero(totalNecesidadSeleccionada(filaSeleccionada))} />
                 <DetalleCard
                   label="Transito"
                   value={formatoNumero(
@@ -1600,88 +1598,198 @@ export default function BalanceModule({
                   value={estadoSeleccionado(filaSeleccionada)}
                   tone={estadoTone(estadoSeleccionado(filaSeleccionada))}
                 />
+                <DetalleCard label="UM" value={filaSeleccionada.um || "-"} />
+                <DetalleCard label="Seccion" value={filaSeleccionada.seccion || "-"} />
+              </div>
+
+              <div className="overflow-hidden rounded-xl border border-slate-200">
+                <div className="border-b border-slate-200 bg-[#f8f8f6] px-4 py-2">
+                  <p className="text-xs font-black uppercase text-slate-500">
+                    Vista completa como balance
+                  </p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[1320px] border-collapse text-[11px]">
+                    <thead className="bg-[#f8f8f6] text-slate-500">
+                      <tr className="border-b border-slate-200 uppercase tracking-wide">
+                        <th className="px-2.5 py-2 text-left font-black">Material</th>
+                        <th className="px-2.5 py-2 text-left font-black">Texto breve del material</th>
+                        <th className="px-2.5 py-2 text-left font-black">UM</th>
+                        <th className="px-2.5 py-2 text-left font-black">Seccion</th>
+                        {semanasActivas.map((sem) => (
+                          <th key={`res-sem-${sem}`} className="px-2.5 py-2 text-right font-black">
+                            {sem}
+                          </th>
+                        ))}
+                        <th className="px-2.5 py-2 text-right font-black">Total necesidad</th>
+                        <th className="px-2.5 py-2 text-right font-black">AG01 + AG04</th>
+                        {almacenesDetectados.map((alm) => (
+                          <th key={`res-alm-${alm}`} className="px-2.5 py-2 text-right font-black">
+                            {alm}
+                          </th>
+                        ))}
+                        <th className="px-2.5 py-2 text-right font-black">Diferencia</th>
+                        {semanasActivas.map((sem) => (
+                          <th key={`res-dif-${sem}`} className="px-2.5 py-2 text-right font-black">
+                            Dif. {sem}
+                          </th>
+                        ))}
+                        <th className="px-2.5 py-2 text-left font-black">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="bg-white">
+                        <td className="px-2.5 py-2 font-black text-slate-950">{filaSeleccionada.codigo}</td>
+                        <td className="min-w-[260px] px-2.5 py-2 font-semibold text-slate-700">
+                          {filaSeleccionada.material}
+                        </td>
+                        <td className="px-2.5 py-2 font-semibold text-slate-500">{filaSeleccionada.um || "-"}</td>
+                        <td className="px-2.5 py-2 font-semibold text-slate-500">
+                          {filaSeleccionada.seccion || "-"}
+                        </td>
+                        {semanasActivas.map((sem) => (
+                          <td key={`res-sem-value-${sem}`} className="px-2.5 py-2 text-right font-semibold text-slate-700">
+                            {formatoNumero(filaSeleccionada.necesidadesPorSemana[sem] || 0)}
+                          </td>
+                        ))}
+                        <td className="px-2.5 py-2 text-right font-black text-slate-950">
+                          {formatoNumero(totalNecesidadSeleccionada(filaSeleccionada))}
+                        </td>
+                        <td className="px-2.5 py-2 text-right font-black text-slate-950">
+                          {formatoNumero(filaSeleccionada.totalExistencia)}
+                        </td>
+                        {almacenesDetectados.map((alm) => (
+                          <td key={`res-alm-value-${alm}`} className="px-2.5 py-2 text-right font-black text-slate-700">
+                            {formatoNumero(filaSeleccionada.almacenes[alm] || 0)}
+                          </td>
+                        ))}
+                        <td
+                          className={`px-2.5 py-2 text-right font-black ${
+                            diferenciaSeleccionada(filaSeleccionada) < 0 ? "text-[#e30613]" : "text-emerald-700"
+                          }`}
+                        >
+                          {formatoNumero(diferenciaSeleccionada(filaSeleccionada))}
+                        </td>
+                        {semanasActivas.map((sem) => {
+                          const diferencia = filaSeleccionada.diferenciasPorSemana[sem] || 0;
+                          return (
+                            <td
+                              key={`res-dif-value-${sem}`}
+                              className={`px-2.5 py-2 text-right font-black ${
+                                diferencia < 0 ? "text-[#e30613]" : "text-slate-700"
+                              }`}
+                            >
+                              {formatoNumero(diferencia)}
+                            </td>
+                          );
+                        })}
+                        <td className="px-2.5 py-2">
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${estadoClasses(estadoSeleccionado(filaSeleccionada))}`}>
+                            {estadoSeleccionado(filaSeleccionada)}
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
-                <table className="w-full border-collapse text-xs">
-                  <thead className="bg-[#f8f8f6] text-slate-500">
-                    <tr className="border-b border-slate-200 uppercase">
-                      <th className="px-3 py-2 text-left font-black">Semana</th>
-                      <th className="px-3 py-2 text-right font-black">Necesidad</th>
-                      <th className="px-3 py-2 text-right font-black">Transito</th>
-                      <th className="px-3 py-2 text-left font-black">Fecha operativa</th>
-                      <th className="px-3 py-2 text-right font-black">AG01 + AG04</th>
-                      <th className="px-3 py-2 text-right font-black">Diferencia</th>
-                      <th className="px-3 py-2 text-left font-black">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {semanasActivas.map((sem) => {
-                      const necesidad = filaSeleccionada.necesidadesPorSemana[sem] || 0;
-                      const transito = filaSeleccionada.recepcionesPorSemana?.[sem] || 0;
-                      const diferencia = filaSeleccionada.diferenciasPorSemana[sem] || 0;
-                      const transitos = filaSeleccionada.transitosPorSemana?.[sem] || [];
-                      const fechas = Array.from(
-                        new Set(
-                          transitos
-                            .map((item) => item.fechaOperativa)
-                            .filter(Boolean)
-                        )
-                      );
-                      const estadoSemana: EstadoAnalisis =
-                        necesidad <= 0
-                          ? "SIN_NECESIDAD"
-                          : diferencia > 0
-                            ? "DISPONIBLE"
-                            : diferencia === 0
-                              ? "RESERVADO"
-                              : filaSeleccionada.totalExistencia > 0
-                                ? "REPOSICION"
-                                : "REABASTECIMIENTO";
+                <div className="border-b border-slate-200 bg-[#f8f8f6] px-4 py-2">
+                  <p className="text-xs font-black uppercase text-slate-500">
+                    Detalle semanal
+                  </p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[1120px] border-collapse text-xs">
+                    <thead className="bg-[#f8f8f6] text-slate-500">
+                      <tr className="border-b border-slate-200 uppercase">
+                        <th className="px-3 py-2 text-left font-black">Semana</th>
+                        <th className="px-3 py-2 text-right font-black">Necesidad</th>
+                        <th className="px-3 py-2 text-left font-black">Fecha operativa</th>
+                        <th className="px-3 py-2 text-right font-black">Transito</th>
+                        <th className="px-3 py-2 text-right font-black">AG01 + AG04</th>
+                        {almacenesDetectados.map((alm) => (
+                          <th key={`sem-alm-${alm}`} className="px-3 py-2 text-right font-black">
+                            {alm}
+                          </th>
+                        ))}
+                        <th className="px-3 py-2 text-right font-black">Diferencia</th>
+                        <th className="px-3 py-2 text-left font-black">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {semanasActivas.map((sem) => {
+                        const necesidad = filaSeleccionada.necesidadesPorSemana[sem] || 0;
+                        const transito = filaSeleccionada.recepcionesPorSemana?.[sem] || 0;
+                        const diferencia = filaSeleccionada.diferenciasPorSemana[sem] || 0;
+                        const transitos = filaSeleccionada.transitosPorSemana?.[sem] || [];
+                        const fechas = Array.from(
+                          new Set(
+                            transitos
+                              .map((item) => item.fechaOperativa)
+                              .filter(Boolean)
+                          )
+                        );
+                        const estadoSemana: EstadoAnalisis =
+                          necesidad <= 0
+                            ? "SIN_NECESIDAD"
+                            : diferencia > 0
+                              ? "DISPONIBLE"
+                              : diferencia === 0
+                                ? "RESERVADO"
+                                : filaSeleccionada.totalExistencia > 0
+                                  ? "REPOSICION"
+                                  : "REABASTECIMIENTO";
 
-                      return (
-                        <tr
-                          key={sem}
-                          className="border-b border-slate-100 last:border-b-0 hover:bg-[#EAF4FF]"
-                        >
-                          <td className="px-3 py-2 font-black text-slate-950">{sem}</td>
-                          <td className="px-3 py-2 text-right font-semibold text-slate-700">
-                            {formatoNumero(necesidad)}
-                          </td>
-                          <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">
-                            {formatoNumero(transito)}
-                          </td>
-                          <td className="min-w-[150px] px-3 py-2 font-semibold text-slate-600">
-                            {fechas.length > 0 ? fechas.join(", ") : "-"}
-                          </td>
-                          <td className="px-3 py-2 text-right font-black text-slate-950">
-                            {formatoNumero(filaSeleccionada.totalExistencia)}
-                          </td>
-                          <td
-                            className={`px-3 py-2 text-right font-black ${
-                              diferencia < 0 ? "text-[#e30613]" : "text-emerald-700"
-                            }`}
+                        return (
+                          <tr
+                            key={sem}
+                            className="border-b border-slate-100 last:border-b-0 hover:bg-[#EAF4FF]"
                           >
-                            {formatoNumero(diferencia)}
-                          </td>
-                          <td className="px-3 py-2">
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-[10px] font-black ${estadoClasses(estadoSemana)}`}
+                            <td className="px-3 py-2 font-black text-slate-950">{sem}</td>
+                            <td className="px-3 py-2 text-right font-semibold text-slate-700">
+                              {formatoNumero(necesidad)}
+                            </td>
+                            <td className="min-w-[150px] px-3 py-2 font-semibold text-slate-600">
+                              {fechas.length > 0 ? fechas.join(", ") : "-"}
+                            </td>
+                            <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">
+                              {formatoNumero(transito)}
+                            </td>
+                            <td className="px-3 py-2 text-right font-black text-slate-950">
+                              {formatoNumero(filaSeleccionada.totalExistencia)}
+                            </td>
+                            {almacenesDetectados.map((alm) => (
+                              <td key={`sem-alm-value-${sem}-${alm}`} className="px-3 py-2 text-right font-black text-slate-700">
+                                {formatoNumero(filaSeleccionada.almacenes[alm] || 0)}
+                              </td>
+                            ))}
+                            <td
+                              className={`px-3 py-2 text-right font-black ${
+                                diferencia < 0 ? "text-[#e30613]" : "text-emerald-700"
+                              }`}
                             >
-                              {estadoSemana}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                              {formatoNumero(diferencia)}
+                            </td>
+                            <td className="px-3 py-2">
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-[10px] font-black ${estadoClasses(estadoSemana)}`}
+                              >
+                                {estadoSemana}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      )}
-    </section>
+      )}    </section>
   );
 }
 
