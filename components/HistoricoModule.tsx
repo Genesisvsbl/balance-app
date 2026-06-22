@@ -33,9 +33,12 @@ export default function HistoricoModule({ onLoad }: Props) {
 
   async function cargar() {
     try {
-      setCargas(await obtenerCargas());
+      const data = await obtenerCargas();
+      setCargas(data);
+      return data;
     } catch (error: any) {
       alert(error.message || "No se pudo cargar el historico.");
+      return [];
     }
   }
 
@@ -101,11 +104,16 @@ export default function HistoricoModule({ onLoad }: Props) {
 
     try {
       if (avalPendiente.tipo === "uno") {
+        setCargas((actual) =>
+          actual.filter((carga) => carga.id !== avalPendiente.id)
+        );
         await eliminarCarga(avalPendiente.id);
       } else {
+        setCargas([]);
         await limpiarCargas();
       }
 
+      setBusqueda("");
       await cargar();
       cerrarAval();
     } catch (error: any) {
@@ -191,6 +199,8 @@ export default function HistoricoModule({ onLoad }: Props) {
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Buscar por fecha, hora o nombre..."
+            name="balance-history-search"
+            autoComplete="off"
             className="h-11 min-w-[360px] rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#0057B8] focus:ring-4 focus:ring-[#0057B8]/10"
           />
         </div>
