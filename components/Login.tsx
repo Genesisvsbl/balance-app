@@ -170,19 +170,19 @@ export default function Login({ onLogin }: Props) {
         <div className="absolute inset-0 bg-white" />
 
         <div className="absolute left-[-80px] top-[120px] h-[260px] w-[520px] rotate-[-12deg] opacity-[0.08]">
-          <div className="h-full w-full bg-[repeating-linear-gradient(0deg,#d4a017_0px,#d4a017_1px,transparent_1px,transparent_18px)]" />
+          <div className="h-full w-full bg-[repeating-linear-gradient(0deg,#2F80ED_0px,#2F80ED_1px,transparent_1px,transparent_18px)]" />
         </div>
 
         <div className="absolute right-[340px] top-[130px] h-[150px] w-[360px] rotate-[-45deg] opacity-[0.10]">
-          <div className="h-full w-full bg-[repeating-linear-gradient(90deg,#d4a017_0px,#d4a017_1px,transparent_1px,transparent_22px)]" />
+          <div className="h-full w-full bg-[repeating-linear-gradient(90deg,#2F80ED_0px,#2F80ED_1px,transparent_1px,transparent_22px)]" />
         </div>
 
         <div className="absolute bottom-[90px] right-[-40px] h-[220px] w-[480px] rotate-[-12deg] opacity-[0.055]">
-          <div className="h-full w-full bg-[repeating-linear-gradient(0deg,#e30613_0px,#e30613_1px,transparent_1px,transparent_18px)]" />
+          <div className="h-full w-full bg-[repeating-linear-gradient(0deg,#0057B8_0px,#0057B8_1px,transparent_1px,transparent_18px)]" />
         </div>
 
         <div className="absolute bottom-[120px] left-[80px] h-[120px] w-[300px] rotate-[-45deg] opacity-[0.07]">
-          <div className="h-full w-full bg-[repeating-linear-gradient(90deg,#e30613_0px,#e30613_1px,transparent_1px,transparent_24px)]" />
+          <div className="h-full w-full bg-[repeating-linear-gradient(90deg,#0057B8_0px,#0057B8_1px,transparent_1px,transparent_24px)]" />
         </div>
 
         <div className="absolute bottom-0 left-0 h-[32%] w-full bg-gradient-to-t from-[#f8fafc] to-transparent" />
@@ -207,7 +207,7 @@ export default function Login({ onLogin }: Props) {
           </div>
         </div>
 
-        <span className="rounded-full border border-[#e30613]/25 bg-[#e30613]/5 px-4 py-1.5 text-xs font-bold text-[#e30613]">
+        <span className="rounded-full border border-[#0057B8]/25 bg-[#0057B8]/5 px-4 py-1.5 text-xs font-bold text-[#0057B8]">
           Acceso seguro
         </span>
       </header>
@@ -249,7 +249,7 @@ export default function Login({ onLogin }: Props) {
                   window.setTimeout(() => passwordRef.current?.focus(), 0);
                 }
               }}
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#e30613] focus:ring-2 focus:ring-[#e30613]/10"
+              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#0057B8] focus:ring-2 focus:ring-[#0057B8]/10"
               placeholder="Ingrese su usuario"
             />
 
@@ -262,7 +262,7 @@ export default function Login({ onLogin }: Props) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               type="password"
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#e30613] focus:ring-2 focus:ring-[#e30613]/10"
+              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#0057B8] focus:ring-2 focus:ring-[#0057B8]/10"
               placeholder="Ingrese su contrasena"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !loading) acceder();
@@ -270,7 +270,7 @@ export default function Login({ onLogin }: Props) {
             />
 
             {error && (
-              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-semibold text-[#e30613]">
+              <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm font-semibold text-[#0057B8]">
                 {error}
               </div>
             )}
@@ -278,7 +278,7 @@ export default function Login({ onLogin }: Props) {
             <button
               onClick={acceder}
               disabled={loading}
-              className="mt-5 w-full rounded-lg bg-[#e30613] py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#b8000f] disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-5 w-full rounded-lg bg-[#0057B8] py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#003B7A] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? "VALIDANDO..." : "ACCEDER"}
             </button>

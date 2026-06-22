@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  --bavaria-red: #e30613;
-  --bavaria-red-dark: #b8000f;
-  --bavaria-gold: #d4a017;
+  --bavaria-blue: #0057b8;
+  --bavaria-blue-dark: #003b7a;
+  --bavaria-accent: #2f80ed;
   --erp-bg: #f8f9fb;
   --erp-border: #e5e7eb;
   --erp-text: #111827;
@@ -65,7 +65,7 @@ table {
 }
 
 .erp-button-red {
-  background: var(--bavaria-red);
+  background: var(--bavaria-blue);
   color: white;
   border-radius: 8px;
   padding: 8px 12px;
@@ -76,11 +76,11 @@ table {
 }
 
 .erp-button-red:hover {
-  background: var(--bavaria-red-dark);
+  background: var(--bavaria-blue-dark);
 }
 
 .erp-button-gold {
-  background: var(--bavaria-gold);
+  background: var(--bavaria-accent);
   color: white;
   border-radius: 8px;
   padding: 8px 12px;

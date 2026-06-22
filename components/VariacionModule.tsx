@@ -249,8 +249,8 @@ export default function VariacionModule() {
             <Kpi
               titulo="Aumentos"
               valor={resumen.aumentos}
-              color="text-[#e30613]"
-              border="border-red-100"
+              color="text-[#0057B8]"
+              border="border-blue-100"
             />
             <Kpi
               titulo="Explicadas por consumo"
@@ -261,8 +261,8 @@ export default function VariacionModule() {
             <Kpi
               titulo="Por explicar"
               valor={resumen.porExplicar}
-              color="text-[#e30613]"
-              border="border-red-100"
+              color="text-[#0057B8]"
+              border="border-blue-100"
             />
             <Kpi titulo="Nuevos" valor={resumen.nuevos} />
             <Kpi titulo="Retirados" valor={resumen.retirados} />
@@ -275,26 +275,26 @@ export default function VariacionModule() {
             <Kpi
               titulo="Dif. total"
               valor={formatoNumero(resumen.diferenciaTotal)}
-              color="text-[#9a6a00]"
-              border="border-[#d4a017]/25"
+              color="text-[#0B4EA2]"
+              border="border-[#2F80ED]/25"
             />
           </div>
 
-          <div className="rounded-2xl border border-[#d4a017]/25 bg-[#fff8df] p-6 shadow-sm">
-            <p className="text-xs font-black uppercase tracking-wide text-[#9a6a00]">
+          <div className="rounded-2xl border border-[#2F80ED]/25 bg-[#EAF4FF] p-6 shadow-sm">
+            <p className="text-xs font-black uppercase tracking-wide text-[#0B4EA2]">
               Regla de lectura
             </p>
             <div className="mt-3 grid grid-cols-1 gap-3 text-sm font-black text-slate-800 md:grid-cols-5">
               <div className="rounded-xl border border-white/70 bg-white px-4 py-3">
                 Movimiento = Plan actual - Plan anterior
               </div>
-              <div className="flex items-center justify-center text-xl text-[#9a6a00]">
+              <div className="flex items-center justify-center text-xl text-[#0B4EA2]">
                 |
               </div>
               <div className="rounded-xl border border-white/70 bg-white px-4 py-3">
                 Si reduce, debe coincidir con consumo
               </div>
-              <div className="flex items-center justify-center text-xl text-[#9a6a00]">
+              <div className="flex items-center justify-center text-xl text-[#0B4EA2]">
                 |
               </div>
               <div className="rounded-xl border border-white/70 bg-white px-4 py-3">
@@ -320,13 +320,13 @@ export default function VariacionModule() {
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
                   placeholder="Buscar material, texto breve, seccion..."
-                  className="h-11 min-w-[280px] rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#e30613] focus:ring-4 focus:ring-[#e30613]/10"
+                  className="h-11 min-w-[280px] rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#0057B8] focus:ring-4 focus:ring-[#0057B8]/10"
                 />
 
                 <select
                   value={filtroDiagnostico}
                   onChange={(e) => setFiltroDiagnostico(e.target.value)}
-                  className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#e30613]"
+                  className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#0057B8]"
                 >
                   <option value="TODOS">Todos los diagnosticos</option>
                   {diagnosticos.map((diag) => (
@@ -339,7 +339,7 @@ export default function VariacionModule() {
                 <select
                   value={filtroSeccion}
                   onChange={(e) => setFiltroSeccion(e.target.value)}
-                  className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#e30613]"
+                  className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#0057B8]"
                 >
                   <option value="TODAS">Todas las secciones</option>
                   {secciones.map((seccion) => (
@@ -353,7 +353,7 @@ export default function VariacionModule() {
                   onClick={() => setSoloPorExplicar(!soloPorExplicar)}
                   className={`h-11 rounded-xl border px-4 text-sm font-black transition ${
                     soloPorExplicar
-                      ? "border-red-100 bg-red-50 text-[#e30613]"
+                      ? "border-blue-100 bg-blue-50 text-[#0057B8]"
                       : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
                   }`}
                 >
@@ -412,7 +412,7 @@ export default function VariacionModule() {
                         onClick={() => toggleMaterial(row.codigo)}
                         className={`cursor-pointer border-b border-slate-100 transition ${
                           materialSeleccionado === row.codigo
-                            ? "bg-[#fff8df]"
+                            ? "bg-[#EAF4FF]"
                             : "bg-white hover:bg-[#fbfbfa]"
                         }`}
                       >
@@ -434,7 +434,7 @@ export default function VariacionModule() {
                         <td
                           className={`px-4 py-3 text-right font-black ${
                             row.movimientoPlan > 0
-                              ? "text-[#e30613]"
+                              ? "text-[#0057B8]"
                               : row.movimientoPlan < 0
                               ? "text-emerald-700"
                               : "text-slate-500"
@@ -442,13 +442,13 @@ export default function VariacionModule() {
                         >
                           {formatoNumero(row.movimientoPlan)}
                         </td>
-                        <td className="px-4 py-3 text-right font-black text-[#9a6a00]">
+                        <td className="px-4 py-3 text-right font-black text-[#0B4EA2]">
                           {formatoNumero(row.consumoNotificado)}
                         </td>
                         <td
                           className={`px-4 py-3 text-right font-black ${
                             Math.abs(row.diferenciaPorExplicar) > 0
-                              ? "text-[#e30613]"
+                              ? "text-[#0057B8]"
                               : "text-emerald-700"
                           }`}
                         >
@@ -460,7 +460,7 @@ export default function VariacionModule() {
                               row.diagnostico === "REDUCCION NO EXPLICADA" ||
                               row.diagnostico === "CONSUMO MAYOR A REDUCCION" ||
                               row.diagnostico === "AUMENTO DE PLAN"
-                                ? "bg-red-50 text-[#e30613]"
+                                ? "bg-blue-50 text-[#0057B8]"
                                 : row.diagnostico ===
                                   "REDUCCION EXPLICADA POR CONSUMO"
                                 ? "bg-emerald-50 text-emerald-700"
@@ -490,10 +490,10 @@ export default function VariacionModule() {
           </div>
 
           {seleccionado && (
-            <div className="rounded-2xl border border-[#d4a017]/25 bg-[#fff8df] p-6 shadow-sm">
+            <div className="rounded-2xl border border-[#2F80ED]/25 bg-[#EAF4FF] p-6 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-wide text-[#9a6a00]">
+                  <p className="text-xs font-black uppercase tracking-wide text-[#0B4EA2]">
                     Detalle semanal del movimiento
                   </p>
                   <h4 className="mt-1 text-xl font-black text-slate-950">
@@ -547,7 +547,7 @@ export default function VariacionModule() {
                           <td
                             className={`px-4 py-3 text-right font-black ${
                               sem.movimiento > 0
-                                ? "text-[#e30613]"
+                                ? "text-[#0057B8]"
                                 : sem.movimiento < 0
                                 ? "text-emerald-700"
                                 : "text-slate-500"
@@ -595,7 +595,7 @@ function SelectorCarga({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none focus:border-[#e30613]"
+        className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none focus:border-[#0057B8]"
       >
         {cargas.map((carga) => (
           <option key={carga.id} value={carga.id}>

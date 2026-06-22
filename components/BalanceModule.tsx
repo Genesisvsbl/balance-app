@@ -411,8 +411,8 @@ export default function BalanceModule({
   function estadoClasses(estado: EstadoAnalisis) {
     if (estado === "DISPONIBLE") return "bg-emerald-50 text-emerald-700";
     if (estado === "RESERVADO") return "bg-blue-50 text-blue-700";
-    if (estado === "REPOSICION") return "bg-amber-50 text-[#9a6a00]";
-    if (estado === "REABASTECIMIENTO") return "bg-red-50 text-[#e30613]";
+    if (estado === "REPOSICION") return "bg-sky-50 text-[#0B4EA2]";
+    if (estado === "REABASTECIMIENTO") return "bg-blue-50 text-[#0057B8]";
     return "bg-slate-100 text-slate-600";
   }
 
@@ -763,7 +763,7 @@ export default function BalanceModule({
           <div className="flex flex-wrap gap-2">
             <button
               onClick={ejecutarBalance}
-              className="rounded-xl bg-[#e30613] px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#b8000f]"
+              className="rounded-xl bg-[#0057B8] px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#003B7A]"
             >
               Generar balance
             </button>
@@ -772,14 +772,14 @@ export default function BalanceModule({
               <>
                 <button
                   onClick={abrirModalGuardarBalance}
-                  className="rounded-xl border border-[#d4a017] bg-white px-5 py-3 text-sm font-black text-[#9a6a00] shadow-sm transition hover:bg-[#fff8df]"
+                  className="rounded-xl border border-[#2F80ED] bg-white px-5 py-3 text-sm font-black text-[#0B4EA2] shadow-sm transition hover:bg-[#EAF4FF]"
                 >
                   Guardar balance
                 </button>
 
                 <button
                   onClick={exportar}
-                  className="rounded-xl bg-[#d4a017] px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#b88900]"
+                  className="rounded-xl bg-[#2F80ED] px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#1D4ED8]"
                 >
                   Exportar Excel
                 </button>
@@ -794,7 +794,7 @@ export default function BalanceModule({
           className={`rounded-xl border px-4 py-3 text-sm font-bold shadow-sm ${
             mensajeGuardado.tipo === "ok"
               ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : "border-red-200 bg-red-50 text-[#e30613]"
+              : "border-blue-200 bg-blue-50 text-[#0057B8]"
           }`}
         >
           {mensajeGuardado.texto}
@@ -816,11 +816,11 @@ export default function BalanceModule({
               </p>
             </div>
 
-            <div className="rounded-xl border border-[#d4a017]/25 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border border-[#2F80ED]/25 bg-white p-4 shadow-sm">
               <p className="text-xs font-semibold text-slate-500">
                 Vr.Stock Alm. Bloqueado
               </p>
-              <p className="mt-1 truncate text-xl font-black text-[#9a6a00]">
+              <p className="mt-1 truncate text-xl font-black text-[#0B4EA2]">
                 {formatoNumero(valoresInventario.bloqueado)}
               </p>
               <p className="mt-1 text-[11px] font-semibold text-slate-500">
@@ -842,17 +842,17 @@ export default function BalanceModule({
           </div>
 
           {!conteosSkuActualizados && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800">
+            <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs font-bold text-sky-800">
               Este balance fue guardado antes de calcular los SKU desde Existencias. Genera el balance nuevamente desde el Excel y vuelve a guardarlo para ver 318 / 10 / 321.
             </div>
           )}
 
           <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
-            <div className="rounded-xl border border-red-100 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
               <p className="text-xs font-semibold text-slate-500">
                 No. Materiales en riesgo
               </p>
-              <p className="mt-1 truncate text-xl font-black text-[#e30613]">
+              <p className="mt-1 truncate text-xl font-black text-[#0057B8]">
                 {materialesEnRiesgo}
               </p>
             </div>
@@ -860,12 +860,12 @@ export default function BalanceModule({
             {indicadoresPorSemana.map((item) => (
               <div
                 key={item.semana}
-                className="rounded-xl border border-[#d4a017]/25 bg-white p-4 shadow-sm"
+                className="rounded-xl border border-[#2F80ED]/25 bg-white p-4 shadow-sm"
               >
                 <p className="text-xs font-semibold text-slate-500">
                   {item.label}
                 </p>
-                <p className="mt-1 truncate text-xl font-black text-[#9a6a00]">
+                <p className="mt-1 truncate text-xl font-black text-[#0B4EA2]">
                   {item.criticos}
                 </p>
                 <p className="mt-1 truncate text-[11px] font-semibold text-slate-500">
@@ -897,7 +897,7 @@ export default function BalanceModule({
                 value={filtroTexto}
                 onChange={(e) => setFiltroTexto(e.target.value)}
                 placeholder="Buscar componente, descripción, sección..."
-                className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-[#e30613] focus:ring-2 focus:ring-[#e30613]/10"
+                className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-[#0057B8] focus:ring-2 focus:ring-[#0057B8]/10"
               />
 
               <details data-filter-menu className="relative rounded-lg border border-slate-300 bg-white">
@@ -914,10 +914,10 @@ export default function BalanceModule({
                     value={busquedaSkuProduccion}
                     onChange={(e) => setBusquedaSkuProduccion(e.target.value)}
                     placeholder="Buscar SAP o descripcion..."
-                    className="mb-2 h-8 w-full rounded-md border border-slate-300 px-2 text-xs font-semibold outline-none focus:border-[#e30613]"
+                    className="mb-2 h-8 w-full rounded-md border border-slate-300 px-2 text-xs font-semibold outline-none focus:border-[#0057B8]"
                   />
                   {opcionesSkuProduccion.length === 0 ? (
-                    <p className="px-2 py-1 text-xs font-bold text-red-600">
+                    <p className="px-2 py-1 text-xs font-bold text-blue-600">
                       No hay SAP detectados en la hoja Plan.
                     </p>
                   ) : opcionesSkuProduccionFiltradas.length === 0 ? (
@@ -928,7 +928,7 @@ export default function BalanceModule({
                     opcionesSkuProduccionFiltradas.map((sku) => (
                       <label
                         key={sku.codigo}
-                        className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-xs font-bold text-slate-700 hover:bg-red-50"
+                        className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-xs font-bold text-slate-700 hover:bg-blue-50"
                       >
                         <input
                           type="checkbox"
@@ -965,7 +965,7 @@ export default function BalanceModule({
                     value={busquedaSeccion}
                     onChange={(e) => setBusquedaSeccion(e.target.value)}
                     placeholder="Buscar seccion..."
-                    className="mb-2 h-8 w-full rounded-md border border-slate-300 px-2 text-xs font-semibold outline-none focus:border-[#e30613]"
+                    className="mb-2 h-8 w-full rounded-md border border-slate-300 px-2 text-xs font-semibold outline-none focus:border-[#0057B8]"
                   />
                   {seccionesFiltradas.length === 0 ? (
                     <p className="px-2 py-1 text-xs font-bold text-slate-500">
@@ -974,7 +974,7 @@ export default function BalanceModule({
                   ) : seccionesFiltradas.map((s) => (
                     <label
                       key={s}
-                      className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs font-bold text-slate-700 hover:bg-red-50"
+                      className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs font-bold text-slate-700 hover:bg-blue-50"
                     >
                       <input
                         type="checkbox"
@@ -1000,7 +1000,7 @@ export default function BalanceModule({
                   {ESTADOS_ANALISIS.map((estado) => (
                     <label
                       key={estado}
-                      className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs font-bold text-slate-700 hover:bg-red-50"
+                      className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs font-bold text-slate-700 hover:bg-blue-50"
                     >
                       <input
                         type="checkbox"
@@ -1015,7 +1015,7 @@ export default function BalanceModule({
 
               <button
                 onClick={() => setMostrarColumnas(!mostrarColumnas)}
-                className="h-9 rounded-lg border border-[#d4a017]/50 bg-[#fff8df] px-3 text-xs font-black text-[#9a6a00] transition hover:bg-[#fff1bf]"
+                className="h-9 rounded-lg border border-[#2F80ED]/50 bg-[#EAF4FF] px-3 text-xs font-black text-[#0B4EA2] transition hover:bg-[#D8ECFF]"
               >
                 {mostrarColumnas ? "Ocultar panel" : "Columnas"}
               </button>
@@ -1038,7 +1038,7 @@ export default function BalanceModule({
           </div>
 
           {filtrosSkuProduccion.length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#d4a017]/30 bg-[#fff8df] px-3 py-2">
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#2F80ED]/30 bg-[#EAF4FF] px-3 py-2">
               <p className="text-xs font-bold text-[#6f4b00]">
                 SAP seleccionados:{" "}
                 {skusProduccionSeleccionados
@@ -1050,7 +1050,7 @@ export default function BalanceModule({
               </p>
               <button
                 onClick={() => setMostrarTodoSkuProduccion((actual) => !actual)}
-                className="h-8 rounded-lg border border-[#d4a017]/50 bg-white px-3 text-xs font-black text-[#9a6a00] transition hover:bg-[#fff1bf]"
+                className="h-8 rounded-lg border border-[#2F80ED]/50 bg-white px-3 text-xs font-black text-[#0B4EA2] transition hover:bg-[#D8ECFF]"
               >
                 {mostrarTodoSkuProduccion ? "Ocultar sin necesidad" : "Ver todo SAP"}
               </button>
@@ -1094,7 +1094,7 @@ export default function BalanceModule({
                     onClick={() => toggleSemanaAnalisis(sem)}
                     className={`h-8 rounded-lg border px-3 text-xs font-black transition ${
                       activo
-                        ? "border-[#e30613]/30 bg-red-50 text-[#e30613]"
+                        ? "border-[#0057B8]/30 bg-blue-50 text-[#0057B8]"
                         : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
                     }`}
                   >
@@ -1260,7 +1260,7 @@ export default function BalanceModule({
                                 onClick={() => toggleSemanaTransito(sem)}
                                 className={`w-full text-right uppercase transition ${
                                   activo
-                                    ? "text-[#e30613]"
+                                    ? "text-[#0057B8]"
                                     : "text-slate-500 hover:text-slate-950"
                                 }`}
                                 title="Mostrar u ocultar plan en transito"
@@ -1369,7 +1369,7 @@ export default function BalanceModule({
                       onClickCapture={() => setFilaSeleccionada(row)}
                       onMouseDown={() => setFilaSeleccionada(row)}
                       onDoubleClick={() => setFilaSeleccionada(row)}
-                      className="cursor-pointer border-b border-slate-100 bg-white transition hover:bg-[#fff1bf] active:bg-[#ffe7a3]"
+                      className="cursor-pointer border-b border-slate-100 bg-white transition hover:bg-[#D8ECFF] active:bg-[#ffe7a3]"
                     >
                       {visibilidad.codigo && (
                         <td className="px-2.5 py-1.5 font-black text-slate-950">
@@ -1421,7 +1421,7 @@ export default function BalanceModule({
                                   <td className="min-w-[130px] px-2.5 py-1.5 text-right font-semibold text-slate-600">
                                     {fechas.length > 0 ? fechas.join(", ") : "-"}
                                   </td>
-                                  <td className="px-2.5 py-1.5 text-right font-black text-[#9a6a00]">
+                                  <td className="px-2.5 py-1.5 text-right font-black text-[#0B4EA2]">
                                     {formatoNumero(cantidadTransito)}
                                   </td>
                                 </>
@@ -1453,7 +1453,7 @@ export default function BalanceModule({
                         <td
                           className={`px-2.5 py-1.5 text-right font-black ${
                             diferenciaSeleccionada(row) < 0
-                              ? "text-[#e30613]"
+                              ? "text-[#0057B8]"
                               : "text-emerald-700"
                           }`}
                         >
@@ -1467,7 +1467,7 @@ export default function BalanceModule({
                             key={`dif-${sem}`}
                             className={`px-2.5 py-1.5 text-right font-black ${
                               row.diferenciasPorSemana[sem] < 0
-                                ? "text-[#e30613]"
+                                ? "text-[#0057B8]"
                                 : "text-slate-700"
                             }`}
                           >
@@ -1525,7 +1525,7 @@ export default function BalanceModule({
               <input
                 value={nombreGuardado}
                 onChange={(e) => setNombreGuardado(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-[#e30613] focus:ring-4 focus:ring-[#e30613]/10"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-[#0057B8] focus:ring-4 focus:ring-[#0057B8]/10"
                 autoFocus
               />
             </div>
@@ -1541,7 +1541,7 @@ export default function BalanceModule({
               <button
                 onClick={confirmarGuardarBalance}
                 disabled={guardandoBalance || !nombreGuardado.trim()}
-                className="rounded-xl bg-[#e30613] px-5 py-2.5 text-sm font-black text-white shadow-sm hover:bg-[#b8000f] disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-xl bg-[#0057B8] px-5 py-2.5 text-sm font-black text-white shadow-sm hover:bg-[#003B7A] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {guardandoBalance ? "Guardando..." : "Guardar"}
               </button>
@@ -1642,13 +1642,13 @@ export default function BalanceModule({
                       return (
                         <tr
                           key={sem}
-                          className="border-b border-slate-100 last:border-b-0 hover:bg-[#fff8df]"
+                          className="border-b border-slate-100 last:border-b-0 hover:bg-[#EAF4FF]"
                         >
                           <td className="px-3 py-2 font-black text-slate-950">{sem}</td>
                           <td className="px-3 py-2 text-right font-semibold text-slate-700">
                             {formatoNumero(necesidad)}
                           </td>
-                          <td className="px-3 py-2 text-right font-black text-[#9a6a00]">
+                          <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">
                             {formatoNumero(transito)}
                           </td>
                           <td className="min-w-[150px] px-3 py-2 font-semibold text-slate-600">
@@ -1659,7 +1659,7 @@ export default function BalanceModule({
                           </td>
                           <td
                             className={`px-3 py-2 text-right font-black ${
-                              diferencia < 0 ? "text-[#e30613]" : "text-emerald-700"
+                              diferencia < 0 ? "text-[#0057B8]" : "text-emerald-700"
                             }`}
                           >
                             {formatoNumero(diferencia)}
@@ -1696,11 +1696,11 @@ function DetalleCard({
 }) {
   const toneClass =
     tone === "danger"
-      ? "text-[#e30613]"
+      ? "text-[#0057B8]"
       : tone === "success"
         ? "text-emerald-700"
         : tone === "warning"
-          ? "text-[#9a6a00]"
+          ? "text-[#0B4EA2]"
           : "text-slate-950";
 
   return (
@@ -1725,7 +1725,7 @@ function Toggle({
       onClick={onClick}
       className={`rounded-lg border px-2.5 py-1.5 text-left text-[11px] font-black transition ${
         checked
-          ? "border-[#e30613]/30 bg-red-50 text-[#e30613]"
+          ? "border-[#0057B8]/30 bg-blue-50 text-[#0057B8]"
           : "border-slate-200 bg-white text-slate-400 hover:bg-slate-50"
       }`}
     >
@@ -1762,7 +1762,7 @@ function SortHeader({
         onClick={() => onSort(sortKey)}
         className={`w-full uppercase transition ${
           align === "right" ? "text-right" : "text-left"
-        } ${activo ? "text-[#e30613]" : "text-slate-500 hover:text-slate-950"}`}
+        } ${activo ? "text-[#0057B8]" : "text-slate-500 hover:text-slate-950"}`}
         title="Ordenar columna"
       >
         {label}

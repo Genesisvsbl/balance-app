@@ -43,7 +43,7 @@ export default function Header({
         <TopNav active={active} setActive={setActive} />
 
         <div className="flex items-center gap-2">
-          <div className="max-w-[140px] truncate rounded-md border border-[#d4a017]/30 bg-[#fff8df] px-2.5 py-1.5 text-[11px] font-black text-[#9a6a00]">
+          <div className="max-w-[140px] truncate rounded-md border border-[#2F80ED]/30 bg-[#EAF4FF] px-2.5 py-1.5 text-[11px] font-black text-[#0B4EA2]">
             {userName}
           </div>
 

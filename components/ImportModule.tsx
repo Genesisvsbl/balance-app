@@ -81,7 +81,7 @@ export default function ImportModule({
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <label className="cursor-pointer rounded-xl bg-[#e30613] px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#b8000f]">
+            <label className="cursor-pointer rounded-xl bg-[#0057B8] px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#003B7A]">
               Cargar Balance
               <input
                 type="file"
@@ -91,7 +91,7 @@ export default function ImportModule({
               />
             </label>
 
-            <label className="cursor-pointer rounded-xl bg-[#d4a017] px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#b88900]">
+            <label className="cursor-pointer rounded-xl bg-[#2F80ED] px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#1D4ED8]">
               Cargar Plan de Recibo
               <input
                 type="file"
@@ -120,9 +120,9 @@ export default function ImportModule({
             </p>
           </div>
 
-          <div className="rounded-2xl border border-[#d4a017]/25 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-[#2F80ED]/25 bg-white p-5 shadow-sm">
             <p className="text-sm font-semibold text-slate-500">Hoja activa</p>
-            <p className="mt-1 truncate text-2xl font-black text-[#9a6a00]">
+            <p className="mt-1 truncate text-2xl font-black text-[#0B4EA2]">
               {hojaActiva || "-"}
             </p>
           </div>
@@ -172,7 +172,7 @@ export default function ImportModule({
                   }}
                   className={`rounded-xl px-4 py-2 text-sm font-black transition ${
                     hojaActiva === hoja
-                      ? "bg-[#e30613] text-white shadow-sm"
+                      ? "bg-[#0057B8] text-white shadow-sm"
                       : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                   }`}
                 >
@@ -200,7 +200,7 @@ export default function ImportModule({
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               placeholder="Buscar en esta base..."
-              className="h-11 min-w-[360px] rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#e30613] focus:ring-4 focus:ring-[#e30613]/10"
+              className="h-11 min-w-[360px] rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#0057B8] focus:ring-4 focus:ring-[#0057B8]/10"
             />
           </div>
 

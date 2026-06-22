@@ -367,7 +367,7 @@ export default function DashboardModule({
             </p>
           </div>
 
-          <div className="rounded-lg border border-[#d4a017]/30 bg-[#fff8df] px-3 py-2 text-xs font-black text-[#9a6a00]">
+          <div className="rounded-lg border border-[#2F80ED]/30 bg-[#EAF4FF] px-3 py-2 text-xs font-black text-[#0B4EA2]">
             Base AG01 + AG04 · {almacenesDetectados.length} almacenes detectados
           </div>
         </div>
@@ -418,7 +418,7 @@ export default function DashboardModule({
                     onClick={() => toggleSemana(sem)}
                     className={`h-10 rounded-xl border px-4 text-sm font-black transition ${
                       activo
-                        ? "border-[#e30613]/30 bg-red-50 text-[#e30613]"
+                        ? "border-[#0057B8]/30 bg-blue-50 text-[#0057B8]"
                         : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
                     }`}
                   >
@@ -434,20 +434,20 @@ export default function DashboardModule({
             <Kpi
               titulo="Materiales criticos"
               valor={materialesCriticos.length}
-              color="text-[#e30613]"
-              border="border-red-100"
+              color="text-[#0057B8]"
+              border="border-blue-100"
             />
             <Kpi
               titulo="Faltante acumulado"
               valor={formatoNumero(faltanteSeleccionado)}
-              color="text-[#e30613]"
-              border="border-red-100"
+              color="text-[#0057B8]"
+              border="border-blue-100"
             />
             <Kpi
               titulo="Transito programado"
               valor={formatoNumero(transitoSeleccionado)}
-              color="text-[#9a6a00]"
-              border="border-[#d4a017]/25"
+              color="text-[#0B4EA2]"
+              border="border-[#2F80ED]/25"
             />
             <Kpi
               titulo="Cobertura transito"
@@ -458,8 +458,8 @@ export default function DashboardModule({
             <Kpi
               titulo="Valor bloqueado"
               valor={formatoNumero(valorBloqueado)}
-              color="text-[#9a6a00]"
-              border="border-[#d4a017]/25"
+              color="text-[#0B4EA2]"
+              border="border-[#2F80ED]/25"
             />
           </div>
 
@@ -505,7 +505,7 @@ export default function DashboardModule({
                     Conteo y principales SKU con faltante por cada semana.
                   </p>
                 </div>
-                <div className="rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-[11px] font-black uppercase text-[#e30613]">
+                <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] font-black uppercase text-[#0057B8]">
                   {materialesCriticos.length} SKU criticos
                 </div>
               </div>
@@ -516,7 +516,7 @@ export default function DashboardModule({
                     key={grupo.semana}
                     className={`rounded-xl border p-3 ${
                       semanasActivas.includes(grupo.semana)
-                        ? "border-red-100 bg-red-50"
+                        ? "border-blue-100 bg-blue-50"
                         : "border-slate-200 bg-[#fbfbfa]"
                     }`}
                   >
@@ -524,7 +524,7 @@ export default function DashboardModule({
                       <p className="text-sm font-black text-slate-950">
                         {grupo.semana}
                       </p>
-                      <p className="text-xs font-black text-[#e30613]">
+                      <p className="text-xs font-black text-[#0057B8]">
                         {grupo.cantidad} SKU
                       </p>
                     </div>
@@ -538,7 +538,7 @@ export default function DashboardModule({
                           onClick={() => toggleMaterial(row.codigo)}
                           className={`grid w-full grid-cols-[minmax(0,1fr)_96px] items-start gap-2 rounded-lg px-3 py-2 text-left transition ${
                             materialSeleccionado === row.codigo
-                              ? "bg-[#fff8df] ring-2 ring-[#d4a017]/30"
+                              ? "bg-[#EAF4FF] ring-2 ring-[#2F80ED]/30"
                               : "bg-white hover:bg-[#fbfbfa]"
                           }`}
                         >
@@ -550,7 +550,7 @@ export default function DashboardModule({
                               {row.material}
                             </p>
                           </div>
-                          <p className="truncate text-right text-[11px] font-black text-[#e30613]">
+                          <p className="truncate text-right text-[11px] font-black text-[#0057B8]">
                             {formatoNumero(Math.abs(row.diferencia))}
                           </p>
                         </button>
@@ -582,7 +582,7 @@ export default function DashboardModule({
                     type="monotone"
                     dataKey="necesidad"
                     name="Necesidad"
-                    stroke="#d4a017"
+                    stroke="#2F80ED"
                     strokeWidth={4}
                     dot={{ r: 5 }}
                   />
@@ -609,13 +609,13 @@ export default function DashboardModule({
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
                   placeholder="Buscar material, texto breve, seccion..."
-                  className="h-11 min-w-[320px] rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#e30613] focus:ring-4 focus:ring-[#e30613]/10"
+                  className="h-11 min-w-[320px] rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#0057B8] focus:ring-4 focus:ring-[#0057B8]/10"
                 />
 
                 <select
                   value={filtroRiesgo}
                   onChange={(e) => setFiltroRiesgo(e.target.value)}
-                  className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#e30613]"
+                  className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#0057B8]"
                 >
                   <option value="CRITICOS">Solo criticos</option>
                   <option value="CON_TRANSITO">Con transito</option>
@@ -636,7 +636,7 @@ export default function DashboardModule({
             </div>
 
             <div className="mt-4 flex justify-end">
-              <div className="rounded-xl border border-[#d4a017]/30 bg-[#fff8df] px-4 py-2 text-xs font-black uppercase tracking-wide text-[#9a6a00]">
+              <div className="rounded-xl border border-[#2F80ED]/30 bg-[#EAF4FF] px-4 py-2 text-xs font-black uppercase tracking-wide text-[#0B4EA2]">
                 {riesgosFiltrados.length} SKU
               </div>
             </div>
@@ -679,7 +679,7 @@ export default function DashboardModule({
                         onClick={() => toggleMaterial(row.codigo)}
                         className={`cursor-pointer border-b border-slate-100 transition ${
                           materialSeleccionado === row.codigo
-                            ? "bg-[#fff8df]"
+                            ? "bg-[#EAF4FF]"
                             : "bg-white hover:bg-[#fbfbfa]"
                         }`}
                       >
@@ -692,7 +692,7 @@ export default function DashboardModule({
                         <td className="px-4 py-3 font-semibold text-slate-500">
                           {row.seccion || "-"}
                         </td>
-                        <td className="px-4 py-3 font-black text-[#e30613]">
+                        <td className="px-4 py-3 font-black text-[#0057B8]">
                           {row.semanasCriticas.length > 0
                             ? row.semanasCriticas.join(", ")
                             : "-"}
@@ -700,10 +700,10 @@ export default function DashboardModule({
                         <td className="px-4 py-3 text-right font-semibold">
                           {formatoNumero(row.necesidadSeleccionada)}
                         </td>
-                        <td className="px-4 py-3 text-right font-black text-[#e30613]">
+                        <td className="px-4 py-3 text-right font-black text-[#0057B8]">
                           {formatoNumero(row.faltanteSeleccionado)}
                         </td>
-                        <td className="px-4 py-3 text-right font-black text-[#9a6a00]">
+                        <td className="px-4 py-3 text-right font-black text-[#0B4EA2]">
                           {formatoNumero(row.transitoSeleccionado)}
                         </td>
                         <td className="px-4 py-3 text-right font-semibold text-emerald-700">
@@ -713,9 +713,9 @@ export default function DashboardModule({
                           <span
                             className={`rounded-full px-3 py-1 text-xs font-black ${
                               row.faltanteSeleccionado > row.transitoSeleccionado
-                                ? "bg-red-50 text-[#e30613]"
+                                ? "bg-blue-50 text-[#0057B8]"
                                 : row.transitoSeleccionado > 0
-                                ? "bg-[#fff8df] text-[#9a6a00]"
+                                ? "bg-[#EAF4FF] text-[#0B4EA2]"
                                 : "bg-emerald-50 text-emerald-700"
                             }`}
                           >
@@ -747,10 +747,10 @@ export default function DashboardModule({
             )}
 
             {detalleMaterial && (
-              <div className="mt-5 rounded-2xl border border-[#d4a017]/25 bg-[#fff8df] p-5">
+              <div className="mt-5 rounded-2xl border border-[#2F80ED]/25 bg-[#EAF4FF] p-5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <p className="text-xs font-black uppercase tracking-wide text-[#9a6a00]">
+                    <p className="text-xs font-black uppercase tracking-wide text-[#0B4EA2]">
                       Detalle del material seleccionado
                     </p>
                     <h5 className="mt-1 text-xl font-black text-slate-950">
@@ -855,7 +855,7 @@ export default function DashboardModule({
                             <td
                               className={`px-4 py-3 text-right font-semibold ${
                                 sem.saldoInicial < 0
-                                  ? "text-[#e30613]"
+                                  ? "text-[#0057B8]"
                                   : "text-slate-700"
                               }`}
                             >
@@ -867,16 +867,16 @@ export default function DashboardModule({
                             <td
                               className={`px-4 py-3 text-right font-black ${
                                 sem.diferencia < 0
-                                  ? "text-[#e30613]"
+                                  ? "text-[#0057B8]"
                                   : "text-emerald-700"
                               }`}
                             >
                               {formatoNumero(sem.diferencia)}
                             </td>
-                            <td className="px-4 py-3 text-right font-black text-[#e30613]">
+                            <td className="px-4 py-3 text-right font-black text-[#0057B8]">
                               {formatoNumero(sem.faltante)}
                             </td>
-                            <td className="px-4 py-3 text-right font-black text-[#9a6a00]">
+                            <td className="px-4 py-3 text-right font-black text-[#0B4EA2]">
                               {formatoNumero(sem.transito)}
                             </td>
                             <td className="px-4 py-3 font-semibold text-slate-600">
@@ -906,11 +906,11 @@ export default function DashboardModule({
                 <tr key={`${row.codigo}-${row.semana}-${index}`} className="border-b border-slate-100">
                   <td className="px-4 py-3 font-black text-slate-950">{row.codigo}</td>
                   <td className="px-4 py-3 font-medium text-slate-700">{row.material}</td>
-                  <td className="px-4 py-3 font-black text-[#9a6a00]">{row.semana}</td>
+                  <td className="px-4 py-3 font-black text-[#0B4EA2]">{row.semana}</td>
                   <td className="px-4 py-3 font-semibold text-slate-600">
                     {row.fechas.length > 0 ? row.fechas.join(", ") : "-"}
                   </td>
-                  <td className="px-4 py-3 text-right font-black text-[#9a6a00]">
+                  <td className="px-4 py-3 text-right font-black text-[#0B4EA2]">
                     {formatoNumero(row.cantidad)}
                   </td>
                 </tr>
@@ -933,7 +933,7 @@ export default function DashboardModule({
                   <td className="px-4 py-3 text-right font-semibold">
                     {formatoNumero(row.cantidad)}
                   </td>
-                  <td className="px-4 py-3 text-right font-black text-[#9a6a00]">
+                  <td className="px-4 py-3 text-right font-black text-[#0B4EA2]">
                     {formatoNumero(row.valor)}
                   </td>
                 </tr>
@@ -989,7 +989,7 @@ export default function DashboardModule({
                   <td
                     className={`px-4 py-3 text-right font-black ${
                       row.varFaltantes > 0
-                        ? "text-[#e30613]"
+                        ? "text-[#0057B8]"
                         : row.varFaltantes < 0
                         ? "text-emerald-700"
                         : "text-slate-500"
@@ -1006,7 +1006,7 @@ export default function DashboardModule({
                       row.varSobrantes > 0
                         ? "text-emerald-700"
                         : row.varSobrantes < 0
-                        ? "text-[#e30613]"
+                        ? "text-[#0057B8]"
                         : "text-slate-500"
                     }`}
                   >
@@ -1055,11 +1055,11 @@ function SignalCard({
 }) {
   const style =
     tipo === "rojo"
-      ? "border-red-100 text-[#e30613]"
+      ? "border-blue-100 text-[#0057B8]"
       : tipo === "verde"
       ? "border-emerald-100 text-emerald-700"
       : tipo === "dorado"
-      ? "border-[#d4a017]/25 text-[#9a6a00]"
+      ? "border-[#2F80ED]/25 text-[#0B4EA2]"
       : "border-slate-200 text-slate-950";
 
   return (
@@ -1082,11 +1082,11 @@ function MiniDato({
 }) {
   const color =
     tipo === "rojo"
-      ? "text-[#e30613]"
+      ? "text-[#0057B8]"
       : tipo === "verde"
       ? "text-emerald-700"
       : tipo === "dorado"
-      ? "text-[#9a6a00]"
+      ? "text-[#0B4EA2]"
       : "text-slate-950";
 
   return (
@@ -1141,7 +1141,7 @@ function DataTable({
           </p>
         </div>
 
-        <div className="rounded-lg border border-[#d4a017]/30 bg-[#fff8df] px-3 py-2 text-[11px] font-black uppercase text-[#9a6a00]">
+        <div className="rounded-lg border border-[#2F80ED]/30 bg-[#EAF4FF] px-3 py-2 text-[11px] font-black uppercase text-[#0B4EA2]">
           {registro}
         </div>
       </div>

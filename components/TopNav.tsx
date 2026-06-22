@@ -22,7 +22,7 @@ export default function TopNav({ active, setActive }: Props) {
           onClick={() => setActive(m.id)}
           className={`rounded-md px-2 py-1.5 text-[11px] font-black transition ${
             active === m.id
-              ? "bg-red-50 text-[#e30613]"
+              ? "bg-blue-50 text-[#0057B8]"
               : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
           }`}
         >

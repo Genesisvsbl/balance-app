@@ -85,7 +85,7 @@ export default function HistoricoModule({ onLoad }: Props) {
 
           <button
             onClick={borrarTodo}
-            className="rounded-xl border border-[#e30613] px-5 py-3 text-sm font-black text-[#e30613] transition hover:bg-[#e30613] hover:text-white"
+            className="rounded-xl border border-[#0057B8] px-5 py-3 text-sm font-black text-[#0057B8] transition hover:bg-[#0057B8] hover:text-white"
           >
             Limpiar histórico
           </button>
@@ -102,11 +102,11 @@ export default function HistoricoModule({ onLoad }: Props) {
           </p>
         </div>
 
-        <div className="rounded-2xl border border-red-100 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
           <p className="text-sm font-semibold text-slate-500">
             Total faltantes
           </p>
-          <p className="mt-1 text-3xl font-black text-[#e30613]">
+          <p className="mt-1 text-3xl font-black text-[#0057B8]">
             {cargas.reduce((acc, c) => acc + (c.info?.totalFaltantes || 0), 0)}
           </p>
         </div>
@@ -120,9 +120,9 @@ export default function HistoricoModule({ onLoad }: Props) {
           </p>
         </div>
 
-        <div className="rounded-2xl border border-[#d4a017]/25 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-[#2F80ED]/25 bg-white p-5 shadow-sm">
           <p className="text-sm font-semibold text-slate-500">Último balance</p>
-          <p className="mt-1 text-lg font-black text-[#9a6a00]">
+          <p className="mt-1 text-lg font-black text-[#0B4EA2]">
             {cargas.length > 0
               ? new Date(cargas[0].fecha).toLocaleString("es-DO")
               : "-"}
@@ -145,7 +145,7 @@ export default function HistoricoModule({ onLoad }: Props) {
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Buscar por fecha, hora o nombre..."
-            className="h-11 min-w-[360px] rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#e30613] focus:ring-4 focus:ring-[#e30613]/10"
+            className="h-11 min-w-[360px] rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#0057B8] focus:ring-4 focus:ring-[#0057B8]/10"
           />
         </div>
 
@@ -187,7 +187,7 @@ export default function HistoricoModule({ onLoad }: Props) {
                       {carga.info?.totalComponentes || 0}
                     </td>
 
-                    <td className="px-4 py-3 text-right font-black text-[#e30613]">
+                    <td className="px-4 py-3 text-right font-black text-[#0057B8]">
                       {carga.info?.totalFaltantes || 0}
                     </td>
 
@@ -199,14 +199,14 @@ export default function HistoricoModule({ onLoad }: Props) {
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => cargarBalance(carga)}
-                          className="rounded-lg bg-[#e30613] px-3 py-2 text-xs font-black text-white transition hover:bg-[#b8000f]"
+                          className="rounded-lg bg-[#0057B8] px-3 py-2 text-xs font-black text-white transition hover:bg-[#003B7A]"
                         >
                           Ver
                         </button>
 
                         <button
                           onClick={() => borrarUno(carga.id)}
-                          className="rounded-lg border border-[#e30613]/30 px-3 py-2 text-xs font-black text-[#e30613] hover:bg-red-50"
+                          className="rounded-lg border border-[#0057B8]/30 px-3 py-2 text-xs font-black text-[#0057B8] hover:bg-blue-50"
                           title="Borrar balance"
                         >
                           🗑 Borrar
