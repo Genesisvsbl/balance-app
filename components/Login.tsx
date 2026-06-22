@@ -189,43 +189,43 @@ export default function Login({ onLogin }: Props) {
         <div className="absolute bottom-16 left-12 right-12 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
       </div>
 
-      <header className="relative z-10 flex h-[72px] items-center justify-between border-b border-slate-200 bg-white px-8">
+      <header className="relative z-10 flex h-[72px] items-center justify-between border-b border-[#003B7A] bg-[#0057B8] px-8 text-white shadow-sm">
         <div className="flex items-center gap-4">
           <img
             src={publicPath("/LOGO.png")}
             alt="Bavaria"
-            className="h-9 object-contain"
+            className="h-9 object-contain brightness-0 invert"
           />
 
-          <div className="h-9 w-px bg-slate-200" />
+          <div className="h-9 w-px bg-white/25" />
 
           <div>
-            <h1 className="text-xl font-black text-slate-950">BALANCE</h1>
-            <p className="text-sm font-semibold text-slate-500">
+            <h1 className="text-xl font-black text-white">BALANCE</h1>
+            <p className="text-sm font-semibold text-blue-100">
               Planeacion de materiales
             </p>
           </div>
         </div>
 
-        <span className="rounded-full border border-[#0057B8]/25 bg-[#0057B8]/5 px-4 py-1.5 text-xs font-bold text-[#0057B8]">
+        <span className="rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-xs font-bold text-white">
           Acceso seguro
         </span>
       </header>
 
       <section className="relative z-10 flex min-h-[calc(100vh-72px)] items-center justify-end px-14">
         <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white shadow-[0_18px_50px_rgba(0,0,0,0.10)]">
-          <div className="flex flex-col items-center border-b border-slate-100 px-6 py-6 text-center">
+          <div className="flex flex-col items-center border-b border-slate-100 bg-[#0057B8] px-6 py-6 text-center text-white">
             <img
               src={publicPath("/LOGO.png")}
               alt="Bavaria"
-              className="h-12 object-contain"
+              className="h-12 object-contain brightness-0 invert"
             />
 
-            <h2 className="mt-4 text-2xl font-black text-slate-950">
+            <h2 className="mt-4 text-2xl font-black text-white">
               Iniciar sesion
             </h2>
 
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-blue-100">
               Acceda al sistema de planeacion
             </p>
           </div>
@@ -270,7 +270,7 @@ export default function Login({ onLogin }: Props) {
             />
 
             {error && (
-              <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm font-semibold text-[#0057B8]">
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-semibold text-[#e30613]">
                 {error}
               </div>
             )}

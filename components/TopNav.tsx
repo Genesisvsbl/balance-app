@@ -22,8 +22,8 @@ export default function TopNav({ active, setActive }: Props) {
           onClick={() => setActive(m.id)}
           className={`rounded-md px-2 py-1.5 text-[11px] font-black transition ${
             active === m.id
-              ? "bg-blue-50 text-[#0057B8]"
-              : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+              ? "bg-white text-[#003B7A] shadow-sm"
+              : "text-blue-100 hover:bg-white/10 hover:text-white"
           }`}
         >
           {m.label}

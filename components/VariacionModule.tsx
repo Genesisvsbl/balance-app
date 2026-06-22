@@ -249,8 +249,8 @@ export default function VariacionModule() {
             <Kpi
               titulo="Aumentos"
               valor={resumen.aumentos}
-              color="text-[#0057B8]"
-              border="border-blue-100"
+              color="text-[#e30613]"
+              border="border-red-100"
             />
             <Kpi
               titulo="Explicadas por consumo"
@@ -261,8 +261,8 @@ export default function VariacionModule() {
             <Kpi
               titulo="Por explicar"
               valor={resumen.porExplicar}
-              color="text-[#0057B8]"
-              border="border-blue-100"
+              color="text-[#e30613]"
+              border="border-red-100"
             />
             <Kpi titulo="Nuevos" valor={resumen.nuevos} />
             <Kpi titulo="Retirados" valor={resumen.retirados} />
@@ -353,7 +353,7 @@ export default function VariacionModule() {
                   onClick={() => setSoloPorExplicar(!soloPorExplicar)}
                   className={`h-11 rounded-xl border px-4 text-sm font-black transition ${
                     soloPorExplicar
-                      ? "border-blue-100 bg-blue-50 text-[#0057B8]"
+                      ? "border-red-100 bg-red-50 text-[#e30613]"
                       : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
                   }`}
                 >
@@ -434,7 +434,7 @@ export default function VariacionModule() {
                         <td
                           className={`px-4 py-3 text-right font-black ${
                             row.movimientoPlan > 0
-                              ? "text-[#0057B8]"
+                              ? "text-[#e30613]"
                               : row.movimientoPlan < 0
                               ? "text-emerald-700"
                               : "text-slate-500"
@@ -448,7 +448,7 @@ export default function VariacionModule() {
                         <td
                           className={`px-4 py-3 text-right font-black ${
                             Math.abs(row.diferenciaPorExplicar) > 0
-                              ? "text-[#0057B8]"
+                              ? "text-[#e30613]"
                               : "text-emerald-700"
                           }`}
                         >
@@ -460,7 +460,7 @@ export default function VariacionModule() {
                               row.diagnostico === "REDUCCION NO EXPLICADA" ||
                               row.diagnostico === "CONSUMO MAYOR A REDUCCION" ||
                               row.diagnostico === "AUMENTO DE PLAN"
-                                ? "bg-blue-50 text-[#0057B8]"
+                                ? "bg-red-50 text-[#e30613]"
                                 : row.diagnostico ===
                                   "REDUCCION EXPLICADA POR CONSUMO"
                                 ? "bg-emerald-50 text-emerald-700"
@@ -547,7 +547,7 @@ export default function VariacionModule() {
                           <td
                             className={`px-4 py-3 text-right font-black ${
                               sem.movimiento > 0
-                                ? "text-[#0057B8]"
+                                ? "text-[#e30613]"
                                 : sem.movimiento < 0
                                 ? "text-emerald-700"
                                 : "text-slate-500"

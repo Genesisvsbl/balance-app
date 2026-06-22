@@ -85,7 +85,7 @@ export default function HistoricoModule({ onLoad }: Props) {
 
           <button
             onClick={borrarTodo}
-            className="rounded-xl border border-[#0057B8] px-5 py-3 text-sm font-black text-[#0057B8] transition hover:bg-[#0057B8] hover:text-white"
+            className="rounded-xl border border-[#e30613] px-5 py-3 text-sm font-black text-[#e30613] transition hover:bg-[#e30613] hover:text-white"
           >
             Limpiar histórico
           </button>
@@ -102,11 +102,11 @@ export default function HistoricoModule({ onLoad }: Props) {
           </p>
         </div>
 
-        <div className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-red-100 bg-white p-5 shadow-sm">
           <p className="text-sm font-semibold text-slate-500">
             Total faltantes
           </p>
-          <p className="mt-1 text-3xl font-black text-[#0057B8]">
+          <p className="mt-1 text-3xl font-black text-[#e30613]">
             {cargas.reduce((acc, c) => acc + (c.info?.totalFaltantes || 0), 0)}
           </p>
         </div>
@@ -187,7 +187,7 @@ export default function HistoricoModule({ onLoad }: Props) {
                       {carga.info?.totalComponentes || 0}
                     </td>
 
-                    <td className="px-4 py-3 text-right font-black text-[#0057B8]">
+                    <td className="px-4 py-3 text-right font-black text-[#e30613]">
                       {carga.info?.totalFaltantes || 0}
                     </td>
 
@@ -206,7 +206,7 @@ export default function HistoricoModule({ onLoad }: Props) {
 
                         <button
                           onClick={() => borrarUno(carga.id)}
-                          className="rounded-lg border border-[#0057B8]/30 px-3 py-2 text-xs font-black text-[#0057B8] hover:bg-blue-50"
+                          className="rounded-lg border border-[#e30613]/30 px-3 py-2 text-xs font-black text-[#e30613] hover:bg-red-50"
                           title="Borrar balance"
                         >
                           🗑 Borrar

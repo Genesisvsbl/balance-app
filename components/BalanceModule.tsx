@@ -412,7 +412,7 @@ export default function BalanceModule({
     if (estado === "DISPONIBLE") return "bg-emerald-50 text-emerald-700";
     if (estado === "RESERVADO") return "bg-blue-50 text-blue-700";
     if (estado === "REPOSICION") return "bg-sky-50 text-[#0B4EA2]";
-    if (estado === "REABASTECIMIENTO") return "bg-blue-50 text-[#0057B8]";
+    if (estado === "REABASTECIMIENTO") return "bg-red-50 text-[#e30613]";
     return "bg-slate-100 text-slate-600";
   }
 
@@ -794,7 +794,7 @@ export default function BalanceModule({
           className={`rounded-xl border px-4 py-3 text-sm font-bold shadow-sm ${
             mensajeGuardado.tipo === "ok"
               ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : "border-blue-200 bg-blue-50 text-[#0057B8]"
+              : "border-red-200 bg-red-50 text-[#e30613]"
           }`}
         >
           {mensajeGuardado.texto}
@@ -848,11 +848,11 @@ export default function BalanceModule({
           )}
 
           <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
-            <div className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border border-red-100 bg-white p-4 shadow-sm">
               <p className="text-xs font-semibold text-slate-500">
                 No. Materiales en riesgo
               </p>
-              <p className="mt-1 truncate text-xl font-black text-[#0057B8]">
+              <p className="mt-1 truncate text-xl font-black text-[#e30613]">
                 {materialesEnRiesgo}
               </p>
             </div>
@@ -1453,7 +1453,7 @@ export default function BalanceModule({
                         <td
                           className={`px-2.5 py-1.5 text-right font-black ${
                             diferenciaSeleccionada(row) < 0
-                              ? "text-[#0057B8]"
+                              ? "text-[#e30613]"
                               : "text-emerald-700"
                           }`}
                         >
@@ -1467,7 +1467,7 @@ export default function BalanceModule({
                             key={`dif-${sem}`}
                             className={`px-2.5 py-1.5 text-right font-black ${
                               row.diferenciasPorSemana[sem] < 0
-                                ? "text-[#0057B8]"
+                                ? "text-[#e30613]"
                                 : "text-slate-700"
                             }`}
                           >
@@ -1659,7 +1659,7 @@ export default function BalanceModule({
                           </td>
                           <td
                             className={`px-3 py-2 text-right font-black ${
-                              diferencia < 0 ? "text-[#0057B8]" : "text-emerald-700"
+                              diferencia < 0 ? "text-[#e30613]" : "text-emerald-700"
                             }`}
                           >
                             {formatoNumero(diferencia)}
@@ -1696,7 +1696,7 @@ function DetalleCard({
 }) {
   const toneClass =
     tone === "danger"
-      ? "text-[#0057B8]"
+      ? "text-[#e30613]"
       : tone === "success"
         ? "text-emerald-700"
         : tone === "warning"
