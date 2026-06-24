@@ -68,6 +68,8 @@ type ConsumoResumen = {
   real: number;
 };
 
+type ModoConsumo = "CATEGORIA" | "SKU" | "LINEA";
+
 function normalizarBusqueda(valor: string) {
   return String(valor || "")
     .toLowerCase()
@@ -196,6 +198,10 @@ export default function DashboardModule({
   const [filtroConsumoCategorias, setFiltroConsumoCategorias] = useState<string[]>([]);
   const [filtroConsumoSkus, setFiltroConsumoSkus] = useState<string[]>([]);
   const [filtroConsumoLineas, setFiltroConsumoLineas] = useState<string[]>([]);
+  const [modoConsumo, setModoConsumo] = useState<ModoConsumo>("CATEGORIA");
+  const [tablaExpandida, setTablaExpandida] = useState<"CONSUMO" | "CRITICOS" | null>(null);
+  const [semanaCriticosInforme, setSemanaCriticosInforme] = useState("");
+  const [limiteCriticosInforme, setLimiteCriticosInforme] = useState(12);
 
   useEffect(() => {
     obtenerCargas()
@@ -878,6 +884,59 @@ export default function DashboardModule({
     new Set(consumosPlanReal.entradas.map((row) => row.linea).filter(Boolean))
   ).sort();
 
+  const consumoInforme = useMemo(() => {
+    if (modoConsumo === "CATEGORIA") {
+      return {
+        titulo: "Consumo por categoria",
+        registro: `${consumosPlanReal.porCategoria.length} categorias`,
+        columns: ["Categoria", "Plan", "Real", "% Cum", "Delta"],
+        rows: consumosPlanReal.porCategoria,
+      };
+    }
+
+    if (modoConsumo === "SKU") {
+      return {
+        titulo: "Consumo por categoria y SKU de produccion",
+        registro: `${consumosPlanReal.porSku.length} SKU`,
+        columns: ["Categoria", "SAP", "Descripcion", "Plan", "Real", "% Cum", "Delta"],
+        rows: consumosPlanReal.porSku,
+      };
+    }
+
+    return {
+      titulo: "Consumo por categoria, TREN y SKU de produccion",
+      registro: `${consumosPlanReal.porLinea.length} lineas`,
+      columns: [
+        "Categoria",
+        "TREN",
+        "SAP",
+        "Descripcion",
+        "Plan",
+        "Real",
+        "% Cum",
+        "Delta",
+      ],
+      rows: consumosPlanReal.porLinea,
+    };
+  }, [modoConsumo, consumosPlanReal]);
+
+  const semanaCriticosActiva =
+    semanaCriticosInforme && semanas.includes(semanaCriticosInforme)
+      ? semanaCriticosInforme
+      : semanasActivas[0] || semanas[0] || "";
+
+  const criticosInforme = useMemo(() => {
+    const grupo = criticosPorSemana.find((item) => item.semana === semanaCriticosActiva);
+    return (grupo?.materiales || []).slice(0, limiteCriticosInforme);
+  }, [criticosPorSemana, semanaCriticosActiva, limiteCriticosInforme]);
+  const totalConsumoInforme = consumoInforme.rows.reduce(
+    (acc, row) => ({
+      plan: acc.plan + row.plan,
+      real: acc.real + row.real,
+    }),
+    { plan: 0, real: 0 }
+  );
+
   return (
     <section className="space-y-4">
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -995,6 +1054,12 @@ export default function DashboardModule({
                 <div className="rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-[11px] font-black uppercase text-[#e30613]">
                   {materialesCriticos.length} SKU criticos
                 </div>
+                <button
+                  onClick={() => setTablaExpandida("CRITICOS")}
+                  className="rounded-lg border border-[#0057B8] bg-white px-3 py-2 text-[11px] font-black uppercase text-[#0057B8] transition hover:bg-[#EAF4FF]"
+                >
+                  Ampliar informe
+                </button>
               </div>
 
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -1567,67 +1632,207 @@ export default function DashboardModule({
               </div>
             )}
 
-            <div className="mt-4 grid grid-cols-1 gap-4">
-              <ConsumoTable
-                titulo="1. Por categoria"
-                registro={`${consumosPlanReal.porCategoria.length} categorias`}
-                columns={["Categoria", "Plan", "Real", "% Cum", "Delta"]}
-              >
-                {consumosPlanReal.porCategoria.map((row) => (
-                  <ConsumoRow
-                    key={row.categoria}
-                    cells={[row.categoria]}
-                    plan={row.plan}
-                    real={row.real}
-                  />
-                ))}
-              </ConsumoTable>
+            <div className="mt-4 rounded-xl border border-[#BBD7FF] bg-[#F5FAFF] p-3">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    ["CATEGORIA", "Categoria"],
+                    ["SKU", "Categoria + SKU"],
+                    ["LINEA", "Categoria + TREN + SKU"],
+                  ].map(([valor, label]) => (
+                    <button
+                      key={valor}
+                      onClick={() => setModoConsumo(valor as ModoConsumo)}
+                      className={`h-9 rounded-lg border px-3 text-xs font-black transition ${
+                        modoConsumo === valor
+                          ? "border-[#0057B8] bg-[#0057B8] text-white"
+                          : "border-[#BBD7FF] bg-white text-[#0B4EA2] hover:bg-[#EAF4FF]"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setTablaExpandida("CONSUMO")}
+                  className="h-9 rounded-lg border border-[#0057B8] bg-white px-4 text-xs font-black text-[#0057B8] transition hover:bg-[#EAF4FF]"
+                >
+                  Ampliar informe
+                </button>
+              </div>
 
               <ConsumoTable
-                titulo="2. Por categoria y SKU de produccion"
-                registro={`${consumosPlanReal.porSku.length} SKU`}
-                columns={["Categoria", "SAP", "Descripcion", "Plan", "Real", "% Cum", "Delta"]}
+                titulo={consumoInforme.titulo}
+                registro={consumoInforme.registro}
+                columns={consumoInforme.columns}
+                compact
               >
-                {consumosPlanReal.porSku.map((row) => (
+                {consumoInforme.rows.map((row) => (
                   <ConsumoRow
-                    key={`${row.categoria}-${row.codigo}`}
-                    cells={[row.categoria, row.codigo || "-", row.descripcion || "-"]}
+                    key={`${row.categoria}-${row.linea || ""}-${row.codigo || ""}`}
+                    cells={
+                      modoConsumo === "CATEGORIA"
+                        ? [row.categoria]
+                        : modoConsumo === "SKU"
+                        ? [row.categoria, row.codigo || "-", row.descripcion || "-"]
+                        : [
+                            row.categoria,
+                            row.linea || "-",
+                            row.codigo || "-",
+                            row.descripcion || "-",
+                          ]
+                    }
                     plan={row.plan}
                     real={row.real}
                   />
                 ))}
-              </ConsumoTable>
-
-              <ConsumoTable
-                titulo="3. Por categoria, TREN y SKU de produccion"
-                registro={`${consumosPlanReal.porLinea.length} lineas`}
-                columns={[
-                  "Categoria",
-                  "TREN",
-                  "SAP",
-                  "Descripcion",
-                  "Plan",
-                  "Real",
-                  "% Cum",
-                  "Delta",
-                ]}
-              >
-                {consumosPlanReal.porLinea.map((row) => (
-                  <ConsumoRow
-                    key={`${row.categoria}-${row.linea}-${row.codigo}`}
-                    cells={[
-                      row.categoria,
-                      row.linea || "-",
-                      row.codigo || "-",
-                      row.descripcion || "-",
-                    ]}
-                    plan={row.plan}
-                    real={row.real}
-                  />
-                ))}
+                <ConsumoTotalRow
+                  labelSpan={consumoInforme.columns.length - 4}
+                  plan={totalConsumoInforme.plan}
+                  real={totalConsumoInforme.real}
+                />
               </ConsumoTable>
             </div>
           </div>
+
+          {tablaExpandida && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
+              <div className="max-h-[92vh] w-full max-w-7xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#BBD7FF] bg-[#F5FAFF] px-6 py-4">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-wide text-[#0B4EA2]">
+                      Vista para informe
+                    </p>
+                    <h4 className="mt-1 text-xl font-black text-slate-950">
+                      {tablaExpandida === "CONSUMO"
+                        ? consumoInforme.titulo
+                        : "Materiales criticos por semana"}
+                    </h4>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                      Vista compacta para captura y envio.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => setTablaExpandida(null)}
+                    className="rounded-xl border border-slate-300 bg-white px-5 py-2 text-sm font-black text-slate-700 hover:bg-slate-50"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+
+                {tablaExpandida === "CONSUMO" ? (
+                  <div className="p-5">
+                    <div className="mb-4 flex flex-wrap gap-2">
+                      {[
+                        ["CATEGORIA", "Categoria"],
+                        ["SKU", "Categoria + SKU"],
+                        ["LINEA", "Categoria + TREN + SKU"],
+                      ].map(([valor, label]) => (
+                        <button
+                          key={valor}
+                          onClick={() => setModoConsumo(valor as ModoConsumo)}
+                          className={`h-9 rounded-lg border px-3 text-xs font-black transition ${
+                            modoConsumo === valor
+                              ? "border-[#0057B8] bg-[#0057B8] text-white"
+                              : "border-[#BBD7FF] bg-white text-[#0B4EA2] hover:bg-[#EAF4FF]"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <ConsumoTable
+                      titulo={consumoInforme.titulo}
+                      registro={consumoInforme.registro}
+                      columns={consumoInforme.columns}
+                      expanded
+                    >
+                      {consumoInforme.rows.map((row) => (
+                        <ConsumoRow
+                          key={`modal-${row.categoria}-${row.linea || ""}-${row.codigo || ""}`}
+                          cells={
+                            modoConsumo === "CATEGORIA"
+                              ? [row.categoria]
+                              : modoConsumo === "SKU"
+                              ? [row.categoria, row.codigo || "-", row.descripcion || "-"]
+                              : [
+                                  row.categoria,
+                                  row.linea || "-",
+                                  row.codigo || "-",
+                                  row.descripcion || "-",
+                                ]
+                          }
+                          plan={row.plan}
+                          real={row.real}
+                        />
+                      ))}
+                      <ConsumoTotalRow
+                        labelSpan={consumoInforme.columns.length - 4}
+                        plan={totalConsumoInforme.plan}
+                        real={totalConsumoInforme.real}
+                      />
+                    </ConsumoTable>
+                  </div>
+                ) : (
+                  <div className="p-5">
+                    <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                      <select
+                        value={semanaCriticosActiva}
+                        onChange={(e) => setSemanaCriticosInforme(e.target.value)}
+                        className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black outline-none focus:border-[#0057B8]"
+                      >
+                        {semanas.map((sem) => (
+                          <option key={sem} value={sem}>
+                            {sem}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={limiteCriticosInforme}
+                        onChange={(e) => setLimiteCriticosInforme(Number(e.target.value))}
+                        className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black outline-none focus:border-[#0057B8]"
+                      >
+                        <option value={8}>Mostrar 8 materiales</option>
+                        <option value={12}>Mostrar 12 materiales</option>
+                        <option value={20}>Mostrar 20 materiales</option>
+                        <option value={999}>Mostrar todos</option>
+                      </select>
+                      <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-2 text-xs font-black text-[#e30613]">
+                        {semanaCriticosActiva} · {criticosInforme.length} visibles
+                      </div>
+                    </div>
+
+                    <ConsumoTable
+                      titulo={`Materiales criticos ${semanaCriticosActiva}`}
+                      registro={`${criticosInforme.length} SKU`}
+                      columns={["Material", "Descripcion", "Seccion", "Necesidad", "Faltante", "Transito"]}
+                      expanded
+                    >
+                      {criticosInforme.map((row) => (
+                        <tr key={`critico-${semanaCriticosActiva}-${row.codigo}`} className="border-b border-slate-100">
+                          <td className="px-3 py-2 font-black text-slate-950">{row.codigo}</td>
+                          <td className="px-3 py-2 font-semibold text-slate-700">{row.material}</td>
+                          <td className="px-3 py-2 font-semibold text-slate-500">{row.seccion || "-"}</td>
+                          <td className="px-3 py-2 text-right font-black text-slate-950">
+                            {formatoNumero(row.necesidad)}
+                          </td>
+                          <td className="px-3 py-2 text-right font-black text-[#e30613]">
+                            {formatoNumero(Math.abs(row.diferencia))}
+                          </td>
+                          <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">
+                            {formatoNumero(row.transito)}
+                          </td>
+                        </tr>
+                      ))}
+                    </ConsumoTable>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {movimientoSeleccionado && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4">
@@ -2008,28 +2213,38 @@ function ConsumoTable({
   registro,
   columns,
   children,
+  compact = false,
+  expanded = false,
 }: {
   titulo: string;
   registro: string;
   columns: string[];
   children: React.ReactNode;
+  compact?: boolean;
+  expanded?: boolean;
 }) {
   const hasRows = Array.isArray(children) ? children.length > 0 : !!children;
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3">
+    <div className={`rounded-xl border border-[#BBD7FF] bg-white ${compact ? "p-2" : "p-3"}`}>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h5 className="text-sm font-black text-slate-950">{titulo}</h5>
+        <h5 className={`${compact ? "text-xs" : "text-sm"} font-black text-slate-950`}>
+          {titulo}
+        </h5>
         <span className="rounded-lg border border-[#2F80ED]/30 bg-[#EAF4FF] px-3 py-1.5 text-[11px] font-black uppercase text-[#0B4EA2]">
           {registro}
         </span>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200">
-        <div className="compact-scroll max-h-[340px] overflow-auto">
-          <table className="w-full min-w-[900px] border-collapse text-xs">
-            <thead className="sticky top-0 z-20 bg-[#f8f8f6]">
-              <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+      <div className="overflow-hidden rounded-xl border border-[#BBD7FF]">
+        <div
+          className={`compact-scroll overflow-auto ${
+            expanded ? "max-h-[70vh]" : compact ? "max-h-[260px]" : "max-h-[340px]"
+          }`}
+        >
+          <table className="w-full min-w-[820px] border-collapse text-[11px]">
+            <thead className="sticky top-0 z-20 bg-[#DDEEFF]">
+              <tr className="border-b border-[#BBD7FF] text-[10px] uppercase tracking-wide text-[#0B4EA2]">
                 {columns.map((column, index) => (
                   <th
                     key={column}
@@ -2086,6 +2301,49 @@ function ConsumoRow({
           {cell}
         </td>
       ))}
+      <td className="px-3 py-2 text-right font-black text-slate-950">
+        {formatoNumero(plan)}
+      </td>
+      <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">
+        {formatoNumero(real)}
+      </td>
+      <td
+        className={`px-3 py-2 text-right font-black ${
+          real >= plan ? "text-emerald-700" : "text-[#e30613]"
+        }`}
+      >
+        {formatoPorcentaje(real, plan)}
+      </td>
+      <td
+        className={`px-3 py-2 text-right font-black ${
+          delta >= 0 ? "text-emerald-700" : "text-[#e30613]"
+        }`}
+      >
+        {formatoNumero(delta)}
+      </td>
+    </tr>
+  );
+}
+
+function ConsumoTotalRow({
+  labelSpan,
+  plan,
+  real,
+}: {
+  labelSpan: number;
+  plan: number;
+  real: number;
+}) {
+  const delta = real - plan;
+
+  return (
+    <tr className="border-t-2 border-[#7CB8FF] bg-[#DDEEFF]">
+      <td
+        colSpan={Math.max(labelSpan, 1)}
+        className="px-3 py-2 text-right font-black text-[#003B7A]"
+      >
+        Total
+      </td>
       <td className="px-3 py-2 text-right font-black text-slate-950">
         {formatoNumero(plan)}
       </td>
