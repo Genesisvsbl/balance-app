@@ -27,11 +27,10 @@ export default function ImportModule({
   const [busqueda, setBusqueda] = useState("");
   const [balanceNombre, setBalanceNombre] = useState("");
   const [planNombre, setPlanNombre] = useState("");
-  const [skuProduccionNombre, setSkuProduccionNombre] = useState("");
 
   async function cargarArchivo(
     e: React.ChangeEvent<HTMLInputElement>,
-    tipo: "balance" | "plan" | "skuProduccion"
+    tipo: "balance" | "plan"
   ) {
     const archivo = e.target.files?.[0];
     if (!archivo) return;
@@ -41,19 +40,15 @@ export default function ImportModule({
     const hojas = Object.keys(combinado);
     const nuevoBalance = tipo === "balance" ? archivo.name : balanceNombre;
     const nuevoPlan = tipo === "plan" ? archivo.name : planNombre;
-    const nuevoSkuProduccion =
-      tipo === "skuProduccion" ? archivo.name : skuProduccionNombre;
 
     if (tipo === "balance") setBalanceNombre(archivo.name);
     if (tipo === "plan") setPlanNombre(archivo.name);
-    if (tipo === "skuProduccion") setSkuProduccionNombre(archivo.name);
 
     setDatos(combinado);
     setHojasEncontradas(hojas);
     setHojaActiva(hojaActiva || hojas[0] || "");
     setArchivoNombre(
-      [nuevoBalance, nuevoPlan, nuevoSkuProduccion].filter(Boolean).join(" + ") ||
-        archivo.name
+      [nuevoBalance, nuevoPlan].filter(Boolean).join(" + ") || archivo.name
     );
     e.target.value = "";
   }
@@ -80,8 +75,9 @@ export default function ImportModule({
               Importacion / Bases de datos
             </h3>
             <p className="mt-1 text-sm font-medium text-slate-500">
-              Carga el Balance y, cuando lo necesites, carga tambien el Plan de
-              Recibo. Ambos quedan unidos para el analisis.
+              Carga el Balance con sus hojas internas, incluyendo Plan, Receta,
+              Consumos, Existencias y SKU Produccion. Si aplica, carga tambien el
+              Plan de Recibo.
             </p>
           </div>
 
@@ -106,26 +102,13 @@ export default function ImportModule({
               />
             </label>
 
-            <label className="cursor-pointer rounded-xl bg-[#0B4EA2] px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#003B7A]">
-              Cargar SKU Produccion
-              <input
-                type="file"
-                accept=".xlsx,.xlsm,.xls"
-                onChange={(e) => cargarArchivo(e, "skuProduccion")}
-                className="hidden"
-              />
-            </label>
           </div>
         </div>
 
-        {(balanceNombre || planNombre || skuProduccionNombre) && (
-          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+        {(balanceNombre || planNombre) && (
+          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
             <ArchivoEstado titulo="Balance" nombre={balanceNombre} />
             <ArchivoEstado titulo="Plan de Recibo" nombre={planNombre} />
-            <ArchivoEstado
-              titulo="SKU Produccion"
-              nombre={skuProduccionNombre}
-            />
           </div>
         )}
       </div>

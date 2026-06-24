@@ -1563,7 +1563,7 @@ export default function DashboardModule({
 
             {mapaSkuProduccion.size === 0 && (
               <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800">
-                Carga la base SKU Produccion para clasificar Cervezas y Nabs.
+                No se detecto la hoja SKU Produccion en el balance o historico seleccionado.
               </div>
             )}
 
