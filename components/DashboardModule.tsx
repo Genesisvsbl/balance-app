@@ -37,6 +37,142 @@ type MovimientoDashboard = {
   cantidad: number;
 };
 
+type BalanceOption = {
+  id: string;
+  nombre: string;
+  fecha: string;
+  datos: ExcelData;
+};
+
+type ProduccionMeta = {
+  categoria: string;
+  descripcion: string;
+};
+
+type ConsumoEntrada = {
+  categoria: string;
+  codigo: string;
+  descripcion: string;
+  linea: string;
+  semana: string;
+  plan: number;
+  real: number;
+};
+
+type ConsumoResumen = {
+  categoria: string;
+  codigo?: string;
+  descripcion?: string;
+  linea?: string;
+  plan: number;
+  real: number;
+};
+
+function normalizarBusqueda(valor: string) {
+  return String(valor || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function normalizarClave(valor: string) {
+  return normalizarBusqueda(valor).replace(/[^a-z0-9]/g, "");
+}
+
+function obtenerValorLocal(fila: Record<string, any>, nombres: string[]) {
+  for (const nombre of nombres) {
+    const objetivo = normalizarClave(nombre);
+    const key = Object.keys(fila || {}).find(
+      (columna) =>
+        normalizarClave(columna) === objetivo &&
+        fila[columna] !== undefined &&
+        fila[columna] !== null &&
+        fila[columna] !== ""
+    );
+
+    if (key) return fila[key];
+  }
+
+  return "";
+}
+
+function obtenerHojaLocal(datos: ExcelData, nombres: string[]) {
+  const objetivos = nombres.map(normalizarClave);
+  return (
+    Object.entries(datos || {}).find(([nombre]) =>
+      objetivos.includes(normalizarClave(nombre))
+    )?.[1] || null
+  );
+}
+
+function convertirNumero(valor: any) {
+  if (typeof valor === "number") return Number.isFinite(valor) ? valor : 0;
+  const texto = String(valor ?? "").trim();
+  if (!texto) return 0;
+
+  const normalizado = texto
+    .replace(/\s/g, "")
+    .replace(/\./g, "")
+    .replace(",", ".");
+
+  const numero = Number(normalizado);
+  return Number.isFinite(numero) ? numero : 0;
+}
+
+function normalizarCategoria(valor: string) {
+  const texto = normalizarBusqueda(valor);
+  if (texto.includes("nabs") || texto.includes("malta")) return "Nabs";
+  if (texto.includes("cerveza")) return "Cervezas";
+  return valor || "Sin categoria";
+}
+
+function semanaDesdeFecha(valor: any) {
+  if (!valor) return "";
+
+  let fecha: Date | null = null;
+
+  if (typeof valor === "number") {
+    fecha = new Date(Math.round((valor - 25569) * 86400 * 1000));
+  } else {
+    const texto = String(valor).trim();
+    const partes = texto.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
+
+    if (partes) {
+      const dia = Number(partes[1]);
+      const mes = Number(partes[2]) - 1;
+      const anio = Number(partes[3].length === 2 ? `20${partes[3]}` : partes[3]);
+      fecha = new Date(anio, mes, dia);
+    } else {
+      const parsed = new Date(texto);
+      fecha = Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+  }
+
+  if (!fecha || Number.isNaN(fecha.getTime())) return "";
+
+  const utc = new Date(Date.UTC(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()));
+  const day = utc.getUTCDay() || 7;
+  utc.setUTCDate(utc.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((utc.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+
+  return `Sem ${week}`;
+}
+
+function nombreBalanceOpcion(carga: any) {
+  const fecha = carga.fecha
+    ? new Date(carga.fecha).toLocaleString("es-CO", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "";
+
+  return `${fecha} · ${carga.archivo || "Balance guardado"}`;
+}
+
 export default function DashboardModule({
   datos,
   analisis,
@@ -54,12 +190,58 @@ export default function DashboardModule({
   const [filtroMovimientoSemana, setFiltroMovimientoSemana] = useState("");
   const [filtroMovimientoFecha, setFiltroMovimientoFecha] = useState("");
   const [filtroMovimientoSeccion, setFiltroMovimientoSeccion] = useState("");
+  const [balancePlanId, setBalancePlanId] = useState("");
+  const [balanceRealId, setBalanceRealId] = useState("");
+  const [filtroConsumoTexto, setFiltroConsumoTexto] = useState("");
+  const [filtroConsumoCategorias, setFiltroConsumoCategorias] = useState<string[]>([]);
+  const [filtroConsumoSkus, setFiltroConsumoSkus] = useState<string[]>([]);
+  const [filtroConsumoLineas, setFiltroConsumoLineas] = useState<string[]>([]);
 
   useEffect(() => {
     obtenerCargas()
       .then(setCargasHistoricas)
       .catch(() => setCargasHistoricas([]));
   }, []);
+
+  const opcionesBalance = useMemo<BalanceOption[]>(() => {
+    const opciones: BalanceOption[] = [];
+
+    if (Object.keys(datos || {}).length > 0) {
+      opciones.push({
+        id: "actual",
+        nombre: "Balance actual cargado",
+        fecha: new Date().toISOString(),
+        datos,
+      });
+    }
+
+    cargasHistoricas
+      .filter((carga) => carga?.datos && Object.keys(carga.datos).length > 0)
+      .forEach((carga) => {
+        opciones.push({
+          id: carga.id,
+          nombre: nombreBalanceOpcion(carga),
+          fecha: carga.fecha,
+          datos: carga.datos,
+        });
+      });
+
+    return opciones;
+  }, [datos, cargasHistoricas]);
+
+  useEffect(() => {
+    if (opcionesBalance.length === 0) return;
+
+    setBalancePlanId((actual) => {
+      if (actual && opcionesBalance.some((item) => item.id === actual)) return actual;
+      return opcionesBalance[opcionesBalance.length - 1]?.id || opcionesBalance[0].id;
+    });
+
+    setBalanceRealId((actual) => {
+      if (actual && opcionesBalance.some((item) => item.id === actual)) return actual;
+      return opcionesBalance[0].id;
+    });
+  }, [opcionesBalance]);
 
   useEffect(() => {
     setSemanasSeleccionadas((actual) => {
@@ -462,19 +644,239 @@ export default function DashboardModule({
     };
   }, [materialSeleccionado, materialesBloqueados, riesgos, semanas]);
 
-  const topConsumos = Object.entries(consumosPorMaterial)
-    .map(([codigo, cantidad]) => {
-      const row = analisis.find((item) => item.codigo === codigo);
-      return {
+  const balancePlanSeleccionado =
+    opcionesBalance.find((item) => item.id === balancePlanId) || opcionesBalance[0];
+  const balanceRealSeleccionado =
+    opcionesBalance.find((item) => item.id === balanceRealId) || opcionesBalance[0];
+
+  const mapaSkuProduccion = useMemo(() => {
+    const mapa = new Map<string, ProduccionMeta>();
+    const fuentes = [
+      datos,
+      balancePlanSeleccionado?.datos,
+      balanceRealSeleccionado?.datos,
+      ...cargasHistoricas.map((carga) => carga?.datos),
+    ].filter(Boolean) as ExcelData[];
+
+    fuentes.forEach((fuente) => {
+      Object.values(fuente).forEach((hoja) => {
+        const filas = hoja?.datos || [];
+        if (filas.length === 0) return;
+
+        const primera = filas[0] || {};
+        const tieneCategoria = Object.keys(primera).some(
+          (key) => normalizarClave(key) === "categoria"
+        );
+        const tieneCodigo = Object.keys(primera).some((key) =>
+          ["codigosap", "sap", "codigo"].includes(normalizarClave(key))
+        );
+
+        if (!tieneCategoria || !tieneCodigo) return;
+
+        filas.forEach((fila) => {
+          const codigo = String(
+            obtenerValorLocal(fila, ["Codigo SAP", "Código SAP", "SAP", "Codigo"])
+          ).trim();
+          if (!codigo) return;
+
+          const categoria = normalizarCategoria(
+            String(obtenerValorLocal(fila, ["Categoria", "Categoría"]))
+          );
+          const descripcion = String(
+            obtenerValorLocal(fila, ["Descripcion Sku", "Descripción Sku", "SKU"])
+          ).trim();
+
+          mapa.set(codigo, {
+            categoria,
+            descripcion,
+          });
+        });
+      });
+    });
+
+    return mapa;
+  }, [
+    datos,
+    balancePlanSeleccionado?.datos,
+    balanceRealSeleccionado?.datos,
+    cargasHistoricas,
+  ]);
+
+  const consumosPlanReal = useMemo(() => {
+    const entradas: ConsumoEntrada[] = [];
+    const hojaPlan = obtenerHojaLocal(balancePlanSeleccionado?.datos || {}, ["Plan"]);
+    const hojaConsumos = obtenerHojaLocal(balanceRealSeleccionado?.datos || {}, [
+      "Consumos",
+      "Consumo",
+    ]);
+
+    (hojaPlan?.datos || []).forEach((fila) => {
+      const codigo = String(
+        obtenerValorLocal(fila, ["SAP", "Codigo SAP", "Código SAP", "Material"])
+      ).trim();
+      if (!codigo) return;
+
+      const semana = String(obtenerValorLocal(fila, ["sem", "Semana", "Week"])).trim();
+      if (semanasActivas.length > 0 && semana && !semanasActivas.includes(semana)) {
+        return;
+      }
+
+      const meta = mapaSkuProduccion.get(codigo);
+      const descripcion =
+        meta?.descripcion ||
+        String(obtenerValorLocal(fila, ["SKU", "Descripcion Sku", "Descripción Sku"])).trim();
+
+      entradas.push({
+        categoria: meta?.categoria || "Sin categoria",
         codigo,
-        material: row?.material || "",
-        seccion: row?.seccion || "",
-        cantidad,
-      };
-    })
-    .filter((row) => row.cantidad > 0)
-    .sort((a, b) => b.cantidad - a.cantidad)
-    .slice(0, 25);
+        descripcion,
+        linea: String(obtenerValorLocal(fila, ["Linea", "Línea", "Recurso"])).trim(),
+        semana,
+        plan: convertirNumero(obtenerValorLocal(fila, ["HL"])),
+        real: 0,
+      });
+    });
+
+    (hojaConsumos?.datos || []).forEach((fila) => {
+      const codigo = String(
+        obtenerValorLocal(fila, ["Material", "SAP", "Codigo SAP", "Código SAP"])
+      ).trim();
+      if (!codigo) return;
+
+      const fechaConsumo =
+        obtenerValorLocal(fila, ["Fe.Cont", "Fecha", "Inicio Ejec.", "Fin Ejec."]) || "";
+      const semana = semanaDesdeFecha(fechaConsumo);
+      if (semanasActivas.length > 0 && semana && !semanasActivas.includes(semana)) {
+        return;
+      }
+
+      const meta = mapaSkuProduccion.get(codigo);
+
+      entradas.push({
+        categoria: meta?.categoria || "Sin categoria",
+        codigo,
+        descripcion:
+          meta?.descripcion ||
+          String(
+            obtenerValorLocal(fila, [
+              "Descripcion Material",
+              "Descripción Material",
+              "SKU",
+            ])
+          ).trim(),
+        linea: String(obtenerValorLocal(fila, ["Recurso", "Linea", "Línea"])).trim(),
+        semana,
+        plan: 0,
+        real: convertirNumero(obtenerValorLocal(fila, ["Cantidad HL", "HL"])),
+      });
+    });
+
+    const texto = normalizarBusqueda(filtroConsumoTexto);
+    const filtradas = entradas.filter((row) => {
+      const coincideCategoria =
+        filtroConsumoCategorias.length === 0 ||
+        filtroConsumoCategorias.includes(row.categoria);
+      const coincideSku =
+        filtroConsumoSkus.length === 0 || filtroConsumoSkus.includes(row.codigo);
+      const coincideLinea =
+        filtroConsumoLineas.length === 0 || filtroConsumoLineas.includes(row.linea);
+      const coincideTexto =
+        !texto ||
+        normalizarBusqueda(
+          `${row.categoria} ${row.codigo} ${row.descripcion} ${row.linea}`
+        ).includes(texto);
+
+      return coincideCategoria && coincideSku && coincideLinea && coincideTexto;
+    });
+
+    function agrupar(
+      rows: ConsumoEntrada[],
+      crearClave: (row: ConsumoEntrada) => string,
+      crearBase: (row: ConsumoEntrada) => ConsumoResumen
+    ) {
+      const mapa = new Map<string, ConsumoResumen>();
+
+      rows.forEach((row) => {
+        const clave = crearClave(row);
+        const actual = mapa.get(clave) || crearBase(row);
+        actual.plan += row.plan;
+        actual.real += row.real;
+        mapa.set(clave, actual);
+      });
+
+      return Array.from(mapa.values()).sort((a, b) => {
+        const categoria = a.categoria.localeCompare(b.categoria);
+        if (categoria !== 0) return categoria;
+        return (a.codigo || "").localeCompare(b.codigo || "");
+      });
+    }
+
+    return {
+      entradas,
+      filtradas,
+      porCategoria: agrupar(
+        filtradas,
+        (row) => row.categoria,
+        (row) => ({
+          categoria: row.categoria,
+          plan: 0,
+          real: 0,
+        })
+      ),
+      porSku: agrupar(
+        filtradas,
+        (row) => `${row.categoria}|${row.codigo}`,
+        (row) => ({
+          categoria: row.categoria,
+          codigo: row.codigo,
+          descripcion: row.descripcion,
+          plan: 0,
+          real: 0,
+        })
+      ),
+      porLinea: agrupar(
+        filtradas,
+        (row) => `${row.categoria}|${row.linea}|${row.codigo}`,
+        (row) => ({
+          categoria: row.categoria,
+          linea: row.linea || "-",
+          codigo: row.codigo,
+          descripcion: row.descripcion,
+          plan: 0,
+          real: 0,
+        })
+      ),
+    };
+  }, [
+    balancePlanSeleccionado?.datos,
+    balanceRealSeleccionado?.datos,
+    mapaSkuProduccion,
+    semanasActivas,
+    filtroConsumoTexto,
+    filtroConsumoCategorias,
+    filtroConsumoSkus,
+    filtroConsumoLineas,
+  ]);
+
+  const opcionesCategoriaConsumo = Array.from(
+    new Set(consumosPlanReal.entradas.map((row) => row.categoria).filter(Boolean))
+  ).sort();
+  const opcionesSkuConsumo = Array.from(
+    new Map(
+      consumosPlanReal.entradas
+        .filter((row) => row.plan > 0)
+        .map((row) => [
+          row.codigo,
+          {
+            value: row.codigo,
+            label: `${row.codigo} · ${row.descripcion || "Sin descripcion"}`,
+          },
+        ])
+    ).values()
+  ).sort((a, b) => a.value.localeCompare(b.value));
+  const opcionesLineaConsumo = Array.from(
+    new Set(consumosPlanReal.entradas.map((row) => row.linea).filter(Boolean))
+  ).sort();
 
   return (
     <section className="space-y-4">
@@ -1060,29 +1462,171 @@ export default function DashboardModule({
             </DataTable>
           </div>
 
-          <div className="grid grid-cols-1 gap-5">
-            <DataTable
-              titulo="Consumos notificados"
-              subtitulo="Consumo convertido por receta para ajustar la lectura del plan."
-              registro={`${topConsumos.length} SKU`}
-              columns={["Material", "Texto breve", "Seccion", "Consumo"]}
-              empty="No hay consumos notificados."
-            >
-              {topConsumos.map((row) => (
-                <tr key={row.codigo} className="border-b border-slate-100">
-                  <td className="px-4 py-3 font-black text-slate-950">{row.codigo}</td>
-                  <td className="px-4 py-3 font-medium text-slate-700">
-                    {row.material || "-"}
-                  </td>
-                  <td className="px-4 py-3 font-semibold text-slate-500">
-                    {row.seccion || "-"}
-                  </td>
-                  <td className="px-4 py-3 text-right font-black text-emerald-700">
-                    {formatoNumero(row.cantidad)}
-                  </td>
-                </tr>
-              ))}
-            </DataTable>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h4 className="text-base font-black text-slate-950">
+                  Cumplimiento de consumo
+                </h4>
+                <p className="mt-1 text-xs font-semibold text-slate-500">
+                  Plan en HL contra consumo real en HL, filtrado por semana,
+                  categoria, SAP y TREN.
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-[#2F80ED]/30 bg-[#EAF4FF] px-3 py-2 text-[11px] font-black uppercase text-[#0B4EA2]">
+                {consumosPlanReal.filtradas.length} registros
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+              <label className="space-y-1">
+                <span className="text-[11px] font-black uppercase tracking-wide text-slate-500">
+                  Plan base
+                </span>
+                <select
+                  value={balancePlanId}
+                  onChange={(e) => setBalancePlanId(e.target.value)}
+                  className="h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold outline-none focus:border-[#0057B8]"
+                >
+                  {opcionesBalance.map((opcion) => (
+                    <option key={opcion.id} value={opcion.id}>
+                      {opcion.nombre}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-[11px] font-black uppercase tracking-wide text-slate-500">
+                  Consumo real
+                </span>
+                <select
+                  value={balanceRealId}
+                  onChange={(e) => setBalanceRealId(e.target.value)}
+                  className="h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold outline-none focus:border-[#0057B8]"
+                >
+                  {opcionesBalance.map((opcion) => (
+                    <option key={opcion.id} value={opcion.id}>
+                      {opcion.nombre}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-5">
+              <input
+                value={filtroConsumoTexto}
+                onChange={(e) => setFiltroConsumoTexto(e.target.value)}
+                placeholder="Buscar categoria, SAP, descripcion o TREN..."
+                className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold outline-none focus:border-[#0057B8] focus:ring-4 focus:ring-[#0057B8]/10"
+              />
+              <MultiSelectFilter
+                titulo="Categorias"
+                opciones={opcionesCategoriaConsumo.map((item) => ({
+                  value: item,
+                  label: item,
+                }))}
+                seleccionados={filtroConsumoCategorias}
+                setSeleccionados={setFiltroConsumoCategorias}
+              />
+              <MultiSelectFilter
+                titulo="SAP produccion"
+                opciones={opcionesSkuConsumo}
+                seleccionados={filtroConsumoSkus}
+                setSeleccionados={setFiltroConsumoSkus}
+                conBusqueda
+              />
+              <MultiSelectFilter
+                titulo="TREN"
+                opciones={opcionesLineaConsumo.map((item) => ({
+                  value: item,
+                  label: item,
+                }))}
+                seleccionados={filtroConsumoLineas}
+                setSeleccionados={setFiltroConsumoLineas}
+                conBusqueda
+              />
+              <button
+                onClick={() => {
+                  setFiltroConsumoTexto("");
+                  setFiltroConsumoCategorias([]);
+                  setFiltroConsumoSkus([]);
+                  setFiltroConsumoLineas([]);
+                }}
+                className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-xs font-black text-slate-700 transition hover:bg-slate-50"
+              >
+                Limpiar filtros
+              </button>
+            </div>
+
+            {mapaSkuProduccion.size === 0 && (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800">
+                Carga la base SKU Produccion para clasificar Cervezas y Nabs.
+              </div>
+            )}
+
+            <div className="mt-4 grid grid-cols-1 gap-4">
+              <ConsumoTable
+                titulo="1. Por categoria"
+                registro={`${consumosPlanReal.porCategoria.length} categorias`}
+                columns={["Categoria", "Plan", "Real", "% Cum", "Delta"]}
+              >
+                {consumosPlanReal.porCategoria.map((row) => (
+                  <ConsumoRow
+                    key={row.categoria}
+                    cells={[row.categoria]}
+                    plan={row.plan}
+                    real={row.real}
+                  />
+                ))}
+              </ConsumoTable>
+
+              <ConsumoTable
+                titulo="2. Por categoria y SKU de produccion"
+                registro={`${consumosPlanReal.porSku.length} SKU`}
+                columns={["Categoria", "SAP", "Descripcion", "Plan", "Real", "% Cum", "Delta"]}
+              >
+                {consumosPlanReal.porSku.map((row) => (
+                  <ConsumoRow
+                    key={`${row.categoria}-${row.codigo}`}
+                    cells={[row.categoria, row.codigo || "-", row.descripcion || "-"]}
+                    plan={row.plan}
+                    real={row.real}
+                  />
+                ))}
+              </ConsumoTable>
+
+              <ConsumoTable
+                titulo="3. Por categoria, TREN y SKU de produccion"
+                registro={`${consumosPlanReal.porLinea.length} lineas`}
+                columns={[
+                  "Categoria",
+                  "TREN",
+                  "SAP",
+                  "Descripcion",
+                  "Plan",
+                  "Real",
+                  "% Cum",
+                  "Delta",
+                ]}
+              >
+                {consumosPlanReal.porLinea.map((row) => (
+                  <ConsumoRow
+                    key={`${row.categoria}-${row.linea}-${row.codigo}`}
+                    cells={[
+                      row.categoria,
+                      row.linea || "-",
+                      row.codigo || "-",
+                      row.descripcion || "-",
+                    ]}
+                    plan={row.plan}
+                    real={row.real}
+                  />
+                ))}
+              </ConsumoTable>
+            </div>
           </div>
 
           {movimientoSeleccionado && (
@@ -1363,6 +1907,206 @@ function ChartCard({
       <h4 className="mb-3 text-base font-black text-slate-950">{titulo}</h4>
       <div className="h-[280px]">{children}</div>
     </div>
+  );
+}
+
+function formatoPorcentaje(real: number, plan: number) {
+  if (!plan) return real > 0 ? "100.00%" : "0.00%";
+  return `${((real / plan) * 100).toFixed(2)}%`;
+}
+
+function MultiSelectFilter({
+  titulo,
+  opciones,
+  seleccionados,
+  setSeleccionados,
+  conBusqueda = false,
+}: {
+  titulo: string;
+  opciones: { value: string; label: string }[];
+  seleccionados: string[];
+  setSeleccionados: (valores: string[]) => void;
+  conBusqueda?: boolean;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const texto = normalizarBusqueda(busqueda);
+  const opcionesFiltradas = opciones.filter((opcion) =>
+    normalizarBusqueda(`${opcion.value} ${opcion.label}`).includes(texto)
+  );
+
+  function toggle(valor: string) {
+    setSeleccionados(
+      seleccionados.includes(valor)
+        ? seleccionados.filter((item) => item !== valor)
+        : [...seleccionados, valor]
+    );
+  }
+
+  return (
+    <details className="group relative">
+      <summary className="flex h-10 cursor-pointer list-none items-center justify-between rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 outline-none transition hover:bg-slate-50 group-open:border-[#0057B8]">
+        <span className="truncate">
+          {seleccionados.length > 0
+            ? `${seleccionados.length} ${titulo.toLowerCase()}`
+            : titulo}
+        </span>
+        <span className="text-slate-400">▾</span>
+      </summary>
+
+      <div className="absolute left-0 right-0 z-40 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+        {conBusqueda && (
+          <div className="border-b border-slate-100 p-2">
+            <input
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder={`Buscar ${titulo.toLowerCase()}...`}
+              className="h-9 w-full rounded-lg border border-slate-300 px-3 text-xs font-semibold outline-none focus:border-[#0057B8]"
+            />
+          </div>
+        )}
+
+        <div className="compact-scroll max-h-60 overflow-auto p-2">
+          {opcionesFiltradas.map((opcion) => (
+            <label
+              key={opcion.value}
+              className={`flex cursor-pointer items-start gap-2 rounded-lg px-2 py-2 text-xs font-semibold transition hover:bg-[#EAF4FF] ${
+                seleccionados.includes(opcion.value) ? "bg-[#EAF4FF]" : ""
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={seleccionados.includes(opcion.value)}
+                onChange={() => toggle(opcion.value)}
+                className="mt-0.5"
+              />
+              <span className="min-w-0">
+                <span className="block truncate font-black text-slate-950">
+                  {opcion.value}
+                </span>
+                {opcion.label !== opcion.value && (
+                  <span className="block truncate text-[11px] text-slate-500">
+                    {opcion.label.replace(`${opcion.value} · `, "")}
+                  </span>
+                )}
+              </span>
+            </label>
+          ))}
+
+          {opcionesFiltradas.length === 0 && (
+            <p className="px-2 py-4 text-center text-xs font-semibold text-slate-500">
+              Sin opciones.
+            </p>
+          )}
+        </div>
+      </div>
+    </details>
+  );
+}
+
+function ConsumoTable({
+  titulo,
+  registro,
+  columns,
+  children,
+}: {
+  titulo: string;
+  registro: string;
+  columns: string[];
+  children: React.ReactNode;
+}) {
+  const hasRows = Array.isArray(children) ? children.length > 0 : !!children;
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h5 className="text-sm font-black text-slate-950">{titulo}</h5>
+        <span className="rounded-lg border border-[#2F80ED]/30 bg-[#EAF4FF] px-3 py-1.5 text-[11px] font-black uppercase text-[#0B4EA2]">
+          {registro}
+        </span>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-slate-200">
+        <div className="compact-scroll max-h-[340px] overflow-auto">
+          <table className="w-full min-w-[900px] border-collapse text-xs">
+            <thead className="sticky top-0 z-20 bg-[#f8f8f6]">
+              <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                {columns.map((column, index) => (
+                  <th
+                    key={column}
+                    className={`px-3 py-2 font-black ${
+                      index >= columns.length - 4 ? "text-right" : "text-left"
+                    }`}
+                  >
+                    {column}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {hasRows ? (
+                children
+              ) : (
+                <tr>
+                  <td
+                    colSpan={columns.length}
+                    className="px-4 py-8 text-center text-sm font-semibold text-slate-500"
+                  >
+                    No hay datos con los filtros seleccionados.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConsumoRow({
+  cells,
+  plan,
+  real,
+}: {
+  cells: string[];
+  plan: number;
+  real: number;
+}) {
+  const delta = real - plan;
+
+  return (
+    <tr className="border-b border-slate-100 transition hover:bg-[#fbfbfa]">
+      {cells.map((cell, index) => (
+        <td
+          key={`${cell}-${index}`}
+          className={`px-3 py-2 font-semibold ${
+            index === 0 ? "text-slate-950" : "text-slate-600"
+          }`}
+        >
+          {cell}
+        </td>
+      ))}
+      <td className="px-3 py-2 text-right font-black text-slate-950">
+        {formatoNumero(plan)}
+      </td>
+      <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">
+        {formatoNumero(real)}
+      </td>
+      <td
+        className={`px-3 py-2 text-right font-black ${
+          real >= plan ? "text-emerald-700" : "text-[#e30613]"
+        }`}
+      >
+        {formatoPorcentaje(real, plan)}
+      </td>
+      <td
+        className={`px-3 py-2 text-right font-black ${
+          delta >= 0 ? "text-emerald-700" : "text-[#e30613]"
+        }`}
+      >
+        {formatoNumero(delta)}
+      </td>
+    </tr>
   );
 }
 

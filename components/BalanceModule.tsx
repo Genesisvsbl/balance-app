@@ -87,6 +87,9 @@ function extraerBasesHistorico(datos: ExcelData): ExcelData {
     "Plan recepcion MP",
     "Plan recepcion materiales",
     "Plan de recepcion",
+    "SKU Produccion",
+    "SKU Producción",
+    "Hoja3",
   ].map(normalizarClave);
 
   return Object.fromEntries(
