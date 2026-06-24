@@ -8,7 +8,7 @@ import {
   InventarioBloqueadoRow,
 } from "@/types/balance";
 import { formatoNumero } from "@/lib/format";
-import { obtenerCargas } from "@/lib/storage";
+import { obtenerCarga, obtenerCargas } from "@/lib/storage";
 import { generarBalance } from "@/lib/balance";
 
 type Props = {
@@ -187,6 +187,7 @@ export default function DashboardModule({
   const [busqueda, setBusqueda] = useState("");
   const [materialSeleccionado, setMaterialSeleccionado] = useState("");
   const [cargasHistoricas, setCargasHistoricas] = useState<any[]>([]);
+  const [cargasHistoricasCompletas, setCargasHistoricasCompletas] = useState<Record<string, any>>({});
   const [movimientoSeleccionado, setMovimientoSeleccionado] =
     useState<TipoMovimiento | null>(null);
   const [filtroMovimientoSemana, setFiltroMovimientoSemana] = useState("");
@@ -222,8 +223,9 @@ export default function DashboardModule({
     }
 
     cargasHistoricas.forEach((carga) => {
+      const cargaCompleta = cargasHistoricasCompletas[carga.id] || carga;
       const datosHistoricos =
-        carga?.datos || carga?.info?.datosHistorico || {};
+        cargaCompleta?.datos || cargaCompleta?.info?.datosHistorico || {};
 
       opciones.push({
         id: carga.id,
@@ -234,7 +236,27 @@ export default function DashboardModule({
     });
 
     return opciones;
-  }, [datos, cargasHistoricas]);
+  }, [datos, cargasHistoricas, cargasHistoricasCompletas]);
+
+  useEffect(() => {
+    const ids = [balancePlanId, balanceRealId].filter(
+      (id) => id && id !== "actual" && !cargasHistoricasCompletas[id]
+    );
+    const unicos = Array.from(new Set(ids));
+
+    unicos.forEach((id) => {
+      obtenerCarga(id)
+        .then((carga) => {
+          setCargasHistoricasCompletas((actual) => ({
+            ...actual,
+            [id]: carga,
+          }));
+        })
+        .catch(() => {
+          // Si un historico no carga completo, se mantiene el resumen sin bloquear el dashboard.
+        });
+    });
+  }, [balancePlanId, balanceRealId, cargasHistoricasCompletas]);
 
   useEffect(() => {
     if (opcionesBalance.length === 0) return;
@@ -662,7 +684,7 @@ export default function DashboardModule({
       datos,
       balancePlanSeleccionado?.datos,
       balanceRealSeleccionado?.datos,
-      ...cargasHistoricas.map((carga) => carga?.datos),
+      ...opcionesBalance.map((opcion) => opcion?.datos),
     ].filter(Boolean) as ExcelData[];
 
     fuentes.forEach((fuente) => {
@@ -706,7 +728,7 @@ export default function DashboardModule({
     datos,
     balancePlanSeleccionado?.datos,
     balanceRealSeleccionado?.datos,
-    cargasHistoricas,
+    opcionesBalance,
   ]);
 
   const consumosPlanReal = useMemo(() => {
@@ -890,7 +912,7 @@ export default function DashboardModule({
       return {
         titulo: "Consumo por categoria",
         registro: `${consumosPlanReal.porCategoria.length} categorias`,
-        columns: ["Categoria", "Plan", "Real", "% Cum", "Delta"],
+        columns: ["Categoria", "Plan", "Real", "% Cum"],
         rows: consumosPlanReal.porCategoria,
       };
     }
@@ -899,7 +921,7 @@ export default function DashboardModule({
       return {
         titulo: "Consumo por categoria y SKU de produccion",
         registro: `${consumosPlanReal.porSku.length} SKU`,
-        columns: ["Categoria", "SAP", "Descripcion", "Plan", "Real", "% Cum", "Delta"],
+        columns: ["Categoria", "SAP", "Descripcion", "Plan", "Real", "% Cum"],
         rows: consumosPlanReal.porSku,
       };
     }
@@ -915,7 +937,6 @@ export default function DashboardModule({
         "Plan",
         "Real",
         "% Cum",
-        "Delta",
       ],
       rows: consumosPlanReal.porLinea,
     };
@@ -2367,7 +2388,6 @@ function ConsumoRow({
   real: number;
   dense?: boolean;
 }) {
-  const delta = real - plan;
   const cellClass = dense ? "px-1.5 py-0.5 leading-tight" : "px-3 py-2";
 
   return (
@@ -2395,13 +2415,6 @@ function ConsumoRow({
       >
         {formatoPorcentaje(real, plan)}
       </td>
-      <td
-        className={`${cellClass} text-right font-black ${
-          delta >= 0 ? "text-emerald-700" : "text-[#e30613]"
-        }`}
-      >
-        {formatoNumero(delta)}
-      </td>
     </tr>
   );
 }
@@ -2419,7 +2432,6 @@ function ConsumoCategoryTotalRow({
   real: number;
   dense?: boolean;
 }) {
-  const delta = real - plan;
   const cellClass = dense ? "px-1.5 py-0.5 leading-tight" : "px-3 py-2";
 
   return (
@@ -2443,13 +2455,6 @@ function ConsumoCategoryTotalRow({
       >
         {formatoPorcentaje(real, plan)}
       </td>
-      <td
-        className={`${cellClass} text-right font-black ${
-          delta >= 0 ? "text-emerald-700" : "text-[#e30613]"
-        }`}
-      >
-        {formatoNumero(delta)}
-      </td>
     </tr>
   );
 }
@@ -2465,7 +2470,6 @@ function ConsumoTotalRow({
   real: number;
   dense?: boolean;
 }) {
-  const delta = real - plan;
   const cellClass = dense ? "px-1.5 py-0.5 leading-tight" : "px-3 py-2";
 
   return (
@@ -2488,13 +2492,6 @@ function ConsumoTotalRow({
         }`}
       >
         {formatoPorcentaje(real, plan)}
-      </td>
-      <td
-        className={`${cellClass} text-right font-black ${
-          delta >= 0 ? "text-emerald-700" : "text-[#e30613]"
-        }`}
-      >
-        {formatoNumero(delta)}
       </td>
     </tr>
   );
