@@ -55,6 +55,38 @@ function toSavedLoad(run, rows) {
   };
 }
 
+function toRunSummary(run) {
+  const info = run.info || {};
+
+  return {
+    id: run.id,
+    fecha: run.created_at,
+    archivo: run.archivo,
+    hojas: run.hojas || [],
+    datos: {},
+    info: {
+      hojaReceta: info.hojaReceta || "",
+      hojaExistencias: info.hojaExistencias || "",
+      hojaPlanRecepcion: info.hojaPlanRecepcion || "",
+      columnasSemana: info.columnasSemana || [],
+      almacenesDetectados: info.almacenesDetectados || [],
+      seccionesDetectadas: info.seccionesDetectadas || [],
+      totalComponentes: info.totalComponentes || 0,
+      totalFaltantes: info.totalFaltantes || 0,
+      totalSobrantes: info.totalSobrantes || 0,
+      totalPlanRecepcion: info.totalPlanRecepcion || 0,
+      valorInventarioLibre: info.valorInventarioLibre || 0,
+      valorInventarioBloqueado: info.valorInventarioBloqueado || 0,
+      valorInventarioTotal: info.valorInventarioTotal || 0,
+      totalSkuLibre: info.totalSkuLibre || 0,
+      totalSkuBloqueado: info.totalSkuBloqueado || 0,
+      totalSkuExistencias: info.totalSkuExistencias || 0,
+      createdBy: info.createdBy || null,
+    },
+    createdBy: info.createdBy || undefined,
+    analisis: [],
+  };
+}
 function toDbRows(runId, rows) {
   return rows.map((row) => ({
     run_id: runId,
@@ -98,7 +130,7 @@ export async function handler(event) {
 
       return json(
         200,
-        (runs || []).map((run) => toSavedLoad(run, []))
+        (runs || []).map((run) => toRunSummary(run))
       );
     }
 
