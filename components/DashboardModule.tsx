@@ -201,7 +201,7 @@ export default function DashboardModule({
   const [modoConsumo, setModoConsumo] = useState<ModoConsumo>("CATEGORIA");
   const [tablaExpandida, setTablaExpandida] = useState<"CONSUMO" | "CRITICOS" | null>(null);
   const [semanaCriticosInforme, setSemanaCriticosInforme] = useState("");
-  const [limiteCriticosInforme, setLimiteCriticosInforme] = useState(12);
+  const [materialesCriticosVisibles, setMaterialesCriticosVisibles] = useState<string[]>([]);
 
   useEffect(() => {
     obtenerCargas()
@@ -221,16 +221,17 @@ export default function DashboardModule({
       });
     }
 
-    cargasHistoricas
-      .filter((carga) => carga?.datos && Object.keys(carga.datos).length > 0)
-      .forEach((carga) => {
-        opciones.push({
-          id: carga.id,
-          nombre: nombreBalanceOpcion(carga),
-          fecha: carga.fecha,
-          datos: carga.datos,
-        });
+    cargasHistoricas.forEach((carga) => {
+      const datosHistoricos =
+        carga?.datos || carga?.info?.datosHistorico || {};
+
+      opciones.push({
+        id: carga.id,
+        nombre: nombreBalanceOpcion(carga),
+        fecha: carga.fecha,
+        datos: datosHistoricos,
       });
+    });
 
     return opciones;
   }, [datos, cargasHistoricas]);
@@ -925,10 +926,25 @@ export default function DashboardModule({
       ? semanaCriticosInforme
       : semanasActivas[0] || semanas[0] || "";
 
+  const materialesCriticosSemana = useMemo(() => {
+    return (
+      criticosPorSemana.find((item) => item.semana === semanaCriticosActiva)
+        ?.materiales || []
+    );
+  }, [criticosPorSemana, semanaCriticosActiva]);
+
+  useEffect(() => {
+    if (tablaExpandida !== "CRITICOS") return;
+    setMaterialesCriticosVisibles(
+      materialesCriticosSemana.map((row) => row.codigo)
+    );
+  }, [tablaExpandida, semanaCriticosActiva]);
+
   const criticosInforme = useMemo(() => {
-    const grupo = criticosPorSemana.find((item) => item.semana === semanaCriticosActiva);
-    return (grupo?.materiales || []).slice(0, limiteCriticosInforme);
-  }, [criticosPorSemana, semanaCriticosActiva, limiteCriticosInforme]);
+    return materialesCriticosSemana.filter((row) =>
+      materialesCriticosVisibles.includes(row.codigo)
+    );
+  }, [materialesCriticosSemana, materialesCriticosVisibles]);
   const totalConsumoInforme = consumoInforme.rows.reduce(
     (acc, row) => ({
       plan: acc.plan + row.plan,
@@ -1080,6 +1096,15 @@ export default function DashboardModule({
                         {grupo.cantidad} SKU
                       </p>
                     </div>
+                    <button
+                      onClick={() => {
+                        setSemanaCriticosInforme(grupo.semana);
+                        setTablaExpandida("CRITICOS");
+                      }}
+                      className="mt-2 h-8 w-full rounded-lg border border-[#0057B8]/30 bg-white text-[11px] font-black text-[#0057B8] transition hover:bg-[#EAF4FF]"
+                    >
+                      Informe {grupo.semana}
+                    </button>
                     <p className="mt-1 truncate text-[11px] font-semibold text-slate-500">
                       Faltante: {formatoNumero(grupo.faltante)}
                     </p>
@@ -1698,7 +1723,7 @@ export default function DashboardModule({
 
           {tablaExpandida && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
-              <div className="max-h-[92vh] w-full max-w-7xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+              <div className="max-h-[96vh] w-full max-w-7xl overflow-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
                 <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#BBD7FF] bg-[#F5FAFF] px-6 py-4">
                   <div>
                     <p className="text-xs font-black uppercase tracking-wide text-[#0B4EA2]">
@@ -1767,18 +1792,20 @@ export default function DashboardModule({
                           }
                           plan={row.plan}
                           real={row.real}
+                          dense
                         />
                       ))}
                       <ConsumoTotalRow
                         labelSpan={consumoInforme.columns.length - 4}
                         plan={totalConsumoInforme.plan}
                         real={totalConsumoInforme.real}
+                        dense
                       />
                     </ConsumoTable>
                   </div>
                 ) : (
                   <div className="p-5">
-                    <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-[1fr_1.5fr_1fr]">
                       <select
                         value={semanaCriticosActiva}
                         onChange={(e) => setSemanaCriticosInforme(e.target.value)}
@@ -1790,18 +1817,38 @@ export default function DashboardModule({
                           </option>
                         ))}
                       </select>
-                      <select
-                        value={limiteCriticosInforme}
-                        onChange={(e) => setLimiteCriticosInforme(Number(e.target.value))}
-                        className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black outline-none focus:border-[#0057B8]"
-                      >
-                        <option value={8}>Mostrar 8 materiales</option>
-                        <option value={12}>Mostrar 12 materiales</option>
-                        <option value={20}>Mostrar 20 materiales</option>
-                        <option value={999}>Mostrar todos</option>
-                      </select>
-                      <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-2 text-xs font-black text-[#e30613]">
-                        {semanaCriticosActiva} · {criticosInforme.length} visibles
+                      <MultiSelectFilter
+                        titulo="Mostrar materiales"
+                        opciones={materialesCriticosSemana.map((row) => ({
+                          value: row.codigo,
+                          label: `${row.codigo} - ${row.material}`,
+                        }))}
+                        seleccionados={materialesCriticosVisibles}
+                        setSeleccionados={setMaterialesCriticosVisibles}
+                        conBusqueda
+                      />
+                      <div className="flex items-center justify-between gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-black text-[#e30613]">
+                        <span>
+                          {semanaCriticosActiva} - {criticosInforme.length} visibles
+                        </span>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() =>
+                              setMaterialesCriticosVisibles(
+                                materialesCriticosSemana.map((row) => row.codigo)
+                              )
+                            }
+                            className="rounded-lg border border-red-200 bg-white px-2 py-1 text-[10px] font-black text-[#e30613]"
+                          >
+                            Todos
+                          </button>
+                          <button
+                            onClick={() => setMaterialesCriticosVisibles([])}
+                            className="rounded-lg border border-red-200 bg-white px-2 py-1 text-[10px] font-black text-[#e30613]"
+                          >
+                            Limpiar
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -1813,16 +1860,16 @@ export default function DashboardModule({
                     >
                       {criticosInforme.map((row) => (
                         <tr key={`critico-${semanaCriticosActiva}-${row.codigo}`} className="border-b border-slate-100">
-                          <td className="px-3 py-2 font-black text-slate-950">{row.codigo}</td>
-                          <td className="px-3 py-2 font-semibold text-slate-700">{row.material}</td>
-                          <td className="px-3 py-2 font-semibold text-slate-500">{row.seccion || "-"}</td>
-                          <td className="px-3 py-2 text-right font-black text-slate-950">
+                          <td className="px-2 py-1.5 font-black text-slate-950">{row.codigo}</td>
+                          <td className="px-2 py-1.5 font-semibold text-slate-700">{row.material}</td>
+                          <td className="px-2 py-1.5 font-semibold text-slate-500">{row.seccion || "-"}</td>
+                          <td className="px-2 py-1.5 text-right font-black text-slate-950">
                             {formatoNumero(row.necesidad)}
                           </td>
-                          <td className="px-3 py-2 text-right font-black text-[#e30613]">
+                          <td className="px-2 py-1.5 text-right font-black text-[#e30613]">
                             {formatoNumero(Math.abs(row.diferencia))}
                           </td>
-                          <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">
+                          <td className="px-2 py-1.5 text-right font-black text-[#0B4EA2]">
                             {formatoNumero(row.transito)}
                           </td>
                         </tr>
@@ -2238,17 +2285,19 @@ function ConsumoTable({
 
       <div className="overflow-hidden rounded-xl border border-[#BBD7FF]">
         <div
-          className={`compact-scroll overflow-auto ${
-            expanded ? "max-h-[70vh]" : compact ? "max-h-[260px]" : "max-h-[340px]"
-          }`}
+          className={
+            expanded
+              ? "overflow-visible"
+              : `compact-scroll overflow-auto ${compact ? "max-h-[260px]" : "max-h-[340px]"}`
+          }
         >
-          <table className="w-full min-w-[820px] border-collapse text-[11px]">
+          <table className={`w-full border-collapse ${expanded ? "text-[9px]" : "min-w-[820px] text-[11px]"}`}>
             <thead className="sticky top-0 z-20 bg-[#DDEEFF]">
               <tr className="border-b border-[#BBD7FF] text-[10px] uppercase tracking-wide text-[#0B4EA2]">
                 {columns.map((column, index) => (
                   <th
                     key={column}
-                    className={`px-3 py-2 font-black ${
+                    className={`${expanded ? "px-2 py-1.5" : "px-3 py-2"} font-black ${
                       index >= columns.length - 4 ? "text-right" : "text-left"
                     }`}
                   >
@@ -2282,40 +2331,43 @@ function ConsumoRow({
   cells,
   plan,
   real,
+  dense = false,
 }: {
   cells: string[];
   plan: number;
   real: number;
+  dense?: boolean;
 }) {
   const delta = real - plan;
+  const cellClass = dense ? "px-2 py-1.5" : "px-3 py-2";
 
   return (
     <tr className="border-b border-slate-100 transition hover:bg-[#fbfbfa]">
       {cells.map((cell, index) => (
         <td
           key={`${cell}-${index}`}
-          className={`px-3 py-2 font-semibold ${
+          className={`${cellClass} font-semibold ${
             index === 0 ? "text-slate-950" : "text-slate-600"
           }`}
         >
           {cell}
         </td>
       ))}
-      <td className="px-3 py-2 text-right font-black text-slate-950">
+      <td className={`${cellClass} text-right font-black text-slate-950`}>
         {formatoNumero(plan)}
       </td>
-      <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">
+      <td className={`${cellClass} text-right font-black text-[#0B4EA2]`}>
         {formatoNumero(real)}
       </td>
       <td
-        className={`px-3 py-2 text-right font-black ${
+        className={`${cellClass} text-right font-black ${
           real >= plan ? "text-emerald-700" : "text-[#e30613]"
         }`}
       >
         {formatoPorcentaje(real, plan)}
       </td>
       <td
-        className={`px-3 py-2 text-right font-black ${
+        className={`${cellClass} text-right font-black ${
           delta >= 0 ? "text-emerald-700" : "text-[#e30613]"
         }`}
       >
@@ -2329,36 +2381,39 @@ function ConsumoTotalRow({
   labelSpan,
   plan,
   real,
+  dense = false,
 }: {
   labelSpan: number;
   plan: number;
   real: number;
+  dense?: boolean;
 }) {
   const delta = real - plan;
+  const cellClass = dense ? "px-2 py-1.5" : "px-3 py-2";
 
   return (
     <tr className="border-t-2 border-[#7CB8FF] bg-[#DDEEFF]">
       <td
         colSpan={Math.max(labelSpan, 1)}
-        className="px-3 py-2 text-right font-black text-[#003B7A]"
+        className={`${cellClass} text-right font-black text-[#003B7A]`}
       >
         Total
       </td>
-      <td className="px-3 py-2 text-right font-black text-slate-950">
+      <td className={`${cellClass} text-right font-black text-slate-950`}>
         {formatoNumero(plan)}
       </td>
-      <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">
+      <td className={`${cellClass} text-right font-black text-[#0B4EA2]`}>
         {formatoNumero(real)}
       </td>
       <td
-        className={`px-3 py-2 text-right font-black ${
+        className={`${cellClass} text-right font-black ${
           real >= plan ? "text-emerald-700" : "text-[#e30613]"
         }`}
       >
         {formatoPorcentaje(real, plan)}
       </td>
       <td
-        className={`px-3 py-2 text-right font-black ${
+        className={`${cellClass} text-right font-black ${
           delta >= 0 ? "text-emerald-700" : "text-[#e30613]"
         }`}
       >
