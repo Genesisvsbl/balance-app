@@ -123,13 +123,14 @@ export async function handler(event) {
       const carga = JSON.parse(event.body || "{}");
       const info = {
         ...(carga.info || {}),
+        createdBy: carga.createdBy || carga.info?.createdBy || null,
         datosHistorico: carga.datos || carga.info?.datosHistorico || {},
       };
 
       const { error: runError } = await supabase.from("balance_runs").insert({
         id: carga.id,
         created_at: carga.fecha,
-        created_by: carga.createdBy?.id || null,
+        created_by: null,
         archivo: carga.archivo,
         hojas: carga.hojas || [],
         info,
@@ -150,7 +151,7 @@ export async function handler(event) {
       }
 
       await supabase.from("audit_events").insert({
-        user_id: carga.createdBy?.id || null,
+        user_id: null,
         username: carga.createdBy?.username || null,
         action: "BALANCE_CREATED",
         entity: "balance_run",

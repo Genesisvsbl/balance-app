@@ -552,25 +552,13 @@ export default function DashboardModule({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-2">
             <Kpi titulo="Semanas evaluadas" valor={semanasActivas.length} />
             <Kpi
               titulo="Materiales criticos"
               valor={materialesCriticos.length}
               color="text-[#e30613]"
               border="border-red-100"
-            />
-            <Kpi
-              titulo="Cobertura transito"
-              valor={`${coberturaTransito.toFixed(1)}%`}
-              color="text-emerald-700"
-              border="border-emerald-100"
-            />
-            <Kpi
-              titulo="Valor bloqueado"
-              valor={formatoNumero(valorBloqueado)}
-              color="text-[#0B4EA2]"
-              border="border-[#2F80ED]/25"
             />
           </div>
 
@@ -1072,7 +1060,7 @@ export default function DashboardModule({
             </DataTable>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5">
             <DataTable
               titulo="Consumos notificados"
               subtitulo="Consumo convertido por receta para ajustar la lectura del plan."
@@ -1091,58 +1079,6 @@ export default function DashboardModule({
                   </td>
                   <td className="px-4 py-3 text-right font-black text-emerald-700">
                     {formatoNumero(row.cantidad)}
-                  </td>
-                </tr>
-              ))}
-            </DataTable>
-
-            <DataTable
-              titulo="Evolucion de balances guardados"
-              subtitulo="Lectura directa de cambios entre balances guardados."
-              registro={`${evolucionBalances.length} balances`}
-              columns={[
-                "Balance",
-                "Faltantes",
-                "Var. faltantes",
-                "Sobrantes",
-                "Var. sobrantes",
-              ]}
-              empty="Todavia no hay balances guardados para comparar."
-            >
-              {evolucionBalances.map((row) => (
-                <tr key={row.nombre} className="border-b border-slate-100">
-                  <td className="px-4 py-3 font-black text-slate-950">
-                    {row.nombre}
-                  </td>
-                  <td className="px-4 py-3 text-right font-semibold">
-                    {row.faltantes}
-                  </td>
-                  <td
-                    className={`px-4 py-3 text-right font-black ${
-                      row.varFaltantes > 0
-                        ? "text-[#e30613]"
-                        : row.varFaltantes < 0
-                        ? "text-emerald-700"
-                        : "text-slate-500"
-                    }`}
-                  >
-                    {row.varFaltantes > 0 ? "+" : ""}
-                    {row.varFaltantes}
-                  </td>
-                  <td className="px-4 py-3 text-right font-semibold">
-                    {row.sobrantes}
-                  </td>
-                  <td
-                    className={`px-4 py-3 text-right font-black ${
-                      row.varSobrantes > 0
-                        ? "text-emerald-700"
-                        : row.varSobrantes < 0
-                        ? "text-[#e30613]"
-                        : "text-slate-500"
-                    }`}
-                  >
-                    {row.varSobrantes > 0 ? "+" : ""}
-                    {row.varSobrantes}
                   </td>
                 </tr>
               ))}

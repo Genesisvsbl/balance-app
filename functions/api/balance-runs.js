@@ -108,6 +108,7 @@ export async function onRequestPost({ request, env }) {
     const carga = await request.json().catch(() => ({}));
     const info = {
       ...(carga.info || {}),
+      createdBy: carga.createdBy || carga.info?.createdBy || null,
       datosHistorico: carga.datos || carga.info?.datosHistorico || {},
     };
 
@@ -119,7 +120,7 @@ export async function onRequestPost({ request, env }) {
       body: JSON.stringify({
         id: carga.id,
         created_at: carga.fecha,
-        created_by: carga.createdBy?.id || null,
+        created_by: null,
         archivo: carga.archivo,
         hojas: carga.hojas || [],
         info,
@@ -153,7 +154,7 @@ export async function onRequestPost({ request, env }) {
         Prefer: "return=minimal",
       },
       body: JSON.stringify({
-        user_id: carga.createdBy?.id || null,
+        user_id: null,
         username: carga.createdBy?.username || null,
         action: "BALANCE_CREATED",
         entity: "balance_run",
