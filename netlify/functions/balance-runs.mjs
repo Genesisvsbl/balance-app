@@ -96,26 +96,9 @@ export async function handler(event) {
 
       if (runsError) return json(500, { error: runsError.message });
 
-      const runIds = (runs || []).map((run) => run.id);
-      if (runIds.length === 0) return json(200, []);
-
-      const { data: rows, error: rowsError } = await supabase
-        .from("balance_rows")
-        .select("*")
-        .in("run_id", runIds);
-
-      if (rowsError) return json(500, { error: rowsError.message });
-
-      const rowsByRun = new Map();
-      for (const row of rows || []) {
-        const list = rowsByRun.get(row.run_id) || [];
-        list.push(row);
-        rowsByRun.set(row.run_id, list);
-      }
-
       return json(
         200,
-        (runs || []).map((run) => toSavedLoad(run, rowsByRun.get(run.id) || []))
+        (runs || []).map((run) => toSavedLoad(run, []))
       );
     }
 

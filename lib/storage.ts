@@ -55,6 +55,14 @@ export async function obtenerCargas(): Promise<SavedLoad[]> {
   return requestJson<SavedLoad[]>("/balance-runs");
 }
 
+export async function obtenerCarga(id: string): Promise<SavedLoad> {
+  return requestJson<SavedLoad>(
+    "/balance-run",
+    undefined,
+    { query: `?id=${encodeURIComponent(id)}` }
+  );
+}
+
 export async function eliminarCarga(id: string) {
   await requestJson<{ ok: boolean }>(
     "/balance-run",

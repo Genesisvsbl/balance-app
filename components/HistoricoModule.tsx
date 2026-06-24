@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { obtenerCargas, limpiarCargas, eliminarCarga } from "@/lib/storage";
+import { obtenerCargas, obtenerCarga, limpiarCargas, eliminarCarga } from "@/lib/storage";
 import { SavedLoad } from "@/types/balance";
 
 const CLAVE_AVAL = "balance2026";
@@ -30,6 +30,7 @@ export default function HistoricoModule({ onLoad }: Props) {
   const [claveAval, setClaveAval] = useState("");
   const [errorAval, setErrorAval] = useState("");
   const [procesandoAval, setProcesandoAval] = useState(false);
+  const [cargandoId, setCargandoId] = useState("");
 
   async function cargar() {
     try {
@@ -59,8 +60,17 @@ export default function HistoricoModule({ onLoad }: Props) {
     );
   });
 
-  function cargarBalance(carga: SavedLoad) {
-    onLoad(carga);
+  async function cargarBalance(carga: SavedLoad) {
+    setCargandoId(carga.id);
+
+    try {
+      const completa = carga.analisis?.length ? carga : await obtenerCarga(carga.id);
+      onLoad(completa);
+    } catch (error: any) {
+      alert(error.message || "No se pudo cargar el balance completo.");
+    } finally {
+      setCargandoId("");
+    }
   }
 
   function cerrarAval() {
@@ -255,9 +265,10 @@ export default function HistoricoModule({ onLoad }: Props) {
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => cargarBalance(carga)}
-                          className="rounded-lg bg-[#0057B8] px-3 py-2 text-xs font-black text-white transition hover:bg-[#003B7A]"
+                          disabled={cargandoId === carga.id}
+                          className="rounded-lg bg-[#0057B8] px-3 py-2 text-xs font-black text-white transition hover:bg-[#003B7A] disabled:cursor-wait disabled:opacity-60"
                         >
-                          Ver
+                          {cargandoId === carga.id ? "Cargando..." : "Ver"}
                         </button>
 
                         <button
