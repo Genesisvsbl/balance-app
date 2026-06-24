@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   BalanceInfo,
   BalanceRow,
@@ -953,12 +953,78 @@ export default function DashboardModule({
     { plan: 0, real: 0 }
   );
 
+  const renderConsumoRows = (dense = false) => {
+    if (modoConsumo === "CATEGORIA") {
+      return consumoInforme.rows.map((row) => (
+        <ConsumoRow
+          key={`${dense ? "dense" : "normal"}-${row.categoria}`}
+          cells={[row.categoria]}
+          plan={row.plan}
+          real={row.real}
+          dense={dense}
+        />
+      ));
+    }
+
+    const rows: ReactNode[] = [];
+    let categoriaActual = "";
+    let subtotal = { plan: 0, real: 0 };
+    const labelSpan = Math.max(consumoInforme.columns.length - 4, 1);
+
+    const pushSubtotal = () => {
+      if (!categoriaActual) return;
+      rows.push(
+        <ConsumoCategoryTotalRow
+          key={`${dense ? "dense" : "normal"}-subtotal-${categoriaActual}`}
+          label={`Total ${categoriaActual}`}
+          labelSpan={labelSpan}
+          plan={subtotal.plan}
+          real={subtotal.real}
+          dense={dense}
+        />
+      );
+    };
+
+    consumoInforme.rows.forEach((row) => {
+      if (row.categoria !== categoriaActual) {
+        pushSubtotal();
+        categoriaActual = row.categoria;
+        subtotal = { plan: 0, real: 0 };
+      }
+
+      subtotal.plan += row.plan;
+      subtotal.real += row.real;
+
+      rows.push(
+        <ConsumoRow
+          key={`${dense ? "dense" : "normal"}-${row.categoria}-${row.linea || ""}-${row.codigo || ""}`}
+          cells={
+            modoConsumo === "SKU"
+              ? [row.categoria, row.codigo || "-", row.descripcion || "-"]
+              : [
+                  row.categoria,
+                  row.linea || "-",
+                  row.codigo || "-",
+                  row.descripcion || "-",
+                ]
+          }
+          plan={row.plan}
+          real={row.real}
+          dense={dense}
+        />
+      );
+    });
+
+    pushSubtotal();
+    return rows;
+  };
+
   return (
-    <section className="space-y-4">
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="space-y-2">
+      <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-lg font-black text-slate-950">
+            <h3 className="text-sm font-black text-slate-950">
               Dashboard de planeacion y abastecimiento
             </h3>
             <p className="mt-1 text-xs font-medium text-slate-500">
@@ -967,7 +1033,7 @@ export default function DashboardModule({
             </p>
           </div>
 
-          <div className="rounded-lg border border-[#2F80ED]/30 bg-[#EAF4FF] px-3 py-2 text-xs font-black text-[#0B4EA2]">
+          <div className="rounded-lg border border-[#2F80ED]/30 bg-[#EAF4FF] px-2 py-1 text-[11px] font-black text-[#0B4EA2]">
             Base AG01 + AG04 · {almacenesDetectados.length} almacenes detectados
           </div>
         </div>
@@ -981,13 +1047,13 @@ export default function DashboardModule({
         </div>
       ) : (
         <>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h4 className="text-base font-black text-slate-950">
+                <h4 className="text-sm font-black text-slate-950">
                   Filtro de semanas
                 </h4>
-                <p className="mt-1 text-sm font-semibold text-slate-500">
+                <p className="mt-1 text-xs font-semibold text-slate-500">
                   Selecciona una, dos o varias semanas para recalcular las tablas.
                 </p>
               </div>
@@ -995,20 +1061,20 @@ export default function DashboardModule({
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => setSemanasSeleccionadas(semanas)}
-                  className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-700 hover:bg-slate-50"
+                  className="h-8 rounded-lg border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50"
                 >
                   Todas
                 </button>
                 <button
                   onClick={() => setSemanasSeleccionadas([])}
-                  className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-700 hover:bg-slate-50"
+                  className="h-8 rounded-lg border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50"
                 >
                   Limpiar
                 </button>
               </div>
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-2 flex flex-wrap gap-2">
               {semanas.map((sem) => {
                 const activo = semanasActivas.includes(sem);
 
@@ -1016,7 +1082,7 @@ export default function DashboardModule({
                   <button
                     key={sem}
                     onClick={() => toggleSemana(sem)}
-                    className={`h-10 rounded-xl border px-4 text-sm font-black transition ${
+                    className={`h-8 rounded-lg border px-3 text-xs font-black transition ${
                       activo
                         ? "border-[#0057B8]/30 bg-blue-50 text-[#0057B8]"
                         : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
@@ -1057,10 +1123,10 @@ export default function DashboardModule({
           </div>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h4 className="text-base font-black text-slate-950">
+                  <h4 className="text-sm font-black text-slate-950">
                     Materiales criticos por semana
                   </h4>
                   <p className="mt-1 text-xs font-semibold text-slate-500">
@@ -1143,10 +1209,10 @@ export default function DashboardModule({
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h4 className="text-base font-black text-slate-950">
+                  <h4 className="text-sm font-black text-slate-950">
                     Llegadas por semana
                   </h4>
                   <p className="mt-1 text-xs font-semibold text-slate-500">
@@ -1231,7 +1297,7 @@ export default function DashboardModule({
                 <h4 className="text-xl font-black text-slate-950">
                   Tabla operativa de materiales
                 </h4>
-                <p className="mt-1 text-sm font-semibold text-slate-500">
+                <p className="mt-1 text-xs font-semibold text-slate-500">
                   Criticos, transito y consumo segun las semanas seleccionadas.
                 </p>
               </div>
@@ -1365,7 +1431,7 @@ export default function DashboardModule({
                       <tr>
                         <td
                           colSpan={999}
-                          className="px-4 py-10 text-center text-sm font-semibold text-slate-500"
+                          className="px-4 py-6 text-center text-xs font-semibold text-slate-500"
                         >
                           No hay materiales con los filtros seleccionados.
                         </td>
@@ -1385,7 +1451,7 @@ export default function DashboardModule({
                     <p className="text-xs font-black uppercase tracking-wide text-[#0B4EA2]">
                       Detalle del material seleccionado
                     </p>
-                    <h5 className="mt-1 text-xl font-black text-slate-950">
+                    <h5 className="mt-0.5 text-lg font-black text-slate-950">
                       {detalleMaterial.row.codigo}
                     </h5>
                     <p className="mt-1 text-sm font-semibold text-slate-600">
@@ -1537,14 +1603,14 @@ export default function DashboardModule({
             >
               {materialesBloqueados.map((row) => (
                 <tr key={row.material} className="border-b border-slate-100">
-                  <td className="px-3 py-2 font-black text-slate-950">{row.material}</td>
-                  <td className="px-3 py-2 font-medium text-slate-700">
+                  <td className="px-2 py-1 font-black text-slate-950">{row.material}</td>
+                  <td className="px-2 py-1 font-medium text-slate-700">
                     {row.textoBreve || "-"}
                   </td>
-                  <td className="px-3 py-2 text-right font-semibold">
+                  <td className="px-2 py-1 text-right font-semibold">
                     {formatoNumero(row.cantidad)}
                   </td>
-                  <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">
+                  <td className="px-2 py-1 text-right font-black text-[#0B4EA2]">
                     {formatoNumero(row.valor)}
                   </td>
                 </tr>
@@ -1552,10 +1618,10 @@ export default function DashboardModule({
             </DataTable>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
             <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h4 className="text-base font-black text-slate-950">
+                <h4 className="text-sm font-black text-slate-950">
                   Cumplimiento de consumo
                 </h4>
                 <p className="mt-1 text-xs font-semibold text-slate-500">
@@ -1668,7 +1734,7 @@ export default function DashboardModule({
                     <button
                       key={valor}
                       onClick={() => setModoConsumo(valor as ModoConsumo)}
-                      className={`h-9 rounded-lg border px-3 text-xs font-black transition ${
+                      className={`h-8 rounded-lg border px-3 text-[11px] font-black transition ${
                         modoConsumo === valor
                           ? "border-[#0057B8] bg-[#0057B8] text-white"
                           : "border-[#BBD7FF] bg-white text-[#0B4EA2] hover:bg-[#EAF4FF]"
@@ -1681,7 +1747,7 @@ export default function DashboardModule({
 
                 <button
                   onClick={() => setTablaExpandida("CONSUMO")}
-                  className="h-9 rounded-lg border border-[#0057B8] bg-white px-4 text-xs font-black text-[#0057B8] transition hover:bg-[#EAF4FF]"
+                  className="h-8 rounded-lg border border-[#0057B8] bg-white px-3 text-[11px] font-black text-[#0057B8] transition hover:bg-[#EAF4FF]"
                 >
                   Ampliar informe
                 </button>
@@ -1693,25 +1759,7 @@ export default function DashboardModule({
                 columns={consumoInforme.columns}
                 compact
               >
-                {consumoInforme.rows.map((row) => (
-                  <ConsumoRow
-                    key={`${row.categoria}-${row.linea || ""}-${row.codigo || ""}`}
-                    cells={
-                      modoConsumo === "CATEGORIA"
-                        ? [row.categoria]
-                        : modoConsumo === "SKU"
-                        ? [row.categoria, row.codigo || "-", row.descripcion || "-"]
-                        : [
-                            row.categoria,
-                            row.linea || "-",
-                            row.codigo || "-",
-                            row.descripcion || "-",
-                          ]
-                    }
-                    plan={row.plan}
-                    real={row.real}
-                  />
-                ))}
+                {renderConsumoRows(false)}
                 <ConsumoTotalRow
                   labelSpan={consumoInforme.columns.length - 4}
                   plan={totalConsumoInforme.plan}
@@ -1722,14 +1770,14 @@ export default function DashboardModule({
           </div>
 
           {tablaExpandida && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
-              <div className="max-h-[96vh] w-full max-w-7xl overflow-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
-                <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#BBD7FF] bg-[#F5FAFF] px-6 py-4">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-2">
+              <div className="max-h-[98vh] w-full max-w-7xl overflow-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#BBD7FF] bg-[#F5FAFF] px-5 py-3">
                   <div>
                     <p className="text-xs font-black uppercase tracking-wide text-[#0B4EA2]">
                       Vista para informe
                     </p>
-                    <h4 className="mt-1 text-xl font-black text-slate-950">
+                    <h4 className="mt-0.5 text-lg font-black text-slate-950">
                       {tablaExpandida === "CONSUMO"
                         ? consumoInforme.titulo
                         : "Materiales criticos por semana"}
@@ -1741,15 +1789,15 @@ export default function DashboardModule({
 
                   <button
                     onClick={() => setTablaExpandida(null)}
-                    className="rounded-xl border border-slate-300 bg-white px-5 py-2 text-sm font-black text-slate-700 hover:bg-slate-50"
+                    className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 text-xs font-black text-slate-700 hover:bg-slate-50"
                   >
                     Cerrar
                   </button>
                 </div>
 
                 {tablaExpandida === "CONSUMO" ? (
-                  <div className="p-5">
-                    <div className="mb-4 flex flex-wrap gap-2">
+                  <div className="p-3">
+                    <div className="mb-2 flex flex-wrap gap-2">
                       {[
                         ["CATEGORIA", "Categoria"],
                         ["SKU", "Categoria + SKU"],
@@ -1758,7 +1806,7 @@ export default function DashboardModule({
                         <button
                           key={valor}
                           onClick={() => setModoConsumo(valor as ModoConsumo)}
-                          className={`h-9 rounded-lg border px-3 text-xs font-black transition ${
+                          className={`h-8 rounded-lg border px-3 text-[11px] font-black transition ${
                             modoConsumo === valor
                               ? "border-[#0057B8] bg-[#0057B8] text-white"
                               : "border-[#BBD7FF] bg-white text-[#0B4EA2] hover:bg-[#EAF4FF]"
@@ -1775,26 +1823,7 @@ export default function DashboardModule({
                       columns={consumoInforme.columns}
                       expanded
                     >
-                      {consumoInforme.rows.map((row) => (
-                        <ConsumoRow
-                          key={`modal-${row.categoria}-${row.linea || ""}-${row.codigo || ""}`}
-                          cells={
-                            modoConsumo === "CATEGORIA"
-                              ? [row.categoria]
-                              : modoConsumo === "SKU"
-                              ? [row.categoria, row.codigo || "-", row.descripcion || "-"]
-                              : [
-                                  row.categoria,
-                                  row.linea || "-",
-                                  row.codigo || "-",
-                                  row.descripcion || "-",
-                                ]
-                          }
-                          plan={row.plan}
-                          real={row.real}
-                          dense
-                        />
-                      ))}
+                      {renderConsumoRows(true)}
                       <ConsumoTotalRow
                         labelSpan={consumoInforme.columns.length - 4}
                         plan={totalConsumoInforme.plan}
@@ -1804,7 +1833,7 @@ export default function DashboardModule({
                     </ConsumoTable>
                   </div>
                 ) : (
-                  <div className="p-5">
+                  <div className="p-3">
                     <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-[1fr_1.5fr_1fr]">
                       <select
                         value={semanaCriticosActiva}
@@ -1894,7 +1923,7 @@ export default function DashboardModule({
                         ? "Reabastecimiento AG40"
                         : "Aprovisionamiento plan de recibo"}
                     </h4>
-                    <p className="mt-1 text-sm font-semibold text-slate-500">
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
                       {movimientoSeleccionado === "REABASTECIMIENTO"
                         ? "Movimientos internos desde AG40. Estos materiales no se duplican en aprovisionamiento."
                         : "Materiales con llegada por compras, excluyendo los que ya tienen cobertura en AG40."}
@@ -1908,7 +1937,7 @@ export default function DashboardModule({
                       setFiltroMovimientoFecha("");
                       setFiltroMovimientoSeccion("");
                     }}
-                    className="rounded-xl border border-slate-300 bg-white px-5 py-2 text-sm font-black text-slate-700 hover:bg-slate-50"
+                    className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 text-xs font-black text-slate-700 hover:bg-slate-50"
                   >
                     Cerrar
                   </button>
@@ -2018,7 +2047,7 @@ export default function DashboardModule({
                             <tr>
                               <td
                                 colSpan={6}
-                                className="px-4 py-10 text-center text-sm font-semibold text-slate-500"
+                                className="px-4 py-6 text-center text-xs font-semibold text-slate-500"
                               >
                                 No hay movimientos con los filtros seleccionados.
                               </td>
@@ -2108,13 +2137,13 @@ function ActionCard({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-xl border ${style} p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md`}
+      className={`rounded-xl border ${style} p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md`}
     >
       <p className="text-xs font-black uppercase tracking-wide text-slate-500">
         {titulo}
       </p>
-      <p className="mt-1 text-2xl font-black">{valor}</p>
-      <p className="mt-1 text-xs font-semibold text-slate-600">{texto}</p>
+      <p className="mt-0.5 text-xl font-black">{valor}</p>
+      <p className="mt-0.5 line-clamp-1 text-[11px] font-semibold text-slate-600">{texto}</p>
     </button>
   );
 }
@@ -2155,8 +2184,8 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h4 className="mb-3 text-base font-black text-slate-950">{titulo}</h4>
+    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+      <h4 className="mb-3 text-sm font-black text-slate-950">{titulo}</h4>
       <div className="h-[280px]">{children}</div>
     </div>
   );
@@ -2273,7 +2302,7 @@ function ConsumoTable({
   const hasRows = Array.isArray(children) ? children.length > 0 : !!children;
 
   return (
-    <div className={`rounded-xl border border-[#BBD7FF] bg-white ${compact ? "p-2" : "p-3"}`}>
+    <div className={`rounded-xl border border-[#BBD7FF] bg-white ${expanded ? "p-2" : compact ? "p-2" : "p-3"}`}>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h5 className={`${compact ? "text-xs" : "text-sm"} font-black text-slate-950`}>
           {titulo}
@@ -2291,13 +2320,13 @@ function ConsumoTable({
               : `compact-scroll overflow-auto ${compact ? "max-h-[260px]" : "max-h-[340px]"}`
           }
         >
-          <table className={`w-full border-collapse ${expanded ? "text-[9px]" : "min-w-[820px] text-[11px]"}`}>
+          <table className={`w-full border-collapse ${expanded ? "text-[7.5px]" : "min-w-[820px] text-[11px]"}`}>
             <thead className="sticky top-0 z-20 bg-[#DDEEFF]">
-              <tr className="border-b border-[#BBD7FF] text-[10px] uppercase tracking-wide text-[#0B4EA2]">
+              <tr className={`border-b border-[#BBD7FF] ${expanded ? "text-[7px]" : "text-[10px]"} uppercase tracking-wide text-[#0B4EA2]`}>
                 {columns.map((column, index) => (
                   <th
                     key={column}
-                    className={`${expanded ? "px-2 py-1.5" : "px-3 py-2"} font-black ${
+                    className={`${expanded ? "px-1.5 py-0.5" : "px-3 py-2"} font-black ${
                       index >= columns.length - 4 ? "text-right" : "text-left"
                     }`}
                   >
@@ -2339,7 +2368,7 @@ function ConsumoRow({
   dense?: boolean;
 }) {
   const delta = real - plan;
-  const cellClass = dense ? "px-2 py-1.5" : "px-3 py-2";
+  const cellClass = dense ? "px-1.5 py-0.5 leading-tight" : "px-3 py-2";
 
   return (
     <tr className="border-b border-slate-100 transition hover:bg-[#fbfbfa]">
@@ -2377,6 +2406,54 @@ function ConsumoRow({
   );
 }
 
+function ConsumoCategoryTotalRow({
+  label,
+  labelSpan,
+  plan,
+  real,
+  dense = false,
+}: {
+  label: string;
+  labelSpan: number;
+  plan: number;
+  real: number;
+  dense?: boolean;
+}) {
+  const delta = real - plan;
+  const cellClass = dense ? "px-1.5 py-0.5 leading-tight" : "px-3 py-2";
+
+  return (
+    <tr className="border-y border-[#7CB8FF] bg-[#EAF4FF]">
+      <td
+        colSpan={Math.max(labelSpan, 1)}
+        className={`${cellClass} text-right font-black text-[#003B7A]`}
+      >
+        {label}
+      </td>
+      <td className={`${cellClass} text-right font-black text-slate-950`}>
+        {formatoNumero(plan)}
+      </td>
+      <td className={`${cellClass} text-right font-black text-[#0B4EA2]`}>
+        {formatoNumero(real)}
+      </td>
+      <td
+        className={`${cellClass} text-right font-black ${
+          real >= plan ? "text-emerald-700" : "text-[#e30613]"
+        }`}
+      >
+        {formatoPorcentaje(real, plan)}
+      </td>
+      <td
+        className={`${cellClass} text-right font-black ${
+          delta >= 0 ? "text-emerald-700" : "text-[#e30613]"
+        }`}
+      >
+        {formatoNumero(delta)}
+      </td>
+    </tr>
+  );
+}
+
 function ConsumoTotalRow({
   labelSpan,
   plan,
@@ -2389,7 +2466,7 @@ function ConsumoTotalRow({
   dense?: boolean;
 }) {
   const delta = real - plan;
-  const cellClass = dense ? "px-2 py-1.5" : "px-3 py-2";
+  const cellClass = dense ? "px-1.5 py-0.5 leading-tight" : "px-3 py-2";
 
   return (
     <tr className="border-t-2 border-[#7CB8FF] bg-[#DDEEFF]">
@@ -2397,7 +2474,7 @@ function ConsumoTotalRow({
         colSpan={Math.max(labelSpan, 1)}
         className={`${cellClass} text-right font-black text-[#003B7A]`}
       >
-        Total
+        Total general
       </td>
       <td className={`${cellClass} text-right font-black text-slate-950`}>
         {formatoNumero(plan)}
@@ -2443,10 +2520,10 @@ function DataTable({
   const hasRows = Array.isArray(children) ? children.length > 0 : !!children;
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h4 className="text-base font-black text-slate-950">{titulo}</h4>
+          <h4 className="text-sm font-black text-slate-950">{titulo}</h4>
           <p className="mt-1 text-xs font-semibold text-slate-500">
             {subtitulo}
           </p>
@@ -2459,17 +2536,15 @@ function DataTable({
 
       <div className="overflow-hidden rounded-xl border border-slate-200">
         <div
-          className={`compact-scroll overflow-auto ${
-            compact ? "max-h-[260px]" : "max-h-[340px]"
-          }`}
+          className={compact ? "overflow-visible" : "compact-scroll max-h-[340px] overflow-auto"}
         >
-          <table className="w-full min-w-[760px] border-collapse text-xs">
+          <table className={`w-full border-collapse ${compact ? "text-[10px]" : "min-w-[760px] text-xs"}`}>
             <thead className="sticky top-0 z-20 bg-[#f8f8f6]">
               <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                 {columns.map((column, index) => (
                   <th
                     key={column}
-                    className={`px-4 py-3 font-black ${
+                    className={`${compact ? "px-2 py-1.5" : "px-4 py-3"} font-black ${
                       index >= columns.length - 2 ? "text-right" : "text-left"
                     }`}
                   >
@@ -2486,7 +2561,7 @@ function DataTable({
                 <tr>
                   <td
                     colSpan={columns.length}
-                    className="px-4 py-10 text-center text-sm font-semibold text-slate-500"
+                    className="px-4 py-6 text-center text-xs font-semibold text-slate-500"
                   >
                     {empty}
                   </td>
