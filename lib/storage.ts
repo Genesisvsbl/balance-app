@@ -1,6 +1,6 @@
 import { SavedLoad } from "@/types/balance";
 
-const API_BASES = ["/.netlify/functions", "/api"];
+const API_BASES = ["/api", "/.netlify/functions"];
 
 async function parseResponse<T>(response: Response): Promise<T> {
   const contentType = response.headers.get("content-type") || "";
