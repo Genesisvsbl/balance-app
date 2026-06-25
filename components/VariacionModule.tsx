@@ -480,6 +480,31 @@ export default function VariacionModule() {
     return coincideTexto && coincideSeccion && coincideSemana;
   });
 
+  const detalleSemanalFiltrado = materialesSkuPlanFiltrados
+    .flatMap((row) =>
+      semanasDetalleVisibles.map((semana) => {
+        const dato =
+          row.semanas.find((item) => item.semana === semana) || {
+            semana,
+            anterior: 0,
+            actual: 0,
+            movimiento: 0,
+          };
+
+        return {
+          row,
+          semana,
+          anterior: dato.anterior,
+          actual: dato.actual,
+          movimiento: dato.movimiento,
+        };
+      })
+    )
+    .filter(
+      (item) =>
+        item.anterior !== 0 || item.actual !== 0 || item.movimiento !== 0
+    );
+
   const resumen = {
     aumentos: variacionesSku.filter((v) => v.diagnostico === "AUMENTO DE PLAN").length,
     explicadas: variacionesSku.filter(
@@ -743,6 +768,7 @@ export default function VariacionModule() {
                   <table className="w-full min-w-[1240px] border-collapse text-xs">
                     <thead className="sticky top-0 z-20 bg-[#D8ECFF] text-[#0B4EA2]">
                       <tr className="border-b border-[#2F80ED]/25 uppercase tracking-wide">
+                        <th className="px-3 py-2 text-left font-black">Sem</th>
                         <th className="px-3 py-2 text-left font-black">Material</th>
                         <th className="px-3 py-2 text-left font-black">Texto breve</th>
                         <th className="px-3 py-2 text-left font-black">Seccion</th>
@@ -751,36 +777,25 @@ export default function VariacionModule() {
                         <th className="px-3 py-2 text-right font-black">Movimiento</th>
                         <th className="px-3 py-2 text-right font-black">Consumo</th>
                         <th className="px-3 py-2 text-right font-black">Por explicar</th>
-                        {semanasVisibles.map((sem) => (
-                          <th key={`detalle-head-${sem}`} className="px-3 py-2 text-right font-black">{sem}</th>
-                        ))}
                         <th className="px-3 py-2 text-left font-black">Diagnostico</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {materialesSkuPlanFiltrados.map((row) => (
-                        <tr key={`sku-detail-${row.codigo}`} className="border-b border-slate-100">
-                          <td className="px-3 py-2 font-black text-slate-950">{row.codigo}</td>
-                          <td className="px-3 py-2 font-semibold text-slate-700">{row.material}</td>
-                          <td className="px-3 py-2 font-semibold text-slate-500">{row.seccion || "-"}</td>
-                          <td className="px-3 py-2 text-right font-semibold">{formatoNumero(row.planAnterior)}</td>
-                          <td className="px-3 py-2 text-right font-semibold">{formatoNumero(row.planActual)}</td>
-                          <td className={`px-3 py-2 text-right font-black ${row.movimientoPlan < 0 ? "text-emerald-700" : row.movimientoPlan > 0 ? "text-[#e30613]" : "text-slate-500"}`}>{formatoNumero(row.movimientoPlan)}</td>
-                          <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">{formatoNumero(row.consumoNotificado)}</td>
-                          <td className={`px-3 py-2 text-right font-black ${Math.abs(row.diferenciaPorExplicar) > 0 ? "text-[#e30613]" : "text-emerald-700"}`}>{formatoNumero(row.diferenciaPorExplicar)}</td>
-                          {semanasVisibles.map((sem) => {
-                            const dato = row.semanas.find((item) => item.semana === sem);
-                            const movimiento = dato?.movimiento || 0;
-                            return (
-                              <td key={`${row.codigo}-detalle-${sem}`} className={`px-3 py-2 text-right font-black ${movimiento > 0 ? "text-[#e30613]" : movimiento < 0 ? "text-emerald-700" : "text-slate-500"}`}>
-                                {formatoNumero(movimiento)}
-                              </td>
-                            );
-                          })}
-                          <td className="px-3 py-2"><DiagnosticoBadge diagnostico={row.diagnostico} /></td>
+                      {detalleSemanalFiltrado.map((item) => (
+                        <tr key={`sku-detail-${item.row.codigo}-${item.semana}`} className="border-b border-slate-100">
+                          <td className="px-3 py-2 font-black text-[#0B4EA2]">{item.semana}</td>
+                          <td className="px-3 py-2 font-black text-slate-950">{item.row.codigo}</td>
+                          <td className="px-3 py-2 font-semibold text-slate-700">{item.row.material}</td>
+                          <td className="px-3 py-2 font-semibold text-slate-500">{item.row.seccion || "-"}</td>
+                          <td className="px-3 py-2 text-right font-semibold">{formatoNumero(item.anterior)}</td>
+                          <td className="px-3 py-2 text-right font-semibold">{formatoNumero(item.actual)}</td>
+                          <td className={`px-3 py-2 text-right font-black ${item.movimiento < 0 ? "text-emerald-700" : item.movimiento > 0 ? "text-[#e30613]" : "text-slate-500"}`}>{formatoNumero(item.movimiento)}</td>
+                          <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">{formatoNumero(item.row.consumoNotificado)}</td>
+                          <td className={`px-3 py-2 text-right font-black ${Math.abs(item.row.diferenciaPorExplicar) > 0 ? "text-[#e30613]" : "text-emerald-700"}`}>{formatoNumero(item.row.diferenciaPorExplicar)}</td>
+                          <td className="px-3 py-2"><DiagnosticoBadge diagnostico={item.row.diagnostico} /></td>
                         </tr>
                       ))}
-                      {materialesSkuPlanFiltrados.length === 0 && (
+                      {detalleSemanalFiltrado.length === 0 && (
                         <tr>
                           <td colSpan={999} className="px-4 py-8 text-center text-sm font-semibold text-slate-500">
                             No hay materiales asociados con esos filtros.
