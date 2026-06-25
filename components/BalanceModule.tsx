@@ -32,6 +32,7 @@ type ColumnVisibility = {
   totalExistencia: boolean;
   diferenciaTotal: boolean;
   diferenciasSemana: boolean;
+  alcanceDias: boolean;
   estado: boolean;
 };
 
@@ -146,6 +147,7 @@ function crearVisibilidadInicial(almacenes: string[]): ColumnVisibility {
     totalExistencia: true,
     diferenciaTotal: true,
     diferenciasSemana: true,
+    alcanceDias: true,
     estado: true,
   };
 }
@@ -238,6 +240,7 @@ export default function BalanceModule({
       totalExistencia: true,
       diferenciaTotal: true,
       diferenciasSemana: true,
+      alcanceDias: true,
       estado: true,
     });
   }
@@ -421,6 +424,32 @@ export default function BalanceModule({
     return row.totalExistencia - totalNecesidadSeleccionada(row);
   }
 
+  function alcanceDiasInventario(row: BalanceRow) {
+    const necesidad = totalNecesidadSeleccionada(row);
+    const inventario = row.totalExistencia || 0;
+
+    if (inventario <= 0) return "0";
+    if (necesidad <= 0) return ">6 meses";
+
+    const diasHorizonte = Math.max(semanasActivas.length, 1) * 7;
+    const dias = (inventario * diasHorizonte) / necesidad;
+
+    if (!Number.isFinite(dias)) return "0";
+    if (dias > 180) return ">6 meses";
+
+    return formatoNumero(dias);
+  }
+
+  function alcanceDiasOrden(row: BalanceRow) {
+    const necesidad = totalNecesidadSeleccionada(row);
+    const inventario = row.totalExistencia || 0;
+
+    if (inventario <= 0) return 0;
+    if (necesidad <= 0) return 181;
+
+    return (inventario * Math.max(semanasActivas.length, 1) * 7) / necesidad;
+  }
+
   function estadoSeleccionado(row: BalanceRow): EstadoAnalisis {
     const necesidad = totalNecesidadSeleccionada(row);
     const diferencia = diferenciaSeleccionada(row);
@@ -490,6 +519,8 @@ export default function BalanceModule({
         return row.totalExistencia;
       case "diferenciaTotal":
         return diferenciaSeleccionada(row);
+      case "alcanceDias":
+        return alcanceDiasOrden(row);
       case "estado":
         return estadoSeleccionado(row);
       default:
@@ -704,6 +735,10 @@ export default function BalanceModule({
 
       if (visibilidad.diferenciaTotal) {
         base["Diferencia total"] = diferenciaSeleccionada(row);
+      }
+
+      if (visibilidad.alcanceDias) {
+        base["Alcance dias inventario"] = alcanceDiasInventario(row);
       }
 
       if (visibilidad.diferenciasSemana) {
@@ -1199,6 +1234,11 @@ export default function BalanceModule({
                   onClick={() => toggleCampo("diferenciasSemana")}
                 />
                 <Toggle
+                  label="Alcance dias"
+                  checked={visibilidad.alcanceDias}
+                  onClick={() => toggleCampo("alcanceDias")}
+                />
+                <Toggle
                   label="Estado"
                   checked={visibilidad.estado}
                   onClick={() => toggleCampo("estado")}
@@ -1364,6 +1404,16 @@ export default function BalanceModule({
                       />
                     )}
 
+                    {visibilidad.alcanceDias && (
+                      <SortHeader
+                        label="Alcance dias"
+                        sortKey="alcanceDias"
+                        orden={orden}
+                        onSort={ordenarPor}
+                        align="right"
+                      />
+                    )}
+
                     {visibilidad.diferenciasSemana &&
                       semanasActivas.map((sem) => (
                         <SortHeader
@@ -1483,6 +1533,12 @@ export default function BalanceModule({
                           }`}
                         >
                           {formatoNumero(diferenciaSeleccionada(row))}
+                        </td>
+                      )}
+
+                      {visibilidad.alcanceDias && (
+                        <td className="px-2.5 py-1.5 text-right font-black text-[#0B4EA2]">
+                          {alcanceDiasInventario(row)}
                         </td>
                       )}
 
@@ -1619,6 +1675,11 @@ export default function BalanceModule({
                   tone={diferenciaSeleccionada(filaSeleccionada) < 0 ? "danger" : "success"}
                 />
                 <DetalleCard
+                  label="Alcance dias"
+                  value={alcanceDiasInventario(filaSeleccionada)}
+                  tone="neutral"
+                />
+                <DetalleCard
                   label="Estado"
                   value={estadoSeleccionado(filaSeleccionada)}
                   tone={estadoTone(estadoSeleccionado(filaSeleccionada))}
@@ -1654,6 +1715,7 @@ export default function BalanceModule({
                           </th>
                         ))}
                         <th className="px-2.5 py-2 text-right font-black">Diferencia</th>
+                        <th className="px-2.5 py-2 text-right font-black">Alcance dias</th>
                         {semanasActivas.map((sem) => (
                           <th key={`res-dif-${sem}`} className="px-2.5 py-2 text-right font-black">
                             Dif. {sem}
@@ -1694,6 +1756,9 @@ export default function BalanceModule({
                           }`}
                         >
                           {formatoNumero(diferenciaSeleccionada(filaSeleccionada))}
+                        </td>
+                        <td className="px-2.5 py-2 text-right font-black text-[#0B4EA2]">
+                          {alcanceDiasInventario(filaSeleccionada)}
                         </td>
                         {semanasActivas.map((sem) => {
                           const diferencia = filaSeleccionada.diferenciasPorSemana[sem] || 0;

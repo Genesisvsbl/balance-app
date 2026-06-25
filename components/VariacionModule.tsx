@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatoNumero } from "@/lib/format";
 import { obtenerCargas } from "@/lib/storage";
-import { SavedLoad } from "@/types/balance";
+import { BalanceRow, SavedLoad, SkuProduccion } from "@/types/balance";
 
 type Diagnostico =
   | "AUMENTO DE PLAN"
@@ -13,6 +13,113 @@ type Diagnostico =
   | "NUEVO MATERIAL"
   | "MATERIAL RETIRADO"
   | "SIN CAMBIO";
+
+function normalizarBusqueda(valor: string) {
+  return valor
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function normalizarClave(valor: string) {
+  return normalizarBusqueda(valor).replace(/[^a-z0-9]/g, "");
+}
+
+function obtenerValorFila(fila: Record<string, any>, nombres: string[]) {
+  for (const nombre of nombres) {
+    const objetivo = normalizarClave(nombre);
+    const key = Object.keys(fila || {}).find(
+      (columna) =>
+        normalizarClave(columna) === objetivo &&
+        fila[columna] !== undefined &&
+        fila[columna] !== ""
+    );
+
+    if (key) return fila[key];
+  }
+
+  return "";
+}
+
+function obtenerHojaCarga(carga: SavedLoad | undefined, nombres: string[]) {
+  const objetivos = nombres.map(normalizarClave);
+  return (
+    Object.entries(carga?.datos || {}).find(([nombre]) =>
+      objetivos.includes(normalizarClave(nombre))
+    )?.[1] || null
+  );
+}
+
+function construirSkusPorComponente(carga: SavedLoad | undefined) {
+  const hojaPlan = obtenerHojaCarga(carga, ["Plan"]);
+  const hojaReceta = obtenerHojaCarga(carga, ["Receta"]);
+  const skusPlan = new Map<string, SkuProduccion>();
+  const mapa = new Map<string, SkuProduccion[]>();
+
+  (hojaPlan?.datos || []).forEach((fila: Record<string, any>) => {
+    const codigo = String(
+      obtenerValorFila(fila, ["SAP", "Codigo SAP", "Código SAP"])
+    ).trim();
+    const descripcion = String(
+      obtenerValorFila(fila, ["SKU", "Descripcion SKU", "Descripción SKU"])
+    ).trim();
+
+    if (codigo && !skusPlan.has(codigo)) {
+      skusPlan.set(codigo, { codigo, descripcion: descripcion || codigo });
+    }
+  });
+
+  (hojaReceta?.datos || []).forEach((fila: Record<string, any>) => {
+    const codigoSku = String(
+      obtenerValorFila(fila, ["Codigo", "Código", "SAP", "Material padre"])
+    ).trim();
+    const componente = String(
+      obtenerValorFila(fila, [
+        "N° componente",
+        "Nº componente",
+        "No componente",
+        "N componente",
+        "Componente",
+      ])
+    ).trim();
+    const sku = skusPlan.get(codigoSku);
+
+    if (!sku || !componente) return;
+
+    const lista = mapa.get(componente) || [];
+    if (!lista.some((item) => item.codigo === sku.codigo)) {
+      lista.push(sku);
+      mapa.set(componente, lista);
+    }
+  });
+
+  return mapa;
+}
+
+function toggleLista<T extends string>(
+  valor: T,
+  setter: (updater: (actual: T[]) => T[]) => void
+) {
+  setter((actual) =>
+    actual.includes(valor)
+      ? actual.filter((item) => item !== valor)
+      : [...actual, valor]
+  );
+}
+
+function unirSkusProduccion(...filas: (BalanceRow | undefined)[]) {
+  const mapa = new Map<string, SkuProduccion>();
+
+  filas.forEach((fila) => {
+    (fila?.skusProduccion || []).forEach((sku) => {
+      if (!sku.codigo) return;
+      if (!mapa.has(sku.codigo)) mapa.set(sku.codigo, sku);
+    });
+  });
+
+  return Array.from(mapa.values());
+}
 
 type VariacionRow = {
   codigo: string;
@@ -25,6 +132,7 @@ type VariacionRow = {
   consumoNotificado: number;
   diferenciaPorExplicar: number;
   diagnostico: Diagnostico;
+  skusProduccion: SkuProduccion[];
   semanas: {
     semana: string;
     anterior: number;
@@ -38,8 +146,13 @@ export default function VariacionModule() {
   const [cargaAntesId, setCargaAntesId] = useState("");
   const [cargaAhoraId, setCargaAhoraId] = useState("");
   const [busqueda, setBusqueda] = useState("");
-  const [filtroDiagnostico, setFiltroDiagnostico] = useState("TODOS");
-  const [filtroSeccion, setFiltroSeccion] = useState("TODAS");
+  const [filtrosDiagnostico, setFiltrosDiagnostico] = useState<Diagnostico[]>([]);
+  const [filtrosSeccion, setFiltrosSeccion] = useState<string[]>([]);
+  const [filtrosSemana, setFiltrosSemana] = useState<string[]>([]);
+  const [filtrosSkuPlan, setFiltrosSkuPlan] = useState<string[]>([]);
+  const [busquedaDetalleSku, setBusquedaDetalleSku] = useState("");
+  const [filtrosDetalleSeccion, setFiltrosDetalleSeccion] = useState<string[]>([]);
+  const [filtrosDetalleSemana, setFiltrosDetalleSemana] = useState<string[]>([]);
   const [soloPorExplicar, setSoloPorExplicar] = useState(false);
   const [materialSeleccionado, setMaterialSeleccionado] = useState("");
 
@@ -69,6 +182,8 @@ export default function VariacionModule() {
       ])
     );
     const codigos = new Set([...mapaAntes.keys(), ...mapaAhora.keys()]);
+    const skusPorComponenteAntes = construirSkusPorComponente(cargaAntes);
+    const skusPorComponenteAhora = construirSkusPorComponente(cargaAhora);
 
     return Array.from(codigos)
       .map((codigo) => {
@@ -112,6 +227,15 @@ export default function VariacionModule() {
           consumoNotificado,
           diferenciaPorExplicar,
           diagnostico,
+          skusProduccion: [
+            ...unirSkusProduccion(antes, ahora),
+            ...(skusPorComponenteAntes.get(codigo) || []),
+            ...(skusPorComponenteAhora.get(codigo) || []),
+          ].filter(
+            (sku, index, lista) =>
+              sku.codigo &&
+              lista.findIndex((item) => item.codigo === sku.codigo) === index
+          ),
           semanas: semanas.map((semana) => {
             const anterior = antes?.necesidadesPorSemana[semana] || 0;
             const actual = ahora?.necesidadesPorSemana[semana] || 0;
@@ -147,26 +271,87 @@ export default function VariacionModule() {
   const secciones = Array.from(
     new Set(variaciones.map((v) => v.seccion).filter(Boolean))
   ).sort();
+  const semanasDisponibles = Array.from(
+    new Set(variaciones.flatMap((v) => v.semanas.map((sem) => sem.semana)))
+  ).sort((a, b) => a.localeCompare(b, "es", { numeric: true }));
+  const skuPlanOpciones = Array.from(
+    new Map(
+      [
+        ...(cargaAntes?.info?.skusProduccionDetectados || []),
+        ...(cargaAhora?.info?.skusProduccionDetectados || []),
+        ...variaciones.flatMap((v) => v.skusProduccion),
+      ]
+        .filter((sku) => sku.codigo)
+        .map((sku) => [sku.codigo, sku])
+    ).values()
+  ).sort((a, b) => a.codigo.localeCompare(b.codigo, "es", { numeric: true }));
 
   const variacionesFiltradas = variaciones.filter((row) => {
-    const texto = busqueda.toLowerCase().trim();
+    const texto = normalizarBusqueda(busqueda);
     const coincideTexto =
       !texto ||
-      row.codigo.toLowerCase().includes(texto) ||
-      row.material.toLowerCase().includes(texto) ||
-      row.seccion.toLowerCase().includes(texto);
+      normalizarBusqueda(row.codigo).includes(texto) ||
+      normalizarBusqueda(row.material).includes(texto) ||
+      normalizarBusqueda(row.seccion).includes(texto) ||
+      row.skusProduccion.some(
+        (sku) =>
+          normalizarBusqueda(sku.codigo).includes(texto) ||
+          normalizarBusqueda(sku.descripcion).includes(texto)
+      );
     const coincideDiagnostico =
-      filtroDiagnostico === "TODOS" || row.diagnostico === filtroDiagnostico;
+      filtrosDiagnostico.length === 0 || filtrosDiagnostico.includes(row.diagnostico);
     const coincideSeccion =
-      filtroSeccion === "TODAS" || row.seccion === filtroSeccion;
+      filtrosSeccion.length === 0 || filtrosSeccion.includes(row.seccion);
+    const coincideSemana =
+      filtrosSemana.length === 0 ||
+      row.semanas.some(
+        (sem) =>
+          filtrosSemana.includes(sem.semana) &&
+          (sem.anterior !== 0 || sem.actual !== 0 || sem.movimiento !== 0)
+      );
+    const coincideSkuPlan =
+      filtrosSkuPlan.length === 0 ||
+      row.skusProduccion.some((sku) => filtrosSkuPlan.includes(sku.codigo));
     const coincideExplicar =
       !soloPorExplicar ||
       row.diagnostico === "REDUCCION NO EXPLICADA" ||
       row.diagnostico === "CONSUMO MAYOR A REDUCCION";
 
     return (
-      coincideTexto && coincideDiagnostico && coincideSeccion && coincideExplicar
+      coincideTexto &&
+      coincideDiagnostico &&
+      coincideSeccion &&
+      coincideSemana &&
+      coincideSkuPlan &&
+      coincideExplicar
     );
+  });
+
+  const materialesSkuPlan = variaciones.filter((row) =>
+    row.skusProduccion.some((sku) => filtrosSkuPlan.includes(sku.codigo))
+  );
+  const seccionesDetalleSku = Array.from(
+    new Set(materialesSkuPlan.map((row) => row.seccion).filter(Boolean))
+  ).sort();
+  const materialesSkuPlanFiltrados = materialesSkuPlan.filter((row) => {
+    const texto = normalizarBusqueda(busquedaDetalleSku);
+    const coincideTexto =
+      !texto ||
+      normalizarBusqueda(row.codigo).includes(texto) ||
+      normalizarBusqueda(row.material).includes(texto) ||
+      normalizarBusqueda(row.seccion).includes(texto);
+    const coincideSeccion =
+      filtrosDetalleSeccion.length === 0 ||
+      filtrosDetalleSeccion.includes(row.seccion);
+    const coincideSemana =
+      filtrosDetalleSemana.length === 0 ||
+      row.semanas.some(
+        (sem) =>
+          filtrosDetalleSemana.includes(sem.semana) &&
+          (sem.anterior !== 0 || sem.actual !== 0 || sem.movimiento !== 0)
+      );
+
+    return coincideTexto && coincideSeccion && coincideSemana;
   });
 
   const seleccionado = variaciones.find(
@@ -319,35 +504,44 @@ export default function VariacionModule() {
                 <input
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
-                  placeholder="Buscar material, texto breve, seccion..."
+                  placeholder="Buscar material, texto breve, seccion o SAP..."
                   className="h-11 min-w-[280px] rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#0057B8] focus:ring-4 focus:ring-[#0057B8]/10"
                 />
 
-                <select
-                  value={filtroDiagnostico}
-                  onChange={(e) => setFiltroDiagnostico(e.target.value)}
-                  className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#0057B8]"
-                >
-                  <option value="TODOS">Todos los diagnosticos</option>
-                  {diagnosticos.map((diag) => (
-                    <option key={diag} value={diag}>
-                      {diag}
-                    </option>
-                  ))}
-                </select>
+                <MultiSelectFiltro
+                  label="Semanas"
+                  opciones={semanasDisponibles}
+                  seleccionadas={filtrosSemana}
+                  onToggle={(valor) => toggleLista(valor, setFiltrosSemana)}
+                  renderOpcion={(valor) => valor}
+                />
 
-                <select
-                  value={filtroSeccion}
-                  onChange={(e) => setFiltroSeccion(e.target.value)}
-                  className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-[#0057B8]"
-                >
-                  <option value="TODAS">Todas las secciones</option>
-                  {secciones.map((seccion) => (
-                    <option key={seccion} value={seccion}>
-                      {seccion}
-                    </option>
-                  ))}
-                </select>
+                <MultiSelectFiltro
+                  label="SAP del Plan"
+                  opciones={skuPlanOpciones.map((sku) => sku.codigo)}
+                  seleccionadas={filtrosSkuPlan}
+                  onToggle={(valor) => toggleLista(valor, setFiltrosSkuPlan)}
+                  renderOpcion={(valor) => {
+                    const sku = skuPlanOpciones.find((item) => item.codigo === valor);
+                    return sku ? `${sku.codigo} - ${sku.descripcion}` : valor;
+                  }}
+                />
+
+                <MultiSelectFiltro
+                  label="Secciones"
+                  opciones={secciones}
+                  seleccionadas={filtrosSeccion}
+                  onToggle={(valor) => toggleLista(valor, setFiltrosSeccion)}
+                  renderOpcion={(valor) => valor}
+                />
+
+                <MultiSelectFiltro
+                  label="Diagnosticos"
+                  opciones={diagnosticos}
+                  seleccionadas={filtrosDiagnostico}
+                  onToggle={(valor) => toggleLista(valor, setFiltrosDiagnostico)}
+                  renderOpcion={(valor) => valor}
+                />
 
                 <button
                   onClick={() => setSoloPorExplicar(!soloPorExplicar)}
@@ -363,8 +557,13 @@ export default function VariacionModule() {
                 <button
                   onClick={() => {
                     setBusqueda("");
-                    setFiltroDiagnostico("TODOS");
-                    setFiltroSeccion("TODAS");
+                    setFiltrosDiagnostico([]);
+                    setFiltrosSeccion([]);
+                    setFiltrosSemana([]);
+                    setFiltrosSkuPlan([]);
+                    setBusquedaDetalleSku("");
+                    setFiltrosDetalleSeccion([]);
+                    setFiltrosDetalleSemana([]);
                     setSoloPorExplicar(false);
                   }}
                   className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50"
@@ -373,6 +572,114 @@ export default function VariacionModule() {
                 </button>
               </div>
             </div>
+
+            {filtrosSkuPlan.length > 0 && (
+              <div className="mt-5 rounded-2xl border border-[#2F80ED]/25 bg-[#EAF4FF] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-wide text-[#0B4EA2]">
+                      Toolbox SAP del Plan
+                    </p>
+                    <h5 className="mt-1 text-base font-black text-slate-950">
+                      Materiales asociados por receta
+                    </h5>
+                    <p className="mt-1 text-xs font-semibold text-slate-600">
+                      {filtrosSkuPlan.length} SAP seleccionados - {materialesSkuPlanFiltrados.length} materiales visibles.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setFiltrosSkuPlan([])}
+                    className="rounded-xl border border-[#2F80ED]/50 bg-white px-4 py-2 text-xs font-black text-[#0B4EA2] hover:bg-[#D8ECFF]"
+                  >
+                    Ver todas las variaciones
+                  </button>
+                </div>
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+                  <input
+                    value={busquedaDetalleSku}
+                    onChange={(e) => setBusquedaDetalleSku(e.target.value)}
+                    placeholder="Buscar material asociado..."
+                    className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[#0057B8]"
+                  />
+                  <MultiSelectFiltro
+                    label="Semanas"
+                    opciones={semanasDisponibles}
+                    seleccionadas={filtrosDetalleSemana}
+                    onToggle={(valor) => toggleLista(valor, setFiltrosDetalleSemana)}
+                    renderOpcion={(valor) => valor}
+                  />
+                  <MultiSelectFiltro
+                    label="Secciones"
+                    opciones={seccionesDetalleSku}
+                    seleccionadas={filtrosDetalleSeccion}
+                    onToggle={(valor) => toggleLista(valor, setFiltrosDetalleSeccion)}
+                    renderOpcion={(valor) => valor}
+                  />
+                  <button
+                    onClick={() => {
+                      setBusquedaDetalleSku("");
+                      setFiltrosDetalleSemana([]);
+                      setFiltrosDetalleSeccion([]);
+                    }}
+                    className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-700 hover:bg-slate-50"
+                  >
+                    Limpiar toolbox
+                  </button>
+                </div>
+                <div className="mt-4 overflow-hidden rounded-xl border border-[#2F80ED]/25 bg-white">
+                  <div className="max-h-[360px] overflow-auto">
+                    <table className="w-full min-w-[1120px] border-collapse text-xs">
+                      <thead className="sticky top-0 z-20 bg-[#D8ECFF] text-[#0B4EA2]">
+                        <tr className="border-b border-[#2F80ED]/25 uppercase">
+                          <th className="px-3 py-2 text-left font-black">Material</th>
+                          <th className="px-3 py-2 text-left font-black">Texto breve</th>
+                          <th className="px-3 py-2 text-left font-black">Seccion</th>
+                          <th className="px-3 py-2 text-left font-black">SAP asociado</th>
+                          <th className="px-3 py-2 text-right font-black">Plan anterior</th>
+                          <th className="px-3 py-2 text-right font-black">Plan actual</th>
+                          <th className="px-3 py-2 text-right font-black">Movimiento</th>
+                          <th className="px-3 py-2 text-left font-black">Semanas</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {materialesSkuPlanFiltrados.map((row) => (
+                          <tr key={`sku-detail-${row.codigo}`} className="border-b border-slate-100">
+                            <td className="px-3 py-2 font-black text-slate-950">{row.codigo}</td>
+                            <td className="px-3 py-2 font-semibold text-slate-700">{row.material}</td>
+                            <td className="px-3 py-2 font-semibold text-slate-500">{row.seccion || "-"}</td>
+                            <td className="px-3 py-2 font-black text-[#0B4EA2]">
+                              {row.skusProduccion
+                                .filter((sku) => filtrosSkuPlan.includes(sku.codigo))
+                                .map((sku) => sku.codigo)
+                                .join(", ")}
+                            </td>
+                            <td className="px-3 py-2 text-right font-semibold">{formatoNumero(row.planAnterior)}</td>
+                            <td className="px-3 py-2 text-right font-semibold">{formatoNumero(row.planActual)}</td>
+                            <td className={`px-3 py-2 text-right font-black ${row.movimientoPlan < 0 ? "text-emerald-700" : row.movimientoPlan > 0 ? "text-[#e30613]" : "text-slate-500"}`}>
+                              {formatoNumero(row.movimientoPlan)}
+                            </td>
+                            <td className="px-3 py-2 font-semibold text-slate-600">
+                              {row.semanas
+                                .filter((sem) => filtrosDetalleSemana.length === 0 || filtrosDetalleSemana.includes(sem.semana))
+                                .filter((sem) => sem.anterior !== 0 || sem.actual !== 0 || sem.movimiento !== 0)
+                                .map((sem) => sem.semana)
+                                .join(", ") || "-"}
+                            </td>
+                          </tr>
+                        ))}
+                        {materialesSkuPlanFiltrados.length === 0 && (
+                          <tr>
+                            <td colSpan={999} className="px-4 py-8 text-center text-sm font-semibold text-slate-500">
+                              No hay materiales asociados con esos filtros.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
               <div className="max-h-[620px] overflow-auto">
@@ -622,6 +929,76 @@ function Kpi({
     <div className={`rounded-2xl border ${border} bg-white p-5 shadow-sm`}>
       <p className="text-sm font-semibold text-slate-500">{titulo}</p>
       <p className={`mt-1 text-2xl font-black ${color}`}>{valor}</p>
+    </div>
+  );
+}
+
+
+function MultiSelectFiltro<T extends string>({
+  label,
+  opciones,
+  seleccionadas,
+  onToggle,
+  renderOpcion,
+}: {
+  label: string;
+  opciones: T[];
+  seleccionadas: T[];
+  onToggle: (value: T) => void;
+  renderOpcion: (value: T) => string;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
+  const texto = normalizarBusqueda(busqueda);
+  const opcionesFiltradas = opciones.filter((opcion) =>
+    normalizarBusqueda(renderOpcion(opcion)).includes(texto)
+  );
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setAbierto((actual) => !actual)}
+        className="flex h-11 w-full items-center justify-between gap-2 rounded-xl border border-slate-300 bg-white px-4 text-left text-sm font-black text-slate-700 outline-none transition hover:bg-slate-50 focus:border-[#0057B8]"
+      >
+        <span className="truncate">
+          {seleccionadas.length > 0 ? `${seleccionadas.length} ${label.toLowerCase()}` : label}
+        </span>
+        <span className="text-slate-400">▾</span>
+      </button>
+      {abierto && (
+        <div className="absolute left-0 right-0 top-[48px] z-40 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+          <div className="border-b border-slate-100 p-2">
+            <input
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar..."
+              className="h-9 w-full rounded-lg border border-slate-300 px-3 text-xs font-semibold outline-none focus:border-[#0057B8]"
+            />
+          </div>
+          <div className="max-h-56 overflow-auto p-2">
+            {opcionesFiltradas.map((opcion) => (
+              <label
+                key={opcion}
+                className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-700 hover:bg-[#EAF4FF]"
+              >
+                <input
+                  type="checkbox"
+                  checked={seleccionadas.includes(opcion)}
+                  onChange={() => onToggle(opcion)}
+                  className="mt-0.5"
+                />
+                <span className="min-w-0 break-words">{renderOpcion(opcion)}</span>
+              </label>
+            ))}
+            {opcionesFiltradas.length === 0 && (
+              <p className="px-2 py-3 text-xs font-semibold text-slate-500">
+                Sin opciones.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
