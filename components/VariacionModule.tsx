@@ -480,38 +480,44 @@ export default function VariacionModule() {
     return coincideTexto && coincideSeccion && coincideSemana;
   });
 
-  const materialesDetalleDinamicos = materialesSkuPlanFiltrados
-    .map((row) => {
-      const datosSemana = row.semanas.filter((item) =>
-        semanasDetalleVisibles.includes(item.semana)
-      );
-      const planAnterior = datosSemana.reduce((acc, item) => acc + item.anterior, 0);
-      const planActual = datosSemana.reduce((acc, item) => acc + item.actual, 0);
-      const movimientoPlan = planActual - planAnterior;
-      const reduccionPlan = Math.max(planAnterior - planActual, 0);
-      const diferenciaPorExplicar =
-        reduccionPlan > 0 ? reduccionPlan - row.consumoNotificado : movimientoPlan;
+  const detallePorSemana = semanasDetalleVisibles
+    .map((semana) => {
+      const materiales = materialesSkuPlanFiltrados
+        .map((row) => {
+          const dato = row.semanas.find((item) => item.semana === semana);
+          const planAnterior = dato?.anterior || 0;
+          const planActual = dato?.actual || 0;
+          const movimientoPlan = dato?.movimiento || planActual - planAnterior;
+          const reduccionPlan = Math.max(planAnterior - planActual, 0);
+          const diferenciaPorExplicar =
+            reduccionPlan > 0
+              ? reduccionPlan - row.consumoNotificado
+              : movimientoPlan;
 
-      return {
-        ...row,
-        planAnterior,
-        planActual,
-        movimientoPlan,
-        reduccionPlan,
-        diferenciaPorExplicar,
-        diagnostico: diagnosticoDesdeValores(
-          planAnterior,
-          planActual,
-          row.consumoNotificado
-        ),
-      };
+          return {
+            ...row,
+            planAnterior,
+            planActual,
+            movimientoPlan,
+            reduccionPlan,
+            diferenciaPorExplicar,
+            diagnostico: diagnosticoDesdeValores(
+              planAnterior,
+              planActual,
+              row.consumoNotificado
+            ),
+          };
+        })
+        .filter(
+          (row) =>
+            row.planAnterior !== 0 ||
+            row.planActual !== 0 ||
+            row.movimientoPlan !== 0
+        );
+
+      return { semana, materiales };
     })
-    .filter(
-      (row) =>
-        row.planAnterior !== 0 ||
-        row.planActual !== 0 ||
-        row.movimientoPlan !== 0
-    );
+    .filter((grupo) => grupo.materiales.length > 0);
 
   const resumen = {
     aumentos: variacionesSku.filter((v) => v.diagnostico === "AUMENTO DE PLAN").length,
@@ -771,46 +777,59 @@ export default function VariacionModule() {
                 ))}
               </div>
 
-              <div className="mt-4 overflow-hidden rounded-2xl border border-white/70 bg-white">
-                <div className="max-h-[420px] overflow-auto">
-                  <table className="w-full min-w-[1120px] border-collapse text-xs">
-                    <thead className="sticky top-0 z-20 bg-[#D8ECFF] text-[#0B4EA2]">
-                      <tr className="border-b border-[#2F80ED]/25 uppercase tracking-wide">
-                        <th className="px-3 py-2 text-left font-black">Material</th>
-                        <th className="px-3 py-2 text-left font-black">Texto breve</th>
-                        <th className="px-3 py-2 text-left font-black">Seccion</th>
-                        <th className="px-3 py-2 text-right font-black">Plan anterior</th>
-                        <th className="px-3 py-2 text-right font-black">Plan actual</th>
-                        <th className="px-3 py-2 text-right font-black">Movimiento</th>
-                        <th className="px-3 py-2 text-right font-black">Consumo</th>
-                        <th className="px-3 py-2 text-right font-black">Por explicar</th>
-                        <th className="px-3 py-2 text-left font-black">Diagnostico</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {materialesDetalleDinamicos.map((row) => (
-                        <tr key={`sku-detail-${row.codigo}`} className="border-b border-slate-100">
-                          <td className="px-3 py-2 font-black text-slate-950">{row.codigo}</td>
-                          <td className="px-3 py-2 font-semibold text-slate-700">{row.material}</td>
-                          <td className="px-3 py-2 font-semibold text-slate-500">{row.seccion || "-"}</td>
-                          <td className="px-3 py-2 text-right font-semibold">{formatoNumero(row.planAnterior)}</td>
-                          <td className="px-3 py-2 text-right font-semibold">{formatoNumero(row.planActual)}</td>
-                          <td className={`px-3 py-2 text-right font-black ${row.movimientoPlan < 0 ? "text-emerald-700" : row.movimientoPlan > 0 ? "text-[#e30613]" : "text-slate-500"}`}>{formatoNumero(row.movimientoPlan)}</td>
-                          <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">{formatoNumero(row.consumoNotificado)}</td>
-                          <td className={`px-3 py-2 text-right font-black ${Math.abs(row.diferenciaPorExplicar) > 0 ? "text-[#e30613]" : "text-emerald-700"}`}>{formatoNumero(row.diferenciaPorExplicar)}</td>
-                          <td className="px-3 py-2"><DiagnosticoBadge diagnostico={row.diagnostico} /></td>
-                        </tr>
-                      ))}
-                      {materialesDetalleDinamicos.length === 0 && (
-                        <tr>
-                          <td colSpan={999} className="px-4 py-8 text-center text-sm font-semibold text-slate-500">
-                            No hay materiales asociados con esos filtros.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+              <div className="mt-4 space-y-4">
+                {detallePorSemana.map((grupo) => (
+                  <div key={`detalle-grupo-${grupo.semana}`} className="overflow-hidden rounded-2xl border border-white/70 bg-white">
+                    <div className="flex items-center justify-between border-b border-[#2F80ED]/20 bg-[#D8ECFF] px-4 py-3">
+                      <div>
+                        <h5 className="text-sm font-black text-slate-950">{grupo.semana}</h5>
+                        <p className="text-xs font-semibold text-slate-600">
+                          {grupo.materiales.length} materiales asociados visibles.
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-[#2F80ED]/30 bg-white px-3 py-1 text-xs font-black text-[#0B4EA2]">
+                        {grupo.materiales.length} SKU
+                      </span>
+                    </div>
+                    <div className="max-h-[320px] overflow-auto">
+                      <table className="w-full min-w-[1120px] border-collapse text-xs">
+                        <thead className="sticky top-0 z-20 bg-[#EAF4FF] text-[#0B4EA2]">
+                          <tr className="border-b border-[#2F80ED]/25 uppercase tracking-wide">
+                            <th className="px-3 py-2 text-left font-black">Material</th>
+                            <th className="px-3 py-2 text-left font-black">Texto breve</th>
+                            <th className="px-3 py-2 text-left font-black">Seccion</th>
+                            <th className="px-3 py-2 text-right font-black">Plan anterior</th>
+                            <th className="px-3 py-2 text-right font-black">Plan actual</th>
+                            <th className="px-3 py-2 text-right font-black">Movimiento</th>
+                            <th className="px-3 py-2 text-right font-black">Consumo</th>
+                            <th className="px-3 py-2 text-right font-black">Por explicar</th>
+                            <th className="px-3 py-2 text-left font-black">Diagnostico</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {grupo.materiales.map((row) => (
+                            <tr key={`sku-detail-${grupo.semana}-${row.codigo}`} className="border-b border-slate-100">
+                              <td className="px-3 py-2 font-black text-slate-950">{row.codigo}</td>
+                              <td className="px-3 py-2 font-semibold text-slate-700">{row.material}</td>
+                              <td className="px-3 py-2 font-semibold text-slate-500">{row.seccion || "-"}</td>
+                              <td className="px-3 py-2 text-right font-semibold">{formatoNumero(row.planAnterior)}</td>
+                              <td className="px-3 py-2 text-right font-semibold">{formatoNumero(row.planActual)}</td>
+                              <td className={`px-3 py-2 text-right font-black ${row.movimientoPlan < 0 ? "text-emerald-700" : row.movimientoPlan > 0 ? "text-[#e30613]" : "text-slate-500"}`}>{formatoNumero(row.movimientoPlan)}</td>
+                              <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">{formatoNumero(row.consumoNotificado)}</td>
+                              <td className={`px-3 py-2 text-right font-black ${Math.abs(row.diferenciaPorExplicar) > 0 ? "text-[#e30613]" : "text-emerald-700"}`}>{formatoNumero(row.diferenciaPorExplicar)}</td>
+                              <td className="px-3 py-2"><DiagnosticoBadge diagnostico={row.diagnostico} /></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+                {detallePorSemana.length === 0 && (
+                  <div className="rounded-2xl border border-white/70 bg-white px-4 py-8 text-center text-sm font-semibold text-slate-500">
+                    No hay materiales asociados con esos filtros.
+                  </div>
+                )}
               </div>
             </div>
             </div>
