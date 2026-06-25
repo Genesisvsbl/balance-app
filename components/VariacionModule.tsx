@@ -480,29 +480,37 @@ export default function VariacionModule() {
     return coincideTexto && coincideSeccion && coincideSemana;
   });
 
-  const detalleSemanalFiltrado = materialesSkuPlanFiltrados
-    .flatMap((row) =>
-      semanasDetalleVisibles.map((semana) => {
-        const dato =
-          row.semanas.find((item) => item.semana === semana) || {
-            semana,
-            anterior: 0,
-            actual: 0,
-            movimiento: 0,
-          };
+  const materialesDetalleDinamicos = materialesSkuPlanFiltrados
+    .map((row) => {
+      const datosSemana = row.semanas.filter((item) =>
+        semanasDetalleVisibles.includes(item.semana)
+      );
+      const planAnterior = datosSemana.reduce((acc, item) => acc + item.anterior, 0);
+      const planActual = datosSemana.reduce((acc, item) => acc + item.actual, 0);
+      const movimientoPlan = planActual - planAnterior;
+      const reduccionPlan = Math.max(planAnterior - planActual, 0);
+      const diferenciaPorExplicar =
+        reduccionPlan > 0 ? reduccionPlan - row.consumoNotificado : movimientoPlan;
 
-        return {
-          row,
-          semana,
-          anterior: dato.anterior,
-          actual: dato.actual,
-          movimiento: dato.movimiento,
-        };
-      })
-    )
+      return {
+        ...row,
+        planAnterior,
+        planActual,
+        movimientoPlan,
+        reduccionPlan,
+        diferenciaPorExplicar,
+        diagnostico: diagnosticoDesdeValores(
+          planAnterior,
+          planActual,
+          row.consumoNotificado
+        ),
+      };
+    })
     .filter(
-      (item) =>
-        item.anterior !== 0 || item.actual !== 0 || item.movimiento !== 0
+      (row) =>
+        row.planAnterior !== 0 ||
+        row.planActual !== 0 ||
+        row.movimientoPlan !== 0
     );
 
   const resumen = {
@@ -765,10 +773,9 @@ export default function VariacionModule() {
 
               <div className="mt-4 overflow-hidden rounded-2xl border border-white/70 bg-white">
                 <div className="max-h-[420px] overflow-auto">
-                  <table className="w-full min-w-[1240px] border-collapse text-xs">
+                  <table className="w-full min-w-[1120px] border-collapse text-xs">
                     <thead className="sticky top-0 z-20 bg-[#D8ECFF] text-[#0B4EA2]">
                       <tr className="border-b border-[#2F80ED]/25 uppercase tracking-wide">
-                        <th className="px-3 py-2 text-left font-black">Sem</th>
                         <th className="px-3 py-2 text-left font-black">Material</th>
                         <th className="px-3 py-2 text-left font-black">Texto breve</th>
                         <th className="px-3 py-2 text-left font-black">Seccion</th>
@@ -781,21 +788,20 @@ export default function VariacionModule() {
                       </tr>
                     </thead>
                     <tbody>
-                      {detalleSemanalFiltrado.map((item) => (
-                        <tr key={`sku-detail-${item.row.codigo}-${item.semana}`} className="border-b border-slate-100">
-                          <td className="px-3 py-2 font-black text-[#0B4EA2]">{item.semana}</td>
-                          <td className="px-3 py-2 font-black text-slate-950">{item.row.codigo}</td>
-                          <td className="px-3 py-2 font-semibold text-slate-700">{item.row.material}</td>
-                          <td className="px-3 py-2 font-semibold text-slate-500">{item.row.seccion || "-"}</td>
-                          <td className="px-3 py-2 text-right font-semibold">{formatoNumero(item.anterior)}</td>
-                          <td className="px-3 py-2 text-right font-semibold">{formatoNumero(item.actual)}</td>
-                          <td className={`px-3 py-2 text-right font-black ${item.movimiento < 0 ? "text-emerald-700" : item.movimiento > 0 ? "text-[#e30613]" : "text-slate-500"}`}>{formatoNumero(item.movimiento)}</td>
-                          <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">{formatoNumero(item.row.consumoNotificado)}</td>
-                          <td className={`px-3 py-2 text-right font-black ${Math.abs(item.row.diferenciaPorExplicar) > 0 ? "text-[#e30613]" : "text-emerald-700"}`}>{formatoNumero(item.row.diferenciaPorExplicar)}</td>
-                          <td className="px-3 py-2"><DiagnosticoBadge diagnostico={item.row.diagnostico} /></td>
+                      {materialesDetalleDinamicos.map((row) => (
+                        <tr key={`sku-detail-${row.codigo}`} className="border-b border-slate-100">
+                          <td className="px-3 py-2 font-black text-slate-950">{row.codigo}</td>
+                          <td className="px-3 py-2 font-semibold text-slate-700">{row.material}</td>
+                          <td className="px-3 py-2 font-semibold text-slate-500">{row.seccion || "-"}</td>
+                          <td className="px-3 py-2 text-right font-semibold">{formatoNumero(row.planAnterior)}</td>
+                          <td className="px-3 py-2 text-right font-semibold">{formatoNumero(row.planActual)}</td>
+                          <td className={`px-3 py-2 text-right font-black ${row.movimientoPlan < 0 ? "text-emerald-700" : row.movimientoPlan > 0 ? "text-[#e30613]" : "text-slate-500"}`}>{formatoNumero(row.movimientoPlan)}</td>
+                          <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">{formatoNumero(row.consumoNotificado)}</td>
+                          <td className={`px-3 py-2 text-right font-black ${Math.abs(row.diferenciaPorExplicar) > 0 ? "text-[#e30613]" : "text-emerald-700"}`}>{formatoNumero(row.diferenciaPorExplicar)}</td>
+                          <td className="px-3 py-2"><DiagnosticoBadge diagnostico={row.diagnostico} /></td>
                         </tr>
                       ))}
-                      {detalleSemanalFiltrado.length === 0 && (
+                      {materialesDetalleDinamicos.length === 0 && (
                         <tr>
                           <td colSpan={999} className="px-4 py-8 text-center text-sm font-semibold text-slate-500">
                             No hay materiales asociados con esos filtros.
