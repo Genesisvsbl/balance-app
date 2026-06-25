@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { formatoNumero } from "@/lib/format";
+import { convertirNumero, formatoNumero } from "@/lib/format";
 import { obtenerCarga, obtenerCargas } from "@/lib/storage";
 import { BalanceRow, SavedLoad, SkuProduccion } from "@/types/balance";
 
@@ -13,6 +13,14 @@ type Diagnostico =
   | "NUEVO MATERIAL"
   | "MATERIAL RETIRADO"
   | "SIN CAMBIO";
+
+type VariacionSemana = {
+  semana: string;
+  anterior: number;
+  actual: number;
+  movimiento: number;
+  consumo?: number;
+};
 
 type VariacionRow = {
   codigo: string;
@@ -26,12 +34,8 @@ type VariacionRow = {
   diferenciaPorExplicar: number;
   diagnostico: Diagnostico;
   skusProduccion: SkuProduccion[];
-  semanas: {
-    semana: string;
-    anterior: number;
-    actual: number;
-    movimiento: number;
-  }[];
+  semanas: VariacionSemana[];
+
 };
 
 type VariacionSkuRow = {
@@ -46,12 +50,8 @@ type VariacionSkuRow = {
   diagnostico: Diagnostico;
   secciones: string[];
   materiales: VariacionRow[];
-  semanas: {
-    semana: string;
-    anterior: number;
-    actual: number;
-    movimiento: number;
-  }[];
+  semanas: VariacionSemana[];
+
 };
 
 const SECCIONES_DETALLE_DEFAULT = ["ETIQUETA", "TAPA", "PREFORMA", "PLASTICO", "PLASTICOS"];
@@ -138,6 +138,98 @@ function construirSkusPorComponente(carga: SavedLoad | undefined) {
   return mapa;
 }
 
+type PlanSapResumen = {
+  codigo: string;
+  descripcion: string;
+  semanas: Map<string, number>;
+};
+
+function semanaDesdeFecha(valor: any) {
+  if (!valor) return "";
+
+  let fecha: Date | null = null;
+
+  if (typeof valor === "number") {
+    fecha = new Date(Math.round((valor - 25569) * 86400 * 1000));
+  } else {
+    const texto = String(valor).trim();
+    const partes = texto.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
+
+    if (partes) {
+      const dia = Number(partes[1]);
+      const mes = Number(partes[2]) - 1;
+      const anio = Number(partes[3].length === 2 ? `20${partes[3]}` : partes[3]);
+      fecha = new Date(anio, mes, dia);
+    } else {
+      const parsed = new Date(texto);
+      fecha = Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+  }
+
+  if (!fecha || Number.isNaN(fecha.getTime())) return "";
+
+  const utc = new Date(Date.UTC(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()));
+  const day = utc.getUTCDay() || 7;
+  utc.setUTCDate(utc.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((utc.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+
+  return `Sem ${week}`;
+}
+
+function leerPlanSap(carga: SavedLoad | undefined) {
+  const hojaPlan = obtenerHojaCarga(carga, ["Plan"]);
+  const mapa = new Map<string, PlanSapResumen>();
+
+  (hojaPlan?.datos || []).forEach((fila: Record<string, any>) => {
+    const codigo = String(
+      obtenerValorFila(fila, ["SAP", "Codigo SAP", "CÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³digo SAP", "Codigo", "Material"])
+    ).trim();
+    if (!codigo) return;
+
+    const descripcion = String(
+      obtenerValorFila(fila, ["SKU", "Descripcion SKU", "DescripciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n SKU", "Descripcion", "DescripciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n"])
+    ).trim();
+    const semana = String(obtenerValorFila(fila, ["sem", "Sem", "Semana", "Week"])).trim();
+    const hl = convertirNumero(obtenerValorFila(fila, ["HL", "Hectolitros"]));
+
+    const actual = mapa.get(codigo) || {
+      codigo,
+      descripcion: descripcion || codigo,
+      semanas: new Map<string, number>(),
+    };
+
+    if (descripcion && actual.descripcion === codigo) actual.descripcion = descripcion;
+    if (semana) actual.semanas.set(semana, (actual.semanas.get(semana) || 0) + hl);
+    mapa.set(codigo, actual);
+  });
+
+  return mapa;
+}
+
+function leerConsumoSap(carga: SavedLoad | undefined) {
+  const hojaConsumos = obtenerHojaCarga(carga, ["Consumos", "Consumo"]);
+  const mapa = new Map<string, Map<string, number>>();
+
+  (hojaConsumos?.datos || []).forEach((fila: Record<string, any>) => {
+    const codigo = String(
+      obtenerValorFila(fila, ["Material", "SAP", "Codigo SAP", "CÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³digo SAP"])
+    ).trim();
+    if (!codigo) return;
+
+    const fechaConsumo = obtenerValorFila(fila, ["Fe.Cont", "Fecha", "Inicio Ejec.", "Fin Ejec."]);
+    const semana = semanaDesdeFecha(fechaConsumo);
+    if (!semana) return;
+
+    const hl = convertirNumero(obtenerValorFila(fila, ["Cantidad HL", "HL"]));
+    const semanas = mapa.get(codigo) || new Map<string, number>();
+    semanas.set(semana, (semanas.get(semana) || 0) + hl);
+    mapa.set(codigo, semanas);
+  });
+
+  return mapa;
+}
+
 function diagnosticoDesdeValores(
   antes: number,
   ahora: number,
@@ -203,7 +295,6 @@ export default function VariacionModule() {
   const [cargaAntesId, setCargaAntesId] = useState("");
   const [cargaAhoraId, setCargaAhoraId] = useState("");
   const [busqueda, setBusqueda] = useState("");
-  const [filtrosDiagnostico, setFiltrosDiagnostico] = useState<Diagnostico[]>([]);
   const [filtrosSeccion, setFiltrosSeccion] = useState<string[]>([]);
   const [filtrosSemana, setFiltrosSemana] = useState<string[]>([]);
   const [filtrosSkuPlan, setFiltrosSkuPlan] = useState<string[]>([]);
@@ -327,13 +418,29 @@ export default function VariacionModule() {
       .sort((a, b) => Math.abs(b.diferenciaPorExplicar) - Math.abs(a.diferenciaPorExplicar));
   }, [cargaAntes, cargaAhora]);
 
+  const planSapAntes = useMemo(() => leerPlanSap(cargaAntes), [cargaAntes]);
+  const planSapAhora = useMemo(() => leerPlanSap(cargaAhora), [cargaAhora]);
+  const consumoSapAhora = useMemo(() => leerConsumoSap(cargaAhora), [cargaAhora]);
+
   const semanasDisponibles = Array.from(
-    new Set(variaciones.flatMap((v) => v.semanas.map((sem) => sem.semana)))
+    new Set([
+      ...Array.from(planSapAntes.values()).flatMap((row) => Array.from(row.semanas.keys())),
+      ...Array.from(planSapAhora.values()).flatMap((row) => Array.from(row.semanas.keys())),
+      ...Array.from(consumoSapAhora.values()).flatMap((row) => Array.from(row.keys())),
+    ])
   ).sort((a, b) => a.localeCompare(b, "es", { numeric: true }));
 
   const skuPlanOpciones = Array.from(
     new Map(
       [
+        ...Array.from(planSapAntes.values()).map((sku) => ({
+          codigo: sku.codigo,
+          descripcion: sku.descripcion,
+        })),
+        ...Array.from(planSapAhora.values()).map((sku) => ({
+          codigo: sku.codigo,
+          descripcion: sku.descripcion,
+        })),
         ...(cargaAntes?.info?.skusProduccionDetectados || []),
         ...(cargaAhora?.info?.skusProduccionDetectados || []),
         ...variaciones.flatMap((v) => v.skusProduccion),
@@ -344,28 +451,43 @@ export default function VariacionModule() {
   ).sort((a, b) => a.codigo.localeCompare(b.codigo, "es", { numeric: true }));
 
   const variacionesSku = useMemo(() => {
-    return skuPlanOpciones
-      .map<VariacionSkuRow>((sku) => {
+    const codigos = new Set([...planSapAntes.keys(), ...planSapAhora.keys()]);
+
+    return Array.from(codigos)
+      .map<VariacionSkuRow>((codigo) => {
+        const antes = planSapAntes.get(codigo);
+        const ahora = planSapAhora.get(codigo);
+        const sku = skuPlanOpciones.find((item) => item.codigo === codigo);
         const materiales = variaciones.filter((row) =>
-          row.skusProduccion.some((item) => item.codigo === sku.codigo)
+          row.skusProduccion.some((item) => item.codigo === codigo)
         );
-        const planAnterior = materiales.reduce((acc, row) => acc + row.planAnterior, 0);
-        const planActual = materiales.reduce((acc, row) => acc + row.planActual, 0);
-        const consumoNotificado = materiales.reduce(
-          (acc, row) => acc + row.consumoNotificado,
-          0
-        );
+        const secciones = Array.from(
+          new Set(materiales.map((row) => row.seccion).filter(Boolean))
+        ).sort();
+        const semanas = semanasDisponibles.map((semana) => {
+          const anterior = antes?.semanas.get(semana) || 0;
+          const actual = ahora?.semanas.get(semana) || 0;
+          const consumo = consumoSapAhora.get(codigo)?.get(semana) || 0;
+
+          return {
+            semana,
+            anterior,
+            actual,
+            movimiento: actual - anterior,
+            consumo,
+          };
+        });
+        const planAnterior = semanas.reduce((acc, sem) => acc + sem.anterior, 0);
+        const planActual = semanas.reduce((acc, sem) => acc + sem.actual, 0);
+        const consumoNotificado = semanas.reduce((acc, sem) => acc + (sem.consumo || 0), 0);
         const reduccionPlan = Math.max(planAnterior - planActual, 0);
         const movimientoPlan = planActual - planAnterior;
         const diferenciaPorExplicar =
           reduccionPlan > 0 ? reduccionPlan - consumoNotificado : movimientoPlan;
-        const secciones = Array.from(
-          new Set(materiales.map((row) => row.seccion).filter(Boolean))
-        ).sort();
 
         return {
-          codigo: sku.codigo,
-          descripcion: sku.descripcion || sku.codigo,
+          codigo,
+          descripcion: ahora?.descripcion || antes?.descripcion || sku?.descripcion || codigo,
           planAnterior,
           planActual,
           movimientoPlan,
@@ -379,31 +501,14 @@ export default function VariacionModule() {
           ),
           secciones,
           materiales,
-          semanas: semanasDisponibles.map((semana) => {
-            const anterior = materiales.reduce(
-              (acc, row) =>
-                acc + (row.semanas.find((item) => item.semana === semana)?.anterior || 0),
-              0
-            );
-            const actual = materiales.reduce(
-              (acc, row) =>
-                acc + (row.semanas.find((item) => item.semana === semana)?.actual || 0),
-              0
-            );
-
-            return {
-              semana,
-              anterior,
-              actual,
-              movimiento: actual - anterior,
-            };
-          }),
+          semanas,
         };
       })
-      .filter((row) => row.materiales.length > 0)
+      .filter(
+        (row) => row.planAnterior !== 0 || row.planActual !== 0 || row.consumoNotificado !== 0
+      )
       .sort((a, b) => Math.abs(b.diferenciaPorExplicar) - Math.abs(a.diferenciaPorExplicar));
-  }, [skuPlanOpciones, variaciones, semanasDisponibles]);
-
+  }, [planSapAntes, planSapAhora, consumoSapAhora, skuPlanOpciones, variaciones, semanasDisponibles]);
   const semanasVisibles =
     filtrosSemana.length > 0 ? filtrosSemana : semanasDisponibles;
 
@@ -413,10 +518,11 @@ export default function VariacionModule() {
     );
     const planAnterior = datosSemana.reduce((acc, sem) => acc + sem.anterior, 0);
     const planActual = datosSemana.reduce((acc, sem) => acc + sem.actual, 0);
+    const consumoNotificado = datosSemana.reduce((acc, sem) => acc + (sem.consumo || 0), 0);
     const movimientoPlan = planActual - planAnterior;
     const reduccionPlan = Math.max(planAnterior - planActual, 0);
     const diferenciaPorExplicar =
-      reduccionPlan > 0 ? reduccionPlan - row.consumoNotificado : movimientoPlan;
+      reduccionPlan > 0 ? reduccionPlan - consumoNotificado : movimientoPlan;
 
     return {
       ...row,
@@ -424,16 +530,15 @@ export default function VariacionModule() {
       planActual,
       movimientoPlan,
       reduccionPlan,
+      consumoNotificado,
       diferenciaPorExplicar,
       diagnostico: diagnosticoDesdeValores(
         planAnterior,
         planActual,
-        row.consumoNotificado
+        consumoNotificado
       ),
     };
   });
-
-  const diagnosticos = Array.from(new Set(variacionesSkuDinamicas.map((v) => v.diagnostico)));
   const secciones = Array.from(
     new Set(variacionesSkuDinamicas.flatMap((v) => v.secciones).filter(Boolean))
   ).sort();
@@ -450,8 +555,6 @@ export default function VariacionModule() {
           normalizarBusqueda(material.material).includes(texto) ||
           normalizarBusqueda(material.seccion).includes(texto)
       );
-    const coincideDiagnostico =
-      filtrosDiagnostico.length === 0 || filtrosDiagnostico.includes(row.diagnostico);
     const coincideSeccion =
       filtrosSeccion.length === 0 ||
       row.secciones.some((seccion) => filtrosSeccion.includes(seccion));
@@ -471,7 +574,6 @@ export default function VariacionModule() {
 
     return (
       coincideTexto &&
-      coincideDiagnostico &&
       coincideSeccion &&
       coincideSemana &&
       coincideSkuPlan &&
@@ -577,7 +679,6 @@ export default function VariacionModule() {
 
   function limpiarFiltros() {
     setBusqueda("");
-    setFiltrosDiagnostico([]);
     setFiltrosSeccion([]);
     setFiltrosSemana([]);
     setFiltrosSkuPlan([]);
@@ -660,7 +761,6 @@ export default function VariacionModule() {
                   const sku = skuPlanOpciones.find((item) => item.codigo === valor);
                   return sku ? `${sku.codigo} - ${sku.descripcion}` : valor;
                 }} />
-                <MultiSelectFiltro label="Diagnosticos" opciones={diagnosticos} seleccionadas={filtrosDiagnostico} onToggle={(valor) => toggleLista(valor, setFiltrosDiagnostico)} renderOpcion={(valor) => valor} />
                 <button
                   onClick={() => setSoloPorExplicar(!soloPorExplicar)}
                   className={`h-11 rounded-xl border px-4 text-sm font-black transition ${
@@ -692,7 +792,6 @@ export default function VariacionModule() {
                       <th className="px-3 py-2 text-right font-black">Movimiento</th>
                       <th className="px-3 py-2 text-right font-black">Consumo</th>
                       <th className="px-3 py-2 text-right font-black">Por explicar</th>
-                      <th className="px-3 py-2 text-left font-black">Diagnostico</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -711,9 +810,6 @@ export default function VariacionModule() {
                         <td className={`px-3 py-2 text-right font-black ${row.movimientoPlan > 0 ? "text-[#e30613]" : row.movimientoPlan < 0 ? "text-emerald-700" : "text-slate-500"}`}>{formatoNumero(row.movimientoPlan)}</td>
                         <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">{formatoNumero(row.consumoNotificado)}</td>
                         <td className={`px-3 py-2 text-right font-black ${Math.abs(row.diferenciaPorExplicar) > 0 ? "text-[#e30613]" : "text-emerald-700"}`}>{formatoNumero(row.diferenciaPorExplicar)}</td>
-                        <td className="px-3 py-2">
-                          <DiagnosticoBadge diagnostico={row.diagnostico} />
-                        </td>
                       </tr>
                     ))}
                     {variacionesSkuFiltradas.length === 0 && (
@@ -816,7 +912,6 @@ export default function VariacionModule() {
                             <th className="px-3 py-2 text-right font-black">Movimiento</th>
                             <th className="px-3 py-2 text-right font-black">Consumo</th>
                             <th className="px-3 py-2 text-right font-black">Por explicar</th>
-                            <th className="px-3 py-2 text-left font-black">Diagnostico</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -830,7 +925,6 @@ export default function VariacionModule() {
                               <td className={`px-3 py-2 text-right font-black ${row.movimientoPlan < 0 ? "text-emerald-700" : row.movimientoPlan > 0 ? "text-[#e30613]" : "text-slate-500"}`}>{formatoNumero(row.movimientoPlan)}</td>
                               <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">{formatoNumero(row.consumoNotificado)}</td>
                               <td className={`px-3 py-2 text-right font-black ${Math.abs(row.diferenciaPorExplicar) > 0 ? "text-[#e30613]" : "text-emerald-700"}`}>{formatoNumero(row.diferenciaPorExplicar)}</td>
-                              <td className="px-3 py-2"><DiagnosticoBadge diagnostico={row.diagnostico} /></td>
                             </tr>
                           ))}
                         </tbody>
@@ -993,3 +1087,4 @@ function MultiSelectFiltro<T extends string>({
     </div>
   );
 }
+
