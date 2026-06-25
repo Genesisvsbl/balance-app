@@ -1153,8 +1153,8 @@ export default function DashboardModule({
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-2">
+            <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h4 className="text-sm font-black text-slate-950">
@@ -1175,11 +1175,11 @@ export default function DashboardModule({
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="grid flex-1 grid-cols-1 auto-rows-fr gap-3 md:grid-cols-2">
                 {criticosPorSemana.map((grupo) => (
                   <div
                     key={grupo.semana}
-                    className={`rounded-xl border p-3 ${
+                    className={`flex h-[390px] min-h-0 flex-col rounded-xl border p-3 ${
                       semanasActivas.includes(grupo.semana)
                         ? "border-red-100 bg-red-50"
                         : "border-slate-200 bg-[#fbfbfa]"
@@ -1205,7 +1205,7 @@ export default function DashboardModule({
                     <p className="mt-1 truncate text-[11px] font-semibold text-slate-500">
                       Faltante: {formatoNumero(grupo.faltante)}
                     </p>
-                    <div className="compact-scroll mt-2 max-h-[260px] space-y-1.5 overflow-auto pr-1">
+                    <div className="compact-scroll mt-2 min-h-0 flex-1 space-y-1.5 overflow-auto pr-1">
                       {grupo.materiales.map((row) => (
                         <button
                           key={`${grupo.semana}-${row.codigo}`}
@@ -1240,7 +1240,7 @@ export default function DashboardModule({
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h4 className="text-sm font-black text-slate-950">
@@ -1255,11 +1255,11 @@ export default function DashboardModule({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="grid flex-1 grid-cols-1 auto-rows-fr gap-3 md:grid-cols-2">
                 {movimientosPorSemana.map((grupo) => (
                   <div
                     key={grupo.semana}
-                    className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3"
+                    className="flex h-[390px] min-h-0 flex-col rounded-xl border border-emerald-100 bg-emerald-50/60 p-3"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-black text-slate-950">
@@ -1272,7 +1272,7 @@ export default function DashboardModule({
                     <p className="mt-1 truncate text-[11px] font-semibold text-slate-500">
                       Cantidad: {formatoNumero(grupo.total)}
                     </p>
-                    <div className="compact-scroll mt-2 max-h-[260px] space-y-1.5 overflow-auto pr-1">
+                    <div className="compact-scroll mt-2 min-h-0 flex-1 space-y-1.5 overflow-auto pr-1">
                       {grupo.movimientos.map((row, index) => (
                         <button
                           key={`${grupo.semana}-${row.codigo}-${row.tipo}-${index}`}
