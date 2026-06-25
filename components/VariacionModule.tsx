@@ -404,12 +404,41 @@ export default function VariacionModule() {
       .sort((a, b) => Math.abs(b.diferenciaPorExplicar) - Math.abs(a.diferenciaPorExplicar));
   }, [skuPlanOpciones, variaciones, semanasDisponibles]);
 
-  const diagnosticos = Array.from(new Set(variacionesSku.map((v) => v.diagnostico)));
+  const semanasVisibles =
+    filtrosSemana.length > 0 ? filtrosSemana : semanasDisponibles;
+
+  const variacionesSkuDinamicas = variacionesSku.map((row) => {
+    const datosSemana = row.semanas.filter((sem) =>
+      semanasVisibles.includes(sem.semana)
+    );
+    const planAnterior = datosSemana.reduce((acc, sem) => acc + sem.anterior, 0);
+    const planActual = datosSemana.reduce((acc, sem) => acc + sem.actual, 0);
+    const movimientoPlan = planActual - planAnterior;
+    const reduccionPlan = Math.max(planAnterior - planActual, 0);
+    const diferenciaPorExplicar =
+      reduccionPlan > 0 ? reduccionPlan - row.consumoNotificado : movimientoPlan;
+
+    return {
+      ...row,
+      planAnterior,
+      planActual,
+      movimientoPlan,
+      reduccionPlan,
+      diferenciaPorExplicar,
+      diagnostico: diagnosticoDesdeValores(
+        planAnterior,
+        planActual,
+        row.consumoNotificado
+      ),
+    };
+  });
+
+  const diagnosticos = Array.from(new Set(variacionesSkuDinamicas.map((v) => v.diagnostico)));
   const secciones = Array.from(
-    new Set(variacionesSku.flatMap((v) => v.secciones).filter(Boolean))
+    new Set(variacionesSkuDinamicas.flatMap((v) => v.secciones).filter(Boolean))
   ).sort();
 
-  const variacionesSkuFiltradas = variacionesSku.filter((row) => {
+  const variacionesSkuFiltradas = variacionesSkuDinamicas.filter((row) => {
     const texto = normalizarBusqueda(busqueda);
     const coincideTexto =
       !texto ||
@@ -454,8 +483,6 @@ export default function VariacionModule() {
   const seccionesDetalleSku = Array.from(
     new Set(seleccionado?.materiales.map((row) => row.seccion).filter(Boolean) || [])
   ).sort();
-  const semanasVisibles =
-    filtrosSemana.length > 0 ? filtrosSemana : semanasDisponibles;
   const semanasDetalleVisibles =
     filtrosDetalleSemana.length > 0 ? filtrosDetalleSemana : semanasVisibles;
 
@@ -655,7 +682,7 @@ export default function VariacionModule() {
 
             <div className="mt-5 overflow-hidden rounded-2xl border border-[#2F80ED]/25">
               <div className="max-h-[620px] overflow-auto">
-                <table className="w-full min-w-[1320px] border-collapse text-xs">
+                <table className="w-full min-w-[1120px] border-collapse text-xs">
                   <thead className="sticky top-0 z-20 bg-[#D8ECFF] text-[#0B4EA2]">
                     <tr className="border-b border-[#2F80ED]/25 uppercase tracking-wide">
                       <th className="px-3 py-2 text-left font-black">SAP</th>
@@ -665,11 +692,6 @@ export default function VariacionModule() {
                       <th className="px-3 py-2 text-right font-black">Movimiento</th>
                       <th className="px-3 py-2 text-right font-black">Consumo</th>
                       <th className="px-3 py-2 text-right font-black">Por explicar</th>
-                      {semanasVisibles.map((sem) => (
-                        <th key={`sem-head-${sem}`} className="px-3 py-2 text-right font-black">
-                          {sem}
-                        </th>
-                      ))}
                       <th className="px-3 py-2 text-left font-black">Diagnostico</th>
                     </tr>
                   </thead>
@@ -689,15 +711,6 @@ export default function VariacionModule() {
                         <td className={`px-3 py-2 text-right font-black ${row.movimientoPlan > 0 ? "text-[#e30613]" : row.movimientoPlan < 0 ? "text-emerald-700" : "text-slate-500"}`}>{formatoNumero(row.movimientoPlan)}</td>
                         <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">{formatoNumero(row.consumoNotificado)}</td>
                         <td className={`px-3 py-2 text-right font-black ${Math.abs(row.diferenciaPorExplicar) > 0 ? "text-[#e30613]" : "text-emerald-700"}`}>{formatoNumero(row.diferenciaPorExplicar)}</td>
-                        {semanasVisibles.map((sem) => {
-                          const dato = row.semanas.find((item) => item.semana === sem);
-                          const movimiento = dato?.movimiento || 0;
-                          return (
-                            <td key={`${row.codigo}-${sem}`} className={`px-3 py-2 text-right font-black ${movimiento > 0 ? "text-[#e30613]" : movimiento < 0 ? "text-emerald-700" : "text-slate-500"}`}>
-                              {formatoNumero(movimiento)}
-                            </td>
-                          );
-                        })}
                         <td className="px-3 py-2">
                           <DiagnosticoBadge diagnostico={row.diagnostico} />
                         </td>
