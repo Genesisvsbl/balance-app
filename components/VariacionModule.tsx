@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { formatoNumero } from "@/lib/format";
@@ -589,7 +589,6 @@ export default function VariacionModule() {
                   const sku = skuPlanOpciones.find((item) => item.codigo === valor);
                   return sku ? `${sku.codigo} - ${sku.descripcion}` : valor;
                 }} />
-                <MultiSelectFiltro label="Secciones" opciones={secciones} seleccionadas={filtrosSeccion} onToggle={(valor) => toggleLista(valor, setFiltrosSeccion)} renderOpcion={(valor) => valor} />
                 <MultiSelectFiltro label="Diagnosticos" opciones={diagnosticos} seleccionadas={filtrosDiagnostico} onToggle={(valor) => toggleLista(valor, setFiltrosDiagnostico)} renderOpcion={(valor) => valor} />
                 <button
                   onClick={() => setSoloPorExplicar(!soloPorExplicar)}
@@ -612,12 +611,11 @@ export default function VariacionModule() {
 
             <div className="mt-5 overflow-hidden rounded-2xl border border-[#2F80ED]/25">
               <div className="max-h-[620px] overflow-auto">
-                <table className="w-full min-w-[1500px] border-collapse text-xs">
+                <table className="w-full min-w-[1320px] border-collapse text-xs">
                   <thead className="sticky top-0 z-20 bg-[#D8ECFF] text-[#0B4EA2]">
                     <tr className="border-b border-[#2F80ED]/25 uppercase tracking-wide">
                       <th className="px-3 py-2 text-left font-black">SAP</th>
                       <th className="px-3 py-2 text-left font-black">SKU produccion</th>
-                      <th className="px-3 py-2 text-left font-black">Secciones</th>
                       <th className="px-3 py-2 text-right font-black">Plan anterior</th>
                       <th className="px-3 py-2 text-right font-black">Plan actual</th>
                       <th className="px-3 py-2 text-right font-black">Movimiento</th>
@@ -642,7 +640,6 @@ export default function VariacionModule() {
                       >
                         <td className="px-3 py-2 font-black text-slate-950">{row.codigo}</td>
                         <td className="max-w-[300px] px-3 py-2 font-semibold text-slate-700">{row.descripcion}</td>
-                        <td className="max-w-[220px] px-3 py-2 font-semibold text-slate-500">{row.secciones.join(", ") || "-"}</td>
                         <td className="px-3 py-2 text-right font-black">{formatoNumero(row.planAnterior)}</td>
                         <td className="px-3 py-2 text-right font-black">{formatoNumero(row.planActual)}</td>
                         <td className={`px-3 py-2 text-right font-black ${row.movimientoPlan > 0 ? "text-[#e30613]" : row.movimientoPlan < 0 ? "text-emerald-700" : "text-slate-500"}`}>{formatoNumero(row.movimientoPlan)}</td>
@@ -676,7 +673,8 @@ export default function VariacionModule() {
           </div>
 
           {seleccionado && (
-            <div className="rounded-2xl border border-[#2F80ED]/25 bg-[#EAF4FF] p-6 shadow-sm">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
+            <div className="max-h-[92vh] w-[min(1600px,96vw)] overflow-auto rounded-2xl border border-[#2F80ED]/25 bg-[#EAF4FF] p-6 shadow-2xl">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-black uppercase tracking-wide text-[#0B4EA2]">
@@ -788,6 +786,7 @@ export default function VariacionModule() {
                   </table>
                 </div>
               </div>
+            </div>
             </div>
           )}
         </>
