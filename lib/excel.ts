@@ -67,12 +67,21 @@ function unirDatos(base: ExcelData, nuevo: ExcelData) {
   });
 }
 
-export async function leerArchivoExcel(file: File): Promise<ExcelData> {
+export async function leerArchivoExcel(
+  file: File,
+  hojasPermitidas?: string[]
+): Promise<ExcelData> {
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
   const resultado: ExcelData = {};
+  const permitidas = hojasPermitidas?.map(normalizarTexto);
+  const hojasAProcesar = permitidas
+    ? workbook.SheetNames.filter((nombreHoja) =>
+        permitidas.includes(normalizarTexto(nombreHoja))
+      )
+    : workbook.SheetNames;
 
-  workbook.SheetNames.forEach((nombreHoja) => {
+  hojasAProcesar.forEach((nombreHoja) => {
     const worksheet = workbook.Sheets[nombreHoja];
     const headerRow = obtenerFilaEncabezado(worksheet);
     const json = XLSX.utils.sheet_to_json(worksheet, {
@@ -91,12 +100,19 @@ export async function leerArchivoExcel(file: File): Promise<ExcelData> {
   return resultado;
 }
 
-export async function leerArchivosExcel(files: File[]): Promise<ExcelData> {
+export async function leerArchivosExcel(
+  files: File[],
+  hojasPermitidas?: string[]
+): Promise<ExcelData> {
   const combinado: ExcelData = {};
 
   for (const file of files) {
-    unirDatos(combinado, await leerArchivoExcel(file));
+    unirDatos(combinado, await leerArchivoExcel(file, hojasPermitidas));
   }
 
   return combinado;
+}
+
+export function nombreHojaNormalizado(nombre: string) {
+  return normalizarTexto(nombre);
 }

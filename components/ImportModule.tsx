@@ -1,7 +1,7 @@
 "use client";
 
 import { ExcelData } from "@/types/balance";
-import { leerArchivosExcel } from "@/lib/excel";
+import { leerArchivosExcel, nombreHojaNormalizado } from "@/lib/excel";
 import { formatearValor } from "@/lib/format";
 import { useState } from "react";
 
@@ -35,22 +35,59 @@ export default function ImportModule({
     const archivo = e.target.files?.[0];
     if (!archivo) return;
 
-    const resultado = await leerArchivosExcel([archivo]);
-    const combinado = { ...datos, ...resultado };
-    const hojas = Object.keys(combinado);
-    const nuevoBalance = tipo === "balance" ? archivo.name : balanceNombre;
-    const nuevoPlan = tipo === "plan" ? archivo.name : planNombre;
+    try {
+      const hojasPlanRecibo = [
+        "Plan de Recibo",
+        "PLAN DE RECIBO",
+        "Plan de Recepcion",
+        "Plan de Recepci?n",
+        "Plan Recepcion",
+        "Plan Recepci?n",
+      ];
+      const resultado = await leerArchivosExcel(
+        [archivo],
+        tipo === "plan" ? hojasPlanRecibo : undefined
+      );
 
-    if (tipo === "balance") setBalanceNombre(archivo.name);
-    if (tipo === "plan") setPlanNombre(archivo.name);
+      if (tipo === "plan" && Object.keys(resultado).length === 0) {
+        alert("El archivo no contiene la hoja PLAN DE RECIBO.");
+        e.target.value = "";
+        return;
+      }
 
-    setDatos(combinado);
-    setHojasEncontradas(hojas);
-    setHojaActiva(hojaActiva || hojas[0] || "");
-    setArchivoNombre(
-      [nuevoBalance, nuevoPlan].filter(Boolean).join(" + ") || archivo.name
-    );
-    e.target.value = "";
+      let combinado = { ...datos };
+
+      if (tipo === "plan") {
+        const objetivos = hojasPlanRecibo.map(nombreHojaNormalizado);
+        Object.keys(combinado).forEach((nombreHoja) => {
+          if (objetivos.includes(nombreHojaNormalizado(nombreHoja))) {
+            delete combinado[nombreHoja];
+          }
+        });
+      }
+
+      combinado = { ...combinado, ...resultado };
+      const hojas = Object.keys(combinado);
+      const nuevoBalance = tipo === "balance" ? archivo.name : balanceNombre;
+      const nuevoPlan = tipo === "plan" ? archivo.name : planNombre;
+
+      if (tipo === "balance") setBalanceNombre(archivo.name);
+      if (tipo === "plan") setPlanNombre(archivo.name);
+
+      const hojaPlanCargada =
+        tipo === "plan" ? Object.keys(resultado)[0] || "" : "";
+
+      setDatos(combinado);
+      setHojasEncontradas(hojas);
+      setHojaActiva(hojaPlanCargada || hojaActiva || hojas[0] || "");
+      setArchivoNombre(
+        [nuevoBalance, nuevoPlan].filter(Boolean).join(" + ") || archivo.name
+      );
+    } catch (error: any) {
+      alert(error?.message || "No se pudo cargar el archivo.");
+    } finally {
+      e.target.value = "";
+    }
   }
 
   const hoja = datos[hojaActiva];
