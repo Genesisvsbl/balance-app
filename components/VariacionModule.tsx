@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { formatoNumero } from "@/lib/format";
-import { obtenerCargas } from "@/lib/storage";
+import { obtenerCarga, obtenerCargas } from "@/lib/storage";
 import { BalanceRow, SavedLoad, SkuProduccion } from "@/types/balance";
 
 type Diagnostico =
@@ -143,6 +143,7 @@ type VariacionRow = {
 
 export default function VariacionModule() {
   const [cargas, setCargas] = useState<SavedLoad[]>([]);
+  const [cargasDetalle, setCargasDetalle] = useState<Record<string, SavedLoad>>({});
   const [cargaAntesId, setCargaAntesId] = useState("");
   const [cargaAhoraId, setCargaAhoraId] = useState("");
   const [busqueda, setBusqueda] = useState("");
@@ -159,6 +160,13 @@ export default function VariacionModule() {
   useEffect(() => {
     obtenerCargas().then((data) => {
       setCargas(data);
+      setCargasDetalle(
+        Object.fromEntries(
+          data
+            .filter((carga) => carga.analisis?.length)
+            .map((carga) => [carga.id, carga])
+        )
+      );
 
       if (data.length >= 2) {
         setCargaAhoraId(data[0].id);
@@ -167,8 +175,32 @@ export default function VariacionModule() {
     });
   }, []);
 
-  const cargaAntes = cargas.find((c) => c.id === cargaAntesId);
-  const cargaAhora = cargas.find((c) => c.id === cargaAhoraId);
+  useEffect(() => {
+    [cargaAntesId, cargaAhoraId].filter(Boolean).forEach((id) => {
+      if (cargasDetalle[id]) return;
+
+      const parcial = cargas.find((carga) => carga.id === id);
+      if (parcial?.analisis?.length) {
+        setCargasDetalle((actual) =>
+          actual[id] ? actual : { ...actual, [id]: parcial }
+        );
+        return;
+      }
+
+      obtenerCarga(id)
+        .then((completa) => {
+          setCargasDetalle((actual) => ({ ...actual, [id]: completa }));
+        })
+        .catch((error) => {
+          console.error("No se pudo cargar el balance completo", error);
+        });
+    });
+  }, [cargaAntesId, cargaAhoraId, cargas, cargasDetalle]);
+
+  const cargaAntes =
+    cargasDetalle[cargaAntesId] || cargas.find((c) => c.id === cargaAntesId);
+  const cargaAhora =
+    cargasDetalle[cargaAhoraId] || cargas.find((c) => c.id === cargaAhoraId);
 
   const variaciones = useMemo(() => {
     if (!cargaAntes || !cargaAhora) return [];

@@ -450,6 +450,16 @@ export default function BalanceModule({
     return (inventario * Math.max(semanasActivas.length, 1) * 7) / necesidad;
   }
 
+  function alcanceDiasClasses(row: BalanceRow) {
+    const dias = alcanceDiasOrden(row);
+
+    if (dias <= 20) return "border-red-200 bg-red-100 text-[#e30613]";
+    if (dias < 30) return "border-orange-200 bg-orange-100 text-orange-700";
+    if (dias <= 45) return "border-emerald-200 bg-emerald-100 text-emerald-800";
+    if (dias <= 180) return "border-orange-200 bg-orange-100 text-orange-700";
+    return "border-orange-300 bg-orange-200 text-orange-900";
+  }
+
   function estadoSeleccionado(row: BalanceRow): EstadoAnalisis {
     const necesidad = totalNecesidadSeleccionada(row);
     const diferencia = diferenciaSeleccionada(row);
@@ -1404,16 +1414,6 @@ export default function BalanceModule({
                       />
                     )}
 
-                    {visibilidad.alcanceDias && (
-                      <SortHeader
-                        label="Alcance dias"
-                        sortKey="alcanceDias"
-                        orden={orden}
-                        onSort={ordenarPor}
-                        align="right"
-                      />
-                    )}
-
                     {visibilidad.diferenciasSemana &&
                       semanasActivas.map((sem) => (
                         <SortHeader
@@ -1425,6 +1425,16 @@ export default function BalanceModule({
                           align="right"
                         />
                       ))}
+
+                    {visibilidad.alcanceDias && (
+                      <SortHeader
+                        label="Alcance dias"
+                        sortKey="alcanceDias"
+                        orden={orden}
+                        onSort={ordenarPor}
+                        align="right"
+                      />
+                    )}
 
                     {visibilidad.estado && (
                       <SortHeader
@@ -1536,12 +1546,6 @@ export default function BalanceModule({
                         </td>
                       )}
 
-                      {visibilidad.alcanceDias && (
-                        <td className="px-2.5 py-1.5 text-right font-black text-[#0B4EA2]">
-                          {alcanceDiasInventario(row)}
-                        </td>
-                      )}
-
                       {visibilidad.diferenciasSemana &&
                         semanasActivas.map((sem) => (
                           <td
@@ -1555,6 +1559,14 @@ export default function BalanceModule({
                             {formatoNumero(row.diferenciasPorSemana[sem] || 0)}
                           </td>
                         ))}
+
+                      {visibilidad.alcanceDias && (
+                        <td className="px-2.5 py-1.5 text-right font-black">
+                          <span className={`inline-flex min-w-[64px] justify-end rounded-md border px-2 py-0.5 ${alcanceDiasClasses(row)}`}>
+                            {alcanceDiasInventario(row)}
+                          </span>
+                        </td>
+                      )}
 
                       {visibilidad.estado && (
                         <td className="px-2.5 py-1.5">
@@ -1715,12 +1727,12 @@ export default function BalanceModule({
                           </th>
                         ))}
                         <th className="px-2.5 py-2 text-right font-black">Diferencia</th>
-                        <th className="px-2.5 py-2 text-right font-black">Alcance dias</th>
                         {semanasActivas.map((sem) => (
                           <th key={`res-dif-${sem}`} className="px-2.5 py-2 text-right font-black">
                             Dif. {sem}
                           </th>
                         ))}
+                        <th className="px-2.5 py-2 text-right font-black">Alcance dias</th>
                         <th className="px-2.5 py-2 text-left font-black">Estado</th>
                       </tr>
                     </thead>
@@ -1757,9 +1769,6 @@ export default function BalanceModule({
                         >
                           {formatoNumero(diferenciaSeleccionada(filaSeleccionada))}
                         </td>
-                        <td className="px-2.5 py-2 text-right font-black text-[#0B4EA2]">
-                          {alcanceDiasInventario(filaSeleccionada)}
-                        </td>
                         {semanasActivas.map((sem) => {
                           const diferencia = filaSeleccionada.diferenciasPorSemana[sem] || 0;
                           return (
@@ -1773,6 +1782,11 @@ export default function BalanceModule({
                             </td>
                           );
                         })}
+                        <td className="px-2.5 py-2 text-right font-black">
+                          <span className={`inline-flex min-w-[64px] justify-end rounded-md border px-2 py-0.5 ${alcanceDiasClasses(filaSeleccionada)}`}>
+                            {alcanceDiasInventario(filaSeleccionada)}
+                          </span>
+                        </td>
                         <td className="px-2.5 py-2">
                           <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${estadoClasses(estadoSeleccionado(filaSeleccionada))}`}>
                             {estadoSeleccionado(filaSeleccionada)}
