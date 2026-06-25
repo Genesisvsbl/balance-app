@@ -454,6 +454,11 @@ export default function VariacionModule() {
   const seccionesDetalleSku = Array.from(
     new Set(seleccionado?.materiales.map((row) => row.seccion).filter(Boolean) || [])
   ).sort();
+  const semanasVisibles =
+    filtrosSemana.length > 0 ? filtrosSemana : semanasDisponibles;
+  const semanasDetalleVisibles =
+    filtrosDetalleSemana.length > 0 ? filtrosDetalleSemana : semanasVisibles;
+
   const materialesSkuPlanFiltrados = (seleccionado?.materiales || []).filter((row) => {
     const texto = normalizarBusqueda(busquedaDetalleSku);
     const coincideTexto =
@@ -499,7 +504,7 @@ export default function VariacionModule() {
   function seleccionarSap(row: VariacionSkuRow) {
     setSapSeleccionado(row.codigo);
     setBusquedaDetalleSku("");
-    setFiltrosDetalleSemana([]);
+    setFiltrosDetalleSemana(filtrosSemana);
     const defaults = row.secciones.filter(esSeccionDefaultDetalle);
     setFiltrosDetalleSeccion(defaults);
   }
@@ -512,7 +517,7 @@ export default function VariacionModule() {
     setFiltrosSkuPlan([]);
     setBusquedaDetalleSku("");
     setFiltrosDetalleSeccion([]);
-    setFiltrosDetalleSemana([]);
+    setFiltrosDetalleSemana(filtrosSemana);
     setSoloPorExplicar(false);
   }
 
@@ -621,7 +626,7 @@ export default function VariacionModule() {
                       <th className="px-3 py-2 text-right font-black">Movimiento</th>
                       <th className="px-3 py-2 text-right font-black">Consumo</th>
                       <th className="px-3 py-2 text-right font-black">Por explicar</th>
-                      {semanasDisponibles.map((sem) => (
+                      {semanasVisibles.map((sem) => (
                         <th key={`sem-head-${sem}`} className="px-3 py-2 text-right font-black">
                           {sem}
                         </th>
@@ -645,7 +650,7 @@ export default function VariacionModule() {
                         <td className={`px-3 py-2 text-right font-black ${row.movimientoPlan > 0 ? "text-[#e30613]" : row.movimientoPlan < 0 ? "text-emerald-700" : "text-slate-500"}`}>{formatoNumero(row.movimientoPlan)}</td>
                         <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">{formatoNumero(row.consumoNotificado)}</td>
                         <td className={`px-3 py-2 text-right font-black ${Math.abs(row.diferenciaPorExplicar) > 0 ? "text-[#e30613]" : "text-emerald-700"}`}>{formatoNumero(row.diferenciaPorExplicar)}</td>
-                        {semanasDisponibles.map((sem) => {
+                        {semanasVisibles.map((sem) => {
                           const dato = row.semanas.find((item) => item.semana === sem);
                           const movimiento = dato?.movimiento || 0;
                           return (
@@ -707,7 +712,7 @@ export default function VariacionModule() {
                 <button
                   onClick={() => {
                     setBusquedaDetalleSku("");
-                    setFiltrosDetalleSemana([]);
+                    setFiltrosDetalleSemana(filtrosSemana);
                     setFiltrosDetalleSeccion(seleccionado.secciones.filter(esSeccionDefaultDetalle));
                   }}
                   className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-700 hover:bg-slate-50"
@@ -717,7 +722,7 @@ export default function VariacionModule() {
               </div>
 
               <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                {seleccionado.semanas.map((sem) => (
+                {seleccionado.semanas.filter((sem) => semanasDetalleVisibles.includes(sem.semana)).map((sem) => (
                   <div key={`resumen-sem-${sem.semana}`} className="rounded-xl border border-[#2F80ED]/20 bg-white p-3">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-black text-slate-950">{sem.semana}</p>
@@ -746,7 +751,7 @@ export default function VariacionModule() {
                         <th className="px-3 py-2 text-right font-black">Movimiento</th>
                         <th className="px-3 py-2 text-right font-black">Consumo</th>
                         <th className="px-3 py-2 text-right font-black">Por explicar</th>
-                        {semanasDisponibles.map((sem) => (
+                        {semanasVisibles.map((sem) => (
                           <th key={`detalle-head-${sem}`} className="px-3 py-2 text-right font-black">{sem}</th>
                         ))}
                         <th className="px-3 py-2 text-left font-black">Diagnostico</th>
@@ -763,7 +768,7 @@ export default function VariacionModule() {
                           <td className={`px-3 py-2 text-right font-black ${row.movimientoPlan < 0 ? "text-emerald-700" : row.movimientoPlan > 0 ? "text-[#e30613]" : "text-slate-500"}`}>{formatoNumero(row.movimientoPlan)}</td>
                           <td className="px-3 py-2 text-right font-black text-[#0B4EA2]">{formatoNumero(row.consumoNotificado)}</td>
                           <td className={`px-3 py-2 text-right font-black ${Math.abs(row.diferenciaPorExplicar) > 0 ? "text-[#e30613]" : "text-emerald-700"}`}>{formatoNumero(row.diferenciaPorExplicar)}</td>
-                          {semanasDisponibles.map((sem) => {
+                          {semanasVisibles.map((sem) => {
                             const dato = row.semanas.find((item) => item.semana === sem);
                             const movimiento = dato?.movimiento || 0;
                             return (
