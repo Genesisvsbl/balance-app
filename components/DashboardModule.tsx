@@ -199,6 +199,7 @@ export default function DashboardModule({
   const [filtroConsumoCategorias, setFiltroConsumoCategorias] = useState<string[]>([]);
   const [filtroConsumoSkus, setFiltroConsumoSkus] = useState<string[]>([]);
   const [filtroConsumoLineas, setFiltroConsumoLineas] = useState<string[]>([]);
+  const [filtroConsumoSemanas, setFiltroConsumoSemanas] = useState<string[]>([]);
   const [modoConsumo, setModoConsumo] = useState<ModoConsumo>("CATEGORIA");
   const [tablaExpandida, setTablaExpandida] = useState<"CONSUMO" | "CRITICOS" | null>(null);
   const [semanaCriticosInforme, setSemanaCriticosInforme] = useState("");
@@ -733,6 +734,8 @@ export default function DashboardModule({
 
   const consumosPlanReal = useMemo(() => {
     const entradas: ConsumoEntrada[] = [];
+    const semanasConsumoActivas =
+      filtroConsumoSemanas.length > 0 ? filtroConsumoSemanas : semanasActivas;
     const hojaPlan = obtenerHojaLocal(balancePlanSeleccionado?.datos || {}, ["Plan"]);
     const hojaConsumos = obtenerHojaLocal(balanceRealSeleccionado?.datos || {}, [
       "Consumos",
@@ -746,7 +749,7 @@ export default function DashboardModule({
       if (!codigo) return;
 
       const semana = String(obtenerValorLocal(fila, ["sem", "Semana", "Week"])).trim();
-      if (semanasActivas.length > 0 && semana && !semanasActivas.includes(semana)) {
+      if (semanasConsumoActivas.length > 0 && semana && !semanasConsumoActivas.includes(semana)) {
         return;
       }
 
@@ -775,7 +778,7 @@ export default function DashboardModule({
       const fechaConsumo =
         obtenerValorLocal(fila, ["Fe.Cont", "Fecha", "Inicio Ejec.", "Fin Ejec."]) || "";
       const semana = semanaDesdeFecha(fechaConsumo);
-      if (semanasActivas.length > 0 && semana && !semanasActivas.includes(semana)) {
+      if (semanasConsumoActivas.length > 0 && semana && !semanasConsumoActivas.includes(semana)) {
         return;
       }
 
@@ -885,6 +888,7 @@ export default function DashboardModule({
     filtroConsumoCategorias,
     filtroConsumoSkus,
     filtroConsumoLineas,
+    filtroConsumoSemanas,
   ]);
 
   const opcionesCategoriaConsumo = Array.from(
@@ -906,6 +910,12 @@ export default function DashboardModule({
   const opcionesLineaConsumo = Array.from(
     new Set(consumosPlanReal.entradas.map((row) => row.linea).filter(Boolean))
   ).sort();
+  const opcionesSemanaConsumo = Array.from(
+    new Set([
+      ...semanasActivas,
+      ...consumosPlanReal.entradas.map((row) => row.semana).filter(Boolean),
+    ])
+  ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
   const consumoInforme = useMemo(() => {
     if (modoConsumo === "CATEGORIA") {
@@ -990,7 +1000,7 @@ export default function DashboardModule({
     const rows: ReactNode[] = [];
     let categoriaActual = "";
     let subtotal = { plan: 0, real: 0 };
-    const labelSpan = Math.max(consumoInforme.columns.length - 4, 1);
+    const labelSpan = Math.max(consumoInforme.columns.length - 3, 1);
 
     const pushSubtotal = () => {
       if (!categoriaActual) return;
@@ -1692,12 +1702,21 @@ export default function DashboardModule({
               </label>
             </div>
 
-            <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-5">
+            <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-6">
               <input
                 value={filtroConsumoTexto}
                 onChange={(e) => setFiltroConsumoTexto(e.target.value)}
                 placeholder="Buscar categoria, SAP, descripcion o TREN..."
                 className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold outline-none focus:border-[#0057B8] focus:ring-4 focus:ring-[#0057B8]/10"
+              />
+              <MultiSelectFilter
+                titulo="Semanas"
+                opciones={opcionesSemanaConsumo.map((item) => ({
+                  value: item,
+                  label: item,
+                }))}
+                seleccionados={filtroConsumoSemanas}
+                setSeleccionados={setFiltroConsumoSemanas}
               />
               <MultiSelectFilter
                 titulo="Categorias"
@@ -1731,6 +1750,7 @@ export default function DashboardModule({
                   setFiltroConsumoCategorias([]);
                   setFiltroConsumoSkus([]);
                   setFiltroConsumoLineas([]);
+                  setFiltroConsumoSemanas([]);
                 }}
                 className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-xs font-black text-slate-700 transition hover:bg-slate-50"
               >
@@ -1782,7 +1802,7 @@ export default function DashboardModule({
               >
                 {renderConsumoRows(false)}
                 <ConsumoTotalRow
-                  labelSpan={consumoInforme.columns.length - 4}
+                  labelSpan={consumoInforme.columns.length - 3}
                   plan={totalConsumoInforme.plan}
                   real={totalConsumoInforme.real}
                 />
@@ -1846,7 +1866,7 @@ export default function DashboardModule({
                     >
                       {renderConsumoRows(true)}
                       <ConsumoTotalRow
-                        labelSpan={consumoInforme.columns.length - 4}
+                        labelSpan={consumoInforme.columns.length - 3}
                         plan={totalConsumoInforme.plan}
                         real={totalConsumoInforme.real}
                         dense
@@ -2348,7 +2368,7 @@ function ConsumoTable({
                   <th
                     key={column}
                     className={`${expanded ? "px-1.5 py-0.5" : "px-3 py-2"} font-black ${
-                      index >= columns.length - 4 ? "text-right" : "text-left"
+                      index >= columns.length - 3 ? "text-right" : "text-left"
                     }`}
                   >
                     {column}
