@@ -487,7 +487,7 @@ export default function BalanceModule({
     }, 0);
   }
 
-  function finSemanaCalendario(semana: string) {
+  function inicioSemanaCalendario(semana: string) {
     const match = semana.match(/\d+/);
     if (!match) return null;
 
@@ -499,8 +499,18 @@ export default function BalanceModule({
     const primerDia = new Date(year, 0, 1);
     const diaSemanaPrimerDia = primerDia.getDay() || 7;
     const inicioSemanaUno = new Date(year, 0, 1 - (diaSemanaPrimerDia - 1));
-    const finSemana = new Date(inicioSemanaUno);
-    finSemana.setDate(inicioSemanaUno.getDate() + numeroSemana * 7 - 1);
+    const inicioSemana = new Date(inicioSemanaUno);
+    inicioSemana.setDate(inicioSemanaUno.getDate() + (numeroSemana - 1) * 7);
+    inicioSemana.setHours(0, 0, 0, 0);
+    return inicioSemana;
+  }
+
+  function finSemanaCalendario(semana: string) {
+    const inicioSemana = inicioSemanaCalendario(semana);
+    if (!inicioSemana) return null;
+
+    const finSemana = new Date(inicioSemana);
+    finSemana.setDate(inicioSemana.getDate() + 6);
     finSemana.setHours(23, 59, 59, 999);
     return finSemana;
   }
@@ -523,15 +533,41 @@ export default function BalanceModule({
   }
 
   function fechaAlcanceInventario(row: BalanceRow) {
-    const dias = alcanceDiasValor(row);
-    if (!Number.isFinite(dias) || dias <= 0) return "Sin cobertura";
-    if (dias > 180) return ">6 meses";
+    let inventarioDisponible = inventarioDisponibleParaAlcance(row);
+    if (inventarioDisponible <= 0) return "Sin cobertura";
 
-    const fecha = new Date();
-    fecha.setHours(0, 0, 0, 0);
-    fecha.setDate(fecha.getDate() + Math.floor(dias));
+    const semanasConNecesidad = [...semanasActivas]
+      .filter((sem) => (row.necesidadesPorSemana[sem] || 0) > 0)
+      .sort((a, b) => Number(a.match(/\d+/)?.[0] || 0) - Number(b.match(/\d+/)?.[0] || 0));
 
-    return fecha.toLocaleDateString("es-CO", {
+    if (semanasConNecesidad.length === 0) return ">6 meses";
+
+    for (const semana of semanasConNecesidad) {
+      const necesidadSemana = row.necesidadesPorSemana[semana] || 0;
+      const inicioSemana = inicioSemanaCalendario(semana);
+      if (!inicioSemana || necesidadSemana <= 0) continue;
+
+      if (inventarioDisponible >= necesidadSemana) {
+        inventarioDisponible -= necesidadSemana;
+        continue;
+      }
+
+      const consumoDiario = necesidadSemana / 7;
+      const diasCubiertos = consumoDiario > 0 ? inventarioDisponible / consumoDiario : 0;
+      const fechaAgotamiento = new Date(inicioSemana);
+      fechaAgotamiento.setDate(inicioSemana.getDate() + Math.floor(diasCubiertos));
+
+      return fechaAgotamiento.toLocaleDateString("es-CO", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+    }
+
+    const ultimoFin = finSemanaCalendario(semanasConNecesidad[semanasConNecesidad.length - 1]);
+    if (!ultimoFin) return ">6 meses";
+
+    return ultimoFin.toLocaleDateString("es-CO", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
