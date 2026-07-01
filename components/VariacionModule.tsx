@@ -731,7 +731,7 @@ export default function VariacionModule() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4 xl:grid-cols-7">
             <Kpi titulo="SAP con aumentos" valor={resumen.aumentos} color="text-[#e30613]" border="border-red-100" />
             <Kpi titulo="Explicados por consumo" valor={resumen.explicadas} color="text-emerald-700" border="border-emerald-100" />
-            <Kpi titulo="SAP por explicar" valor={resumen.porExplicar} color="text-[#e30613]" border="border-red-100" />
+            <Kpi titulo="Diferencia" valor={resumen.porExplicar} color="text-[#e30613]" border="border-red-100" />
             <Kpi titulo="SAP nuevos" valor={resumen.nuevos} />
             <Kpi titulo="SAP retirados" valor={resumen.retirados} />
             <Kpi titulo="% explicado" valor={`${porcentajeExplicado.toFixed(1)}%`} color="text-emerald-700" border="border-emerald-100" />
@@ -769,7 +769,7 @@ export default function VariacionModule() {
                       : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
                   }`}
                 >
-                  Por explicar
+                  Diferencia
                 </button>
                 <button
                   onClick={limpiarFiltros}
@@ -791,7 +791,7 @@ export default function VariacionModule() {
                       <th className="px-3 py-2 text-right font-black">Plan actual</th>
                       <th className="px-3 py-2 text-right font-black">Movimiento</th>
                       <th className="px-3 py-2 text-right font-black">Consumo</th>
-                      <th className="px-3 py-2 text-right font-black">Por explicar</th>
+                      <th className="px-3 py-2 text-right font-black">Diferencia</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -911,7 +911,7 @@ export default function VariacionModule() {
                             <th className="px-3 py-2 text-right font-black">Plan actual</th>
                             <th className="px-3 py-2 text-right font-black">Movimiento</th>
                             <th className="px-3 py-2 text-right font-black">Consumo</th>
-                            <th className="px-3 py-2 text-right font-black">Por explicar</th>
+                            <th className="px-3 py-2 text-right font-black">Diferencia</th>
                           </tr>
                         </thead>
                         <tbody>

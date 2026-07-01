@@ -199,6 +199,7 @@ export default function BalanceModule({
   const columnasSemana = infoAnalisis?.columnasSemana || [];
   const almacenesDetectados = infoAnalisis?.almacenesDetectados || [];
   const seccionesDetectadas = infoAnalisis?.seccionesDetectadas || [];
+  const baseInventarioLabel = useMemo(() => Array.from(new Set(["AG01", "AG04"])).join(" + "), []);
 
   useEffect(() => {
     if (almacenesDetectados.length === 0) return;
@@ -828,7 +829,7 @@ export default function BalanceModule({
       }
 
       if (visibilidad.totalExistencia) {
-        base["AG01 + AG04"] = row.totalExistencia;
+        base[baseInventarioLabel] = row.totalExistencia;
       }
 
       if (visibilidad.diferenciaTotal) {
@@ -918,7 +919,7 @@ export default function BalanceModule({
               Balance de materiales
             </h3>
             <p className="mt-1 text-xs font-medium text-slate-500">
-              Base de cÃ¡lculo: AG01 + AG04 contra necesidades por semana.
+              Base de calculo: {baseInventarioLabel} contra necesidades por semana.
             </p>
           </div>
 
@@ -1047,7 +1048,7 @@ export default function BalanceModule({
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h4 className="text-base font-black text-slate-950">
-                AnÃ¡lisis de componentes
+                Analisis de componentes
               </h4>
               <p className="mt-0.5 text-xs font-semibold text-slate-500">
                 Mostrando {filtrado.length} de {analisis.length} componentes.
@@ -1058,7 +1059,7 @@ export default function BalanceModule({
               <input
                 value={filtroTexto}
                 onChange={(e) => setFiltroTexto(e.target.value)}
-                placeholder="Buscar componente, descripciÃ³n, secciÃ³n..."
+                placeholder="Buscar componente, descripcion, seccion..."
                 className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-[#0057B8] focus:ring-2 focus:ring-[#0057B8]/10"
               />
 
@@ -1321,7 +1322,7 @@ export default function BalanceModule({
                   onClick={() => toggleCampo("totalNecesidad")}
                 />
                 <Toggle
-                  label="AG01 + AG04"
+                  label={baseInventarioLabel}
                   checked={visibilidad.totalExistencia}
                   onClick={() => toggleCampo("totalExistencia")}
                 />
@@ -1491,7 +1492,7 @@ export default function BalanceModule({
 
                     {visibilidad.totalExistencia && (
                       <SortHeader
-                        label="AG01 + AG04"
+                        label={baseInventarioLabel}
                         sortKey="totalExistencia"
                         orden={orden}
                         onSort={ordenarPor}
@@ -1824,7 +1825,7 @@ export default function BalanceModule({
             <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
               <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
                 <DetalleCard label="Total necesidad" value={formatoNumero(totalNecesidadSeleccionada(filaSeleccionada))} />
-                <DetalleCard label="AG01 + AG04" value={formatoNumero(filaSeleccionada.totalExistencia)} />
+                <DetalleCard label={baseInventarioLabel} value={formatoNumero(filaSeleccionada.totalExistencia)} />
                 <DetalleCard
                   label="Transito"
                   value={formatoNumero(
@@ -1882,7 +1883,7 @@ export default function BalanceModule({
                           </th>
                         ))}
                         <th className="px-2.5 py-2 text-right font-black">Total necesidad</th>
-                        <th className="px-2.5 py-2 text-right font-black">AG01 + AG04</th>
+                        <th className="px-2.5 py-2 text-right font-black">{baseInventarioLabel}</th>
                         {almacenesDetectados.map((alm) => (
                           <th key={`res-alm-${alm}`} className="px-2.5 py-2 text-right font-black">
                             {alm}
@@ -1990,7 +1991,7 @@ export default function BalanceModule({
                         <th className="px-3 py-2 text-right font-black">Necesidad</th>
                         <th className="px-3 py-2 text-left font-black">Fecha operativa</th>
                         <th className="px-3 py-2 text-right font-black">Transito</th>
-                        <th className="px-3 py-2 text-right font-black">AG01 + AG04</th>
+                        <th className="px-3 py-2 text-right font-black">{baseInventarioLabel}</th>
                         {almacenesDetectados.map((alm) => (
                           <th key={`sem-alm-${alm}`} className="px-3 py-2 text-right font-black">
                             {alm}

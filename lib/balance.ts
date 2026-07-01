@@ -366,6 +366,11 @@ export function generarBalance(datos: ExcelData): {
   politicasInventario.forEach((fila: ExcelRow) => {
     const codigo = String(
       obtenerValor(fila, [
+        "Cod_Material",
+        "Cod Material",
+        "Cod. Material",
+        "Codigo Material",
+        "C?digo Material",
         "Codigo",
         "CÃ³digo",
         "Material",
@@ -381,6 +386,9 @@ export function generarBalance(datos: ExcelData): {
 
     mapaPoliticasInventario[codigo] = {
       stockMin: obtenerNumeroOpcional(fila, [
+        "Min Stock",
+        "Min. Stock",
+        "Min_Stock",
         "Stock Min",
         "Stock Min.",
         "Stock Minimo",
@@ -390,6 +398,9 @@ export function generarBalance(datos: ExcelData): {
         "MÃ­nimo",
       ]),
       stockMed: obtenerNumeroOpcional(fila, [
+        "Med Stock",
+        "Med. Stock",
+        "Med_Stock",
         "Stock Med",
         "Stock Med.",
         "Stock Medio",
@@ -397,6 +408,9 @@ export function generarBalance(datos: ExcelData): {
         "Medio",
       ]),
       stockMax: obtenerNumeroOpcional(fila, [
+        "Max Stock",
+        "Max. Stock",
+        "Max_Stock",
         "Stock Max",
         "Stock Max.",
         "Stock Maximo",
@@ -441,6 +455,11 @@ export function generarBalance(datos: ExcelData): {
 
     const skuPlan = String(
       obtenerValor(fila, [
+        "Cod_Material",
+        "Cod Material",
+        "Cod. Material",
+        "Codigo Material",
+        "C?digo Material",
         "Codigo",
         "CÃ³digo",
         "SKU",
