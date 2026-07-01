@@ -199,7 +199,7 @@ export default function BalanceModule({
   const columnasSemana = infoAnalisis?.columnasSemana || [];
   const almacenesDetectados = infoAnalisis?.almacenesDetectados || [];
   const seccionesDetectadas = infoAnalisis?.seccionesDetectadas || [];
-  const baseInventarioLabel = "AG01";
+  const baseInventarioLabel = "AG04";
 
   useEffect(() => {
     if (almacenesDetectados.length === 0) return;
