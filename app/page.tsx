@@ -56,11 +56,27 @@ export default function Home() {
     sessionStorage.removeItem("balance_user");
   }
 
+  function hidratarAnalisisHistorico(carga: SavedLoad) {
+    const stockPiPorCodigo = carga.info?.stockPiPorCodigo || {};
+
+    return (carga.analisis || []).map((row) => {
+      const stockPi = stockPiPorCodigo[row.codigo];
+      if (!stockPi) return row;
+
+      return {
+        ...row,
+        stockMin: row.stockMin ?? stockPi.stockMin ?? null,
+        stockMed: row.stockMed ?? stockPi.stockMed ?? null,
+        stockMax: row.stockMax ?? stockPi.stockMax ?? null,
+      };
+    });
+  }
+
   function cargarBalanceHistorico(carga: SavedLoad) {
     setDatos(carga.datos || {});
     setHojasEncontradas(carga.hojas || []);
     setHojaActiva(carga.hojas?.[0] || "");
-    setAnalisis(carga.analisis || []);
+    setAnalisis(hidratarAnalisisHistorico(carga));
     setInfoAnalisis(carga.info || null);
     setArchivoNombre(carga.archivo || "Balance historico");
     setActiveModule("balance");

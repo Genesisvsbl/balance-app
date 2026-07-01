@@ -61,6 +61,9 @@ function toSavedLoad(run, rows) {
       coberturaPorSemana: row.cobertura_por_semana || {},
       almacenes: row.almacenes || {},
       diferenciasPorSemana: row.diferencias_por_semana || {},
+      stockMin: stockPiValue(info, row, "stockMin", "stock_min"),
+      stockMed: stockPiValue(info, row, "stockMed", "stock_med"),
+      stockMax: stockPiValue(info, row, "stockMax", "stock_max"),
     })),
   };
 }
