@@ -199,7 +199,7 @@ export default function BalanceModule({
   const columnasSemana = infoAnalisis?.columnasSemana || [];
   const almacenesDetectados = infoAnalisis?.almacenesDetectados || [];
   const seccionesDetectadas = infoAnalisis?.seccionesDetectadas || [];
-  const baseInventarioLabel = useMemo(() => Array.from(new Set(["AG01", "AG04"])).join(" + "), []);
+  const baseInventarioLabel = "AG01";
 
   useEffect(() => {
     if (almacenesDetectados.length === 0) return;
@@ -541,7 +541,7 @@ export default function BalanceModule({
 
 
   function formatoStockPi(valor?: number | null) {
-    return typeof valor === "number" && Number.isFinite(valor) ? formatoNumero(valor) : "";
+    return typeof valor === "number" && Number.isFinite(valor) ? formatoNumero(Math.round(valor)) : "";
   }
   function estadoSeleccionado(row: BalanceRow): EstadoAnalisis {
     const necesidad = totalNecesidadSeleccionada(row);
