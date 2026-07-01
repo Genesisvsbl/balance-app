@@ -10,6 +10,16 @@ function json(statusCode, body) {
   };
 }
 
+function numberOrNull(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function stockPiValue(info, row, key, dbKey) {
+  return numberOrNull(row?.[dbKey] ?? info?.stockPiPorCodigo?.[row.codigo]?.[key]);
+}
+
 function toSavedLoad(run, rows) {
   const info = run.info || {};
 

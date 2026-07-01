@@ -76,6 +76,10 @@ export type BalanceInfo = {
   materialesBloqueados?: InventarioBloqueadoRow[];
   consumosPorMaterial?: Record<string, number>;
   skusProduccionDetectados?: SkuProduccion[];
+  stockPiPorCodigo?: Record<
+    string,
+    { stockMin?: number | null; stockMed?: number | null; stockMax?: number | null }
+  >;
 };
 
 export type SavedLoad = {

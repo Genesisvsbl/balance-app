@@ -108,6 +108,38 @@ function extraerBasesHistorico(datos: ExcelData): ExcelData {
   );
 }
 
+function crearStockPiPorCodigo(rows: BalanceRow[]): BalanceInfo["stockPiPorCodigo"] {
+  const stockPiPorCodigo: BalanceInfo["stockPiPorCodigo"] = {};
+
+  for (const row of rows) {
+    if (!row.codigo) continue;
+
+    const tieneStockPi =
+      row.stockMin !== undefined ||
+      row.stockMed !== undefined ||
+      row.stockMax !== undefined;
+
+    if (!tieneStockPi) continue;
+
+    stockPiPorCodigo[row.codigo] = {
+      stockMin: row.stockMin ?? null,
+      stockMed: row.stockMed ?? null,
+      stockMax: row.stockMax ?? null,
+    };
+  }
+
+  return stockPiPorCodigo;
+}
+
+function infoConStockPi(info: BalanceInfo | null, rows: BalanceRow[]): BalanceInfo | null {
+  if (!info) return info;
+
+  return {
+    ...info,
+    stockPiPorCodigo: crearStockPiPorCodigo(rows),
+  };
+}
+
 function obtenerValorLocal(fila: Record<string, any>, nombres: string[]) {
   for (const nombre of nombres) {
     const objetivo = normalizarClave(nombre);
@@ -671,7 +703,7 @@ export default function BalanceModule({
       hojas: Object.keys(datos),
       datos: extraerBasesHistorico(datos),
       analisis,
-      info: infoAnalisis,
+      info: infoConStockPi(infoAnalisis, analisis),
     };
 
     try {
@@ -713,7 +745,7 @@ export default function BalanceModule({
       hojas: Object.keys(datos),
       datos: extraerBasesHistorico(datos),
       analisis,
-      info: infoAnalisis,
+      info: infoConStockPi(infoAnalisis, analisis),
     };
 
     try {
