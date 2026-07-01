@@ -961,6 +961,8 @@ export default function BalanceModule({
     totalSkuExistencias !== undefined;
   const mostrarSku = (valor?: number) =>
     typeof valor === "number" ? valor.toLocaleString("en-US") : "Regenerar";
+  const nombreBalanceActual = archivoNombre?.trim();
+
   const indicadoresPorSemana = semanasResumen.map((sem) => {
     const criticos = analisis.filter(
       (row) => (row.diferenciasPorSemana[sem] || 0) < 0
@@ -986,6 +988,11 @@ export default function BalanceModule({
             <h3 className="text-lg font-black text-slate-950">
               Balance de materiales
             </h3>
+            {nombreBalanceActual && (
+              <p className="mt-1 max-w-xl truncate text-sm font-black text-[#0057B8]" title={nombreBalanceActual}>
+                Balance abierto: {nombreBalanceActual}
+              </p>
+            )}
             <p className="mt-1 text-xs font-medium text-slate-500">
               Base de calculo: {baseInventarioLabel} contra necesidades por semana.
             </p>
