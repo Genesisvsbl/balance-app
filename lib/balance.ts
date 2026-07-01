@@ -104,7 +104,7 @@ function obtenerSemanaDePlan(fila: ExcelRow, semanasBalance: string[]) {
       "Semana",
       "Semana correspondiente",
       "Semana recepcion",
-      "Semana recepción",
+      "Semana recepciÃ³n",
       "Week",
     ])
   ).trim();
@@ -126,19 +126,20 @@ export function generarBalance(datos: ExcelData): {
   const hojaExistencias: any = obtenerHoja(datos, ["Existencias"]);
   const hojaConsumos: any = obtenerHoja(datos, ["Consumos", "Consumo"]);
   const hojaPlanProduccion: any = obtenerHoja(datos, ["Plan"]);
+  const hojaPi: any = obtenerHoja(datos, ["PI", "P.I", "Politica Inventario", "Politica de Inventario", "Politicas Inventario", "PolÃ­tica Inventario", "PolÃ­tica de Inventario"]);
   const hojaPlan: any = obtenerHoja(datos, [
     "Plan de Recibo",
     "PLAN DE RECIBO",
     "Plan de Recepcion",
-    "Plan de Recepción",
+    "Plan de RecepciÃ³n",
     "Plan Recepcion",
-    "Plan Recepción",
+    "Plan RecepciÃ³n",
     "Programacion",
-    "Programación",
+    "ProgramaciÃ³n",
   ]);
 
   if (!hojaReceta || !hojaExistencias) {
-    throw new Error("No se encontró la hoja Receta o Existencias.");
+    throw new Error("No se encontrÃ³ la hoja Receta o Existencias.");
   }
 
   const receta = hojaReceta.datos || [];
@@ -146,6 +147,7 @@ export function generarBalance(datos: ExcelData): {
   const consumos = hojaConsumos?.datos || [];
   const planRecepcion = hojaPlan?.datos || [];
   const planProduccion = hojaPlanProduccion?.datos || [];
+  const politicasInventario = hojaPi?.datos || [];
 
   if (receta.length === 0 || existencias.length === 0) {
     throw new Error("Receta o Existencias no tienen datos.");
@@ -163,7 +165,7 @@ export function generarBalance(datos: ExcelData): {
 
   existencias.forEach((fila: ExcelRow) => {
     const material = String(
-      obtenerValor(fila, ["Material", "Código", "Codigo"])
+      obtenerValor(fila, ["Material", "CÃ³digo", "Codigo"])
     ).trim();
     const textoBreve = String(
       obtenerValor(fila, [
@@ -171,11 +173,11 @@ export function generarBalance(datos: ExcelData): {
         "Texto breve material",
         "Texto breve",
         "Descripcion",
-        "Descripción",
+        "DescripciÃ³n",
       ])
     ).trim();
     const almacen = String(
-      obtenerValor(fila, ["Alm.", "Alm", "ALM", "Almacen", "Almacén"])
+      obtenerValor(fila, ["Alm.", "Alm", "ALM", "Almacen", "AlmacÃ©n"])
     ).trim();
     const libre = convertirNumero(
       obtenerValor(fila, [
@@ -183,7 +185,7 @@ export function generarBalance(datos: ExcelData): {
         "Libre utiliz",
         "Libre Utiliz.",
         "Libre Utiliz",
-        "Libre utilización",
+        "Libre utilizaciÃ³n",
         "Libre Utilizacion",
       ])
     );
@@ -270,10 +272,10 @@ export function generarBalance(datos: ExcelData): {
 
   planProduccion.forEach((fila: ExcelRow) => {
     const codigoSap = String(
-      obtenerValor(fila, ["SAP", "Codigo SAP", "Código SAP", "Sku SAP", "SKU SAP"])
+      obtenerValor(fila, ["SAP", "Codigo SAP", "CÃ³digo SAP", "Sku SAP", "SKU SAP"])
     ).trim();
     const descripcionSku = String(
-      obtenerValor(fila, ["SKU", "Descripcion SKU", "Descripción SKU", "Producto", "Descripcion"])
+      obtenerValor(fila, ["SKU", "Descripcion SKU", "DescripciÃ³n SKU", "Producto", "Descripcion"])
     ).trim();
 
     const semanaSap = obtenerSemanaDePlan(fila, etiquetasSemana);
@@ -294,11 +296,11 @@ export function generarBalance(datos: ExcelData): {
       obtenerValor(fila, [
         "SKU",
         "Codigo SKU",
-        "Código SKU",
-        "Código material",
+        "CÃ³digo SKU",
+        "CÃ³digo material",
         "Codigo material",
         "Codigo",
-        "Código",
+        "CÃ³digo",
         "Material",
       ])
     ).trim();
@@ -308,7 +310,7 @@ export function generarBalance(datos: ExcelData): {
         "Cantidad",
         "Cantidad programada",
         "Cantidad prevista",
-        "Cantidad prevista de recepción",
+        "Cantidad prevista de recepciÃ³n",
       ])
     );
     const fecha = formatearFecha(
@@ -316,7 +318,7 @@ export function generarBalance(datos: ExcelData): {
         "Fecha operativa",
         "Fecha",
         "Fecha recepcion",
-        "Fecha recepción",
+        "Fecha recepciÃ³n",
       ])
     );
 
@@ -348,6 +350,63 @@ export function generarBalance(datos: ExcelData): {
     });
   });
 
+
+  function obtenerNumeroOpcional(fila: ExcelRow, nombres: string[]) {
+    const valor = obtenerValor(fila, nombres);
+    if (valor === "" || valor === null || valor === undefined) return null;
+    const numero = convertirNumero(valor);
+    return Number.isFinite(numero) ? numero : null;
+  }
+
+  const mapaPoliticasInventario: Record<
+    string,
+    { stockMin: number | null; stockMed: number | null; stockMax: number | null }
+  > = {};
+
+  politicasInventario.forEach((fila: ExcelRow) => {
+    const codigo = String(
+      obtenerValor(fila, [
+        "Codigo",
+        "CÃ³digo",
+        "Material",
+        "NÂ° componente",
+        "NÂº componente",
+        "No. componente",
+        "Componente",
+        "SKU",
+      ])
+    ).trim();
+
+    if (!codigo) return;
+
+    mapaPoliticasInventario[codigo] = {
+      stockMin: obtenerNumeroOpcional(fila, [
+        "Stock Min",
+        "Stock Min.",
+        "Stock Minimo",
+        "Stock MÃ­nimo",
+        "Min",
+        "Minimo",
+        "MÃ­nimo",
+      ]),
+      stockMed: obtenerNumeroOpcional(fila, [
+        "Stock Med",
+        "Stock Med.",
+        "Stock Medio",
+        "Med",
+        "Medio",
+      ]),
+      stockMax: obtenerNumeroOpcional(fila, [
+        "Stock Max",
+        "Stock Max.",
+        "Stock Maximo",
+        "Stock MÃ¡ximo",
+        "Max",
+        "Maximo",
+        "MÃ¡ximo",
+      ]),
+    };
+  });
   const mapaNecesidades: any = {};
   const recetaPorSku: Record<
     string,
@@ -359,12 +418,12 @@ export function generarBalance(datos: ExcelData): {
   receta.forEach((fila: ExcelRow) => {
     const codigo = String(
       obtenerValor(fila, [
-        "N° componente",
-        "Nº componente",
-        "N° Componente",
-        "Nº Componente",
+        "NÂ° componente",
+        "NÂº componente",
+        "NÂ° Componente",
+        "NÂº Componente",
         "Material",
-        "Código",
+        "CÃ³digo",
         "Codigo",
       ])
     ).trim();
@@ -374,7 +433,7 @@ export function generarBalance(datos: ExcelData): {
     const skuPlan = String(
       obtenerValor(fila, [
         "Codigo",
-        "Código",
+        "CÃ³digo",
         "SKU",
         "Material padre",
         "Material Padre",
@@ -382,7 +441,7 @@ export function generarBalance(datos: ExcelData): {
     ).trim();
 
     const seccion = String(
-      obtenerValor(fila, ["Seccion", "Sección", "SECCION", "SECCIÓN"])
+      obtenerValor(fila, ["Seccion", "SecciÃ³n", "SECCION", "SECCIÃ“N"])
     ).trim();
 
     if (seccion) seccionesSet.add(seccion);
@@ -396,7 +455,7 @@ export function generarBalance(datos: ExcelData): {
             "Texto breve objeto",
             "Texto breve de material",
             "Texto breve",
-            "Descripción",
+            "DescripciÃ³n",
             "Descripcion",
           ]) || "",
         um: obtenerValor(fila, ["UM", "UMB"]) || "",
@@ -439,7 +498,7 @@ export function generarBalance(datos: ExcelData): {
 
   consumos.forEach((fila: ExcelRow) => {
     const sku = String(
-      obtenerValor(fila, ["Material", "SKU", "Codigo", "Código"])
+      obtenerValor(fila, ["Material", "SKU", "Codigo", "CÃ³digo"])
     ).trim();
     const cantidadConsumo = convertirNumero(
       obtenerValor(fila, ["Cantidad", "Cantidad consumo"])
@@ -457,6 +516,7 @@ export function generarBalance(datos: ExcelData): {
     (item: any) => {
       const codigo = item.codigo;
       const existencia = mapaExistencias[codigo] || {};
+      const politicaInventario = mapaPoliticasInventario[codigo] || {};
       const almacenes = existencia.almacenes || {};
       const existenciaBalance =
         (almacenes["AG01"] || 0) + (almacenes["AG04"] || 0);
@@ -519,6 +579,9 @@ export function generarBalance(datos: ExcelData): {
           (existencia.valorStock || 0) - (existencia.valorBloqueado || 0),
         valorInventarioBloqueado: existencia.valorBloqueado || 0,
         valorStockTotal: existencia.valorStock || 0,
+        stockMin: politicaInventario.stockMin ?? null,
+        stockMed: politicaInventario.stockMed ?? null,
+        stockMax: politicaInventario.stockMax ?? null,
         totalExistencia: existenciaBalance,
         diferenciaTotal,
         diferenciasPorSemana,

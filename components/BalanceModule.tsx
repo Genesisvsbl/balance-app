@@ -33,6 +33,9 @@ type ColumnVisibility = {
   diferenciaTotal: boolean;
   diferenciasSemana: boolean;
   alcanceDias: boolean;
+  stockMin: boolean;
+  stockMed: boolean;
+  stockMax: boolean;
   estado: boolean;
 };
 
@@ -89,8 +92,13 @@ function extraerBasesHistorico(datos: ExcelData): ExcelData {
     "Plan recepcion materiales",
     "Plan de recepcion",
     "SKU Produccion",
-    "SKU Producción",
+    "SKU ProducciÃ³n",
     "Hoja3",
+    "PI",
+    "P.I",
+    "Politica Inventario",
+    "Politica de Inventario",
+    "Politicas Inventario",
   ].map(normalizarClave);
 
   return Object.fromEntries(
@@ -148,6 +156,9 @@ function crearVisibilidadInicial(almacenes: string[]): ColumnVisibility {
     diferenciaTotal: true,
     diferenciasSemana: true,
     alcanceDias: true,
+    stockMin: true,
+    stockMed: true,
+    stockMax: true,
     estado: true,
   };
 }
@@ -241,6 +252,9 @@ export default function BalanceModule({
       diferenciaTotal: true,
       diferenciasSemana: true,
       alcanceDias: true,
+      stockMin: true,
+      stockMed: true,
+      stockMax: true,
       estado: true,
     });
   }
@@ -261,12 +275,12 @@ export default function BalanceModule({
 
     (hojaPlan?.datos || []).forEach((fila: Record<string, any>) => {
       const codigo = String(
-        obtenerValorLocal(fila, ["SAP", "Codigo SAP", "Código SAP"])
+        obtenerValorLocal(fila, ["SAP", "Codigo SAP", "CÃ³digo SAP"])
       ).trim();
       if (!codigo) return;
 
       const descripcion = String(
-        obtenerValorLocal(fila, ["SKU", "Descripcion SKU", "Descripción SKU", "Producto"])
+        obtenerValorLocal(fila, ["SKU", "Descripcion SKU", "DescripciÃ³n SKU", "Producto"])
       ).trim();
       const semana = obtenerSemanaPlanLocal(fila, columnasSemana);
 
@@ -292,16 +306,16 @@ export default function BalanceModule({
 
     (hojaReceta?.datos || []).forEach((fila: Record<string, any>) => {
       const codigoSku = String(
-        obtenerValorLocal(fila, ["Codigo", "Código", "SAP", "SKU", "Material padre"])
+        obtenerValorLocal(fila, ["Codigo", "CÃ³digo", "SAP", "SKU", "Material padre"])
       ).trim();
       const componente = String(
         obtenerValorLocal(fila, [
-          "N° componente",
-          "Nº componente",
-          "N° Componente",
-          "Nº Componente",
+          "NÂ° componente",
+          "NÂº componente",
+          "NÂ° Componente",
+          "NÂº Componente",
           "Material",
-          "Código",
+          "CÃ³digo",
           "Codigo",
         ])
       ).trim();
@@ -424,42 +438,101 @@ export default function BalanceModule({
     return row.totalExistencia - totalNecesidadSeleccionada(row);
   }
 
-  function alcanceDiasInventario(row: BalanceRow) {
+  function inventarioDisponibleParaAlcance(row: BalanceRow) {
+    return Object.entries(row.almacenes || {}).reduce((acc, [almacen, valor]) => {
+      if (normalizarClave(almacen) === "ag40") return acc;
+      return acc + (valor || 0);
+    }, 0);
+  }
+
+  function finSemanaCalendario(semana: string) {
+    const match = semana.match(/\d+/);
+    if (!match) return null;
+
+    const numeroSemana = Number(match[0]);
+    if (!Number.isFinite(numeroSemana) || numeroSemana <= 0) return null;
+
+    const hoy = new Date();
+    const year = hoy.getFullYear();
+    const primerDia = new Date(year, 0, 1);
+    const diaSemanaPrimerDia = primerDia.getDay() || 7;
+    const inicioSemanaUno = new Date(year, 0, 1 - (diaSemanaPrimerDia - 1));
+    const finSemana = new Date(inicioSemanaUno);
+    finSemana.setDate(inicioSemanaUno.getDate() + numeroSemana * 7 - 1);
+    finSemana.setHours(23, 59, 59, 999);
+    return finSemana;
+  }
+
+  function diasHastaFinSemanasConNecesidad(row: BalanceRow) {
+    const semanasConNecesidad = semanasActivas.filter(
+      (sem) => (row.necesidadesPorSemana[sem] || 0) > 0
+    );
+    const fines = semanasConNecesidad
+      .map(finSemanaCalendario)
+      .filter((fecha): fecha is Date => Boolean(fecha));
+
+    if (fines.length === 0) return Math.max(semanasActivas.length, 1) * 7;
+
+    const finHorizonte = new Date(Math.max(...fines.map((fecha) => fecha.getTime())));
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    return Math.max(1, Math.ceil((finHorizonte.getTime() - hoy.getTime()) / 86400000));
+  }
+
+  function fechaAlcanceInventario(row: BalanceRow) {
+    const dias = alcanceDiasValor(row);
+    if (!Number.isFinite(dias) || dias <= 0) return "Sin cobertura";
+    if (dias > 180) return ">6 meses";
+
+    const fecha = new Date();
+    fecha.setHours(0, 0, 0, 0);
+    fecha.setDate(fecha.getDate() + Math.floor(dias));
+
+    return fecha.toLocaleDateString("es-CO", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }
+
+  function alcanceDiasValor(row: BalanceRow) {
     const necesidad = totalNecesidadSeleccionada(row);
-    const inventario = row.totalExistencia || 0;
+    const inventario = inventarioDisponibleParaAlcance(row);
 
-    if (inventario <= 0) return "0";
-    if (necesidad <= 0) return ">6 meses";
+    if (inventario <= 0) return 0;
+    if (necesidad <= 0) return 181;
 
-    const diasHorizonte = Math.max(semanasActivas.length, 1) * 7;
-    const dias = (inventario * diasHorizonte) / necesidad;
+    return (inventario * diasHastaFinSemanasConNecesidad(row)) / necesidad;
+  }
 
-    if (!Number.isFinite(dias)) return "0";
+  function alcanceDiasInventario(row: BalanceRow) {
+    const dias = alcanceDiasValor(row);
+
+    if (!Number.isFinite(dias) || dias <= 0) return "0";
     if (dias > 180) return ">6 meses";
 
     return formatoNumero(dias);
   }
 
   function alcanceDiasOrden(row: BalanceRow) {
-    const necesidad = totalNecesidadSeleccionada(row);
-    const inventario = row.totalExistencia || 0;
-
-    if (inventario <= 0) return 0;
-    if (necesidad <= 0) return 181;
-
-    return (inventario * Math.max(semanasActivas.length, 1) * 7) / necesidad;
+    return alcanceDiasValor(row);
   }
 
   function alcanceDiasClasses(row: BalanceRow) {
     const dias = alcanceDiasOrden(row);
 
-    if (dias <= 20) return "border-red-200 bg-red-100 text-[#e30613]";
-    if (dias < 30) return "border-orange-200 bg-orange-100 text-orange-700";
-    if (dias <= 45) return "border-emerald-200 bg-emerald-100 text-emerald-800";
-    if (dias <= 180) return "border-orange-200 bg-orange-100 text-orange-700";
-    return "border-orange-300 bg-orange-200 text-orange-900";
+    if (dias <= 0) return "border-slate-200 bg-slate-50 text-[#0B4EA2]";
+    if (dias < 15) return "border-red-200 bg-red-50 text-[#e30613]";
+    if (dias < 30) return "border-amber-200 bg-amber-50 text-amber-700";
+    if (dias <= 180) return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    return "border-blue-200 bg-blue-50 text-[#0B4EA2]";
   }
 
+
+  function formatoStockPi(valor?: number | null) {
+    return typeof valor === "number" && Number.isFinite(valor) ? formatoNumero(valor) : "";
+  }
   function estadoSeleccionado(row: BalanceRow): EstadoAnalisis {
     const necesidad = totalNecesidadSeleccionada(row);
     const diferencia = diferenciaSeleccionada(row);
@@ -531,6 +604,12 @@ export default function BalanceModule({
         return diferenciaSeleccionada(row);
       case "alcanceDias":
         return alcanceDiasOrden(row);
+      case "stockMin":
+        return row.stockMin ?? -1;
+      case "stockMed":
+        return row.stockMed ?? -1;
+      case "stockMax":
+        return row.stockMax ?? -1;
       case "estado":
         return estadoSeleccionado(row);
       default:
@@ -611,7 +690,7 @@ export default function BalanceModule({
     const nombreBalance = crearNombreBalance();
 
     const confirmar = confirm(
-      `¿Deseas guardar este balance como:\n\n${nombreBalance}?`
+      `Â¿Deseas guardar este balance como:\n\n${nombreBalance}?`
     );
 
     if (!confirmar) return;
@@ -707,7 +786,7 @@ export default function BalanceModule({
     const dataExport = filtradoOrdenado.map((row) => {
       const base: any = {};
 
-      if (visibilidad.codigo) base["N° componente"] = row.codigo;
+      if (visibilidad.codigo) base["NÂ° componente"] = row.codigo;
       if (visibilidad.material) base["Texto breve-objeto"] = row.material;
       if (visibilidad.um) base.UM = row.um;
       if (visibilidad.seccion) base.Seccion = row.seccion;
@@ -750,6 +829,10 @@ export default function BalanceModule({
       if (visibilidad.alcanceDias) {
         base["Alcance dias inventario"] = alcanceDiasInventario(row);
       }
+
+      if (visibilidad.stockMin) base["Stock Min"] = formatoStockPi(row.stockMin);
+      if (visibilidad.stockMed) base["Stock Med"] = formatoStockPi(row.stockMed);
+      if (visibilidad.stockMax) base["Stock Max"] = formatoStockPi(row.stockMax);
 
       if (visibilidad.diferenciasSemana) {
         semanasActivas.forEach((sem) => {
@@ -826,7 +909,7 @@ export default function BalanceModule({
               Balance de materiales
             </h3>
             <p className="mt-1 text-xs font-medium text-slate-500">
-              Base de cálculo: AG01 + AG04 contra necesidades por semana.
+              Base de cÃ¡lculo: AG01 + AG04 contra necesidades por semana.
             </p>
           </div>
 
@@ -955,7 +1038,7 @@ export default function BalanceModule({
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h4 className="text-base font-black text-slate-950">
-                Análisis de componentes
+                AnÃ¡lisis de componentes
               </h4>
               <p className="mt-0.5 text-xs font-semibold text-slate-500">
                 Mostrando {filtrado.length} de {analisis.length} componentes.
@@ -966,7 +1049,7 @@ export default function BalanceModule({
               <input
                 value={filtroTexto}
                 onChange={(e) => setFiltroTexto(e.target.value)}
-                placeholder="Buscar componente, descripción, sección..."
+                placeholder="Buscar componente, descripciÃ³n, secciÃ³n..."
                 className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-[#0057B8] focus:ring-2 focus:ring-[#0057B8]/10"
               />
 
@@ -977,7 +1060,7 @@ export default function BalanceModule({
                       ? "Selecciona SAP del Plan"
                       : `${filtrosSkuProduccion.length} SAP seleccionados`}
                   </span>
-                  <span className="text-[10px] text-slate-400">▼</span>
+                  <span className="text-[10px] text-slate-400">â–¼</span>
                 </summary>
                 <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-64 overflow-auto rounded-lg border border-slate-300 bg-white p-2 shadow-xl">
                   <input
@@ -1028,7 +1111,7 @@ export default function BalanceModule({
                       ? "Todas las secciones"
                       : `${filtrosSeccion.length} secciones`}
                   </span>
-                  <span className="text-[10px] text-slate-400">▼</span>
+                  <span className="text-[10px] text-slate-400">â–¼</span>
                 </summary>
                 <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-auto rounded-lg border border-slate-300 bg-white p-2 shadow-xl">
                   <input
@@ -1064,7 +1147,7 @@ export default function BalanceModule({
                       ? "Todos los estados"
                       : `${filtrosEstado.length} estados`}
                   </span>
-                  <span className="text-[10px] text-slate-400">▼</span>
+                  <span className="text-[10px] text-slate-400">â–¼</span>
                 </summary>
                 <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-auto rounded-lg border border-slate-300 bg-white p-2 shadow-xl">
                   {ESTADOS_ANALISIS.map((estado) => (
@@ -1113,8 +1196,8 @@ export default function BalanceModule({
                 SAP seleccionados:{" "}
                 {skusProduccionSeleccionados
                   .map((sku) => `${sku.codigo} - ${sku.descripcion}`)
-                  .join(" · ")}{" "}
-                · {mostrarTodoSkuProduccion
+                  .join(" Â· ")}{" "}
+                Â· {mostrarTodoSkuProduccion
                   ? "Mostrando receta completa"
                   : "Mostrando solo materiales con necesidad en las semanas filtradas"}
               </p>
@@ -1183,7 +1266,7 @@ export default function BalanceModule({
                     Visibilidad de columnas
                   </h5>
                   <p className="mt-1 text-xs font-semibold text-slate-500">
-                    Oculta almacenes o columnas para una vista más limpia.
+                    Oculta almacenes o columnas para una vista mÃ¡s limpia.
                   </p>
                 </div>
 
@@ -1214,7 +1297,7 @@ export default function BalanceModule({
                   onClick={() => toggleCampo("um")}
                 />
                 <Toggle
-                  label="Sección"
+                  label="SecciÃ³n"
                   checked={visibilidad.seccion}
                   onClick={() => toggleCampo("seccion")}
                 />
@@ -1247,6 +1330,21 @@ export default function BalanceModule({
                   label="Alcance dias"
                   checked={visibilidad.alcanceDias}
                   onClick={() => toggleCampo("alcanceDias")}
+                />
+                <Toggle
+                  label="Stock Min"
+                  checked={visibilidad.stockMin}
+                  onClick={() => toggleCampo("stockMin")}
+                />
+                <Toggle
+                  label="Stock Med"
+                  checked={visibilidad.stockMed}
+                  onClick={() => toggleCampo("stockMed")}
+                />
+                <Toggle
+                  label="Stock Max"
+                  checked={visibilidad.stockMax}
+                  onClick={() => toggleCampo("stockMax")}
                 />
                 <Toggle
                   label="Estado"
@@ -1435,6 +1533,35 @@ export default function BalanceModule({
                         align="right"
                       />
                     )}
+                    {visibilidad.stockMin && (
+                      <SortHeader
+                        label="Stock Min"
+                        sortKey="stockMin"
+                        orden={orden}
+                        onSort={ordenarPor}
+                        align="right"
+                      />
+                    )}
+
+                    {visibilidad.stockMed && (
+                      <SortHeader
+                        label="Stock Med"
+                        sortKey="stockMed"
+                        orden={orden}
+                        onSort={ordenarPor}
+                        align="right"
+                      />
+                    )}
+
+                    {visibilidad.stockMax && (
+                      <SortHeader
+                        label="Stock Max"
+                        sortKey="stockMax"
+                        orden={orden}
+                        onSort={ordenarPor}
+                        align="right"
+                      />
+                    )}
 
                     {visibilidad.estado && (
                       <SortHeader
@@ -1454,6 +1581,7 @@ export default function BalanceModule({
                       onClickCapture={() => setFilaSeleccionada(row)}
                       onMouseDown={() => setFilaSeleccionada(row)}
                       onDoubleClick={() => setFilaSeleccionada(row)}
+                      title={`Alcance: ${alcanceDiasInventario(row)} dias | Inventario hasta: ${fechaAlcanceInventario(row)}`}
                       className="cursor-pointer border-b border-slate-100 bg-white transition hover:bg-[#D8ECFF] active:bg-[#ffe7a3]"
                     >
                       {visibilidad.codigo && (
@@ -1565,6 +1693,23 @@ export default function BalanceModule({
                           <span className={`inline-flex min-w-[64px] justify-end rounded-md border px-2 py-0.5 ${alcanceDiasClasses(row)}`}>
                             {alcanceDiasInventario(row)}
                           </span>
+                        </td>
+                      )}
+                      {visibilidad.stockMin && (
+                        <td className="px-2.5 py-1.5 text-right font-bold text-slate-700">
+                          {formatoStockPi(row.stockMin)}
+                        </td>
+                      )}
+
+                      {visibilidad.stockMed && (
+                        <td className="px-2.5 py-1.5 text-right font-bold text-slate-700">
+                          {formatoStockPi(row.stockMed)}
+                        </td>
+                      )}
+
+                      {visibilidad.stockMax && (
+                        <td className="px-2.5 py-1.5 text-right font-bold text-slate-700">
+                          {formatoStockPi(row.stockMax)}
                         </td>
                       )}
 
@@ -1692,6 +1837,14 @@ export default function BalanceModule({
                   tone="neutral"
                 />
                 <DetalleCard
+                  label="Inventario hasta"
+                  value={fechaAlcanceInventario(filaSeleccionada)}
+                  tone="neutral"
+                />
+                <DetalleCard label="Stock Min" value={formatoStockPi(filaSeleccionada.stockMin) || "-"} />
+                <DetalleCard label="Stock Med" value={formatoStockPi(filaSeleccionada.stockMed) || "-"} />
+                <DetalleCard label="Stock Max" value={formatoStockPi(filaSeleccionada.stockMax) || "-"} />
+                <DetalleCard
                   label="Estado"
                   value={estadoSeleccionado(filaSeleccionada)}
                   tone={estadoTone(estadoSeleccionado(filaSeleccionada))}
@@ -1733,6 +1886,10 @@ export default function BalanceModule({
                           </th>
                         ))}
                         <th className="px-2.5 py-2 text-right font-black">Alcance dias</th>
+                        <th className="px-2.5 py-2 text-right font-black">Inventario hasta</th>
+                        <th className="px-2.5 py-2 text-right font-black">Stock Min</th>
+                        <th className="px-2.5 py-2 text-right font-black">Stock Med</th>
+                        <th className="px-2.5 py-2 text-right font-black">Stock Max</th>
                         <th className="px-2.5 py-2 text-left font-black">Estado</th>
                       </tr>
                     </thead>
@@ -1786,6 +1943,18 @@ export default function BalanceModule({
                           <span className={`inline-flex min-w-[64px] justify-end rounded-md border px-2 py-0.5 ${alcanceDiasClasses(filaSeleccionada)}`}>
                             {alcanceDiasInventario(filaSeleccionada)}
                           </span>
+                        </td>
+                        <td className="px-2.5 py-2 text-right font-black text-[#0B4EA2]">
+                          {fechaAlcanceInventario(filaSeleccionada)}
+                        </td>
+                        <td className="px-2.5 py-2 text-right font-bold text-slate-700">
+                          {formatoStockPi(filaSeleccionada.stockMin) || "-"}
+                        </td>
+                        <td className="px-2.5 py-2 text-right font-bold text-slate-700">
+                          {formatoStockPi(filaSeleccionada.stockMed) || "-"}
+                        </td>
+                        <td className="px-2.5 py-2 text-right font-bold text-slate-700">
+                          {formatoStockPi(filaSeleccionada.stockMax) || "-"}
                         </td>
                         <td className="px-2.5 py-2">
                           <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${estadoClasses(estadoSeleccionado(filaSeleccionada))}`}>
@@ -1941,7 +2110,7 @@ function Toggle({
           : "border-slate-200 bg-white text-slate-400 hover:bg-slate-50"
       }`}
     >
-      <span className="mr-2 inline-block">{checked ? "●" : "○"}</span>
+      <span className="mr-2 inline-block">{checked ? "â—" : "â—‹"}</span>
       {label}
     </button>
   );

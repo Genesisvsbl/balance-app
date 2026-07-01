@@ -47,6 +47,9 @@ export type BalanceRow = {
   valorInventarioLibre?: number;
   valorInventarioBloqueado?: number;
   valorStockTotal?: number;
+  stockMin?: number | null;
+  stockMed?: number | null;
+  stockMax?: number | null;
   totalExistencia: number;
   diferenciaTotal: number;
   diferenciasPorSemana: Record<string, number>;

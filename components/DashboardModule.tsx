@@ -108,6 +108,14 @@ function obtenerHojaLocal(datos: ExcelData, nombres: string[]) {
   );
 }
 
+function contarFilasConDatos(hoja: any) {
+  const filas = hoja?.datos || [];
+  return filas.filter((fila: Record<string, any>) =>
+    Object.values(fila || {}).some(
+      (valor) => valor !== undefined && valor !== null && String(valor).trim() !== ""
+    )
+  ).length;
+}
 function convertirNumero(valor: any) {
   if (typeof valor === "number") return Number.isFinite(valor) ? valor : 0;
   const texto = String(valor ?? "").trim();
@@ -172,7 +180,7 @@ function nombreBalanceOpcion(carga: any) {
       })
     : "";
 
-  return `${fecha} · ${carga.archivo || "Balance guardado"}`;
+  return `${fecha} Â· ${carga.archivo || "Balance guardado"}`;
 }
 
 export default function DashboardModule({
@@ -679,6 +687,12 @@ export default function DashboardModule({
   const balanceRealSeleccionado =
     opcionesBalance.find((item) => item.id === balanceRealId) || opcionesBalance[0];
 
+  const cargandoPlanHistorico = Boolean(
+    balancePlanId && balancePlanId !== "actual" && !cargasHistoricasCompletas[balancePlanId]
+  );
+  const cargandoRealHistorico = Boolean(
+    balanceRealId && balanceRealId !== "actual" && !cargasHistoricasCompletas[balanceRealId]
+  );
   const mapaSkuProduccion = useMemo(() => {
     const mapa = new Map<string, ProduccionMeta>();
     const fuentes = [
@@ -705,15 +719,15 @@ export default function DashboardModule({
 
         filas.forEach((fila) => {
           const codigo = String(
-            obtenerValorLocal(fila, ["Codigo SAP", "Código SAP", "SAP", "Codigo"])
+            obtenerValorLocal(fila, ["Codigo SAP", "CÃ³digo SAP", "SAP", "Codigo"])
           ).trim();
           if (!codigo) return;
 
           const categoria = normalizarCategoria(
-            String(obtenerValorLocal(fila, ["Categoria", "Categoría"]))
+            String(obtenerValorLocal(fila, ["Categoria", "CategorÃ­a"]))
           );
           const descripcion = String(
-            obtenerValorLocal(fila, ["Descripcion Sku", "Descripción Sku", "SKU"])
+            obtenerValorLocal(fila, ["Descripcion Sku", "DescripciÃ³n Sku", "SKU"])
           ).trim();
 
           mapa.set(codigo, {
@@ -734,51 +748,63 @@ export default function DashboardModule({
 
   const consumosPlanReal = useMemo(() => {
     const entradas: ConsumoEntrada[] = [];
-    const semanasConsumoActivas =
+    const semanasPlanActivas =
       filtroConsumoSemanas.length > 0 ? filtroConsumoSemanas : semanasActivas;
+    const semanasRealActivas = filtroConsumoSemanas;
     const hojaPlan = obtenerHojaLocal(balancePlanSeleccionado?.datos || {}, ["Plan"]);
     const hojaConsumos = obtenerHojaLocal(balanceRealSeleccionado?.datos || {}, [
       "Consumos",
       "Consumo",
     ]);
+    const filasPlan = hojaPlan?.datos || [];
+    const filasConsumos = hojaConsumos?.datos || [];
 
-    (hojaPlan?.datos || []).forEach((fila) => {
+    filasPlan.forEach((fila: any) => {
       const codigo = String(
-        obtenerValorLocal(fila, ["SAP", "Codigo SAP", "Código SAP", "Material"])
+        obtenerValorLocal(fila, ["SAP", "Codigo SAP", "CÃ³digo SAP", "CÃ³digo SAP", "Material"])
       ).trim();
       if (!codigo) return;
 
       const semana = String(obtenerValorLocal(fila, ["sem", "Semana", "Week"])).trim();
-      if (semanasConsumoActivas.length > 0 && semana && !semanasConsumoActivas.includes(semana)) {
+      if (semanasPlanActivas.length > 0 && semana && !semanasPlanActivas.includes(semana)) {
         return;
       }
 
       const meta = mapaSkuProduccion.get(codigo);
       const descripcion =
         meta?.descripcion ||
-        String(obtenerValorLocal(fila, ["SKU", "Descripcion Sku", "Descripción Sku"])).trim();
+        String(obtenerValorLocal(fila, ["SKU", "Descripcion Sku", "DescripciÃ³n Sku", "DescripciÃ³n Sku"])).trim();
 
       entradas.push({
         categoria: meta?.categoria || "Sin categoria",
         codigo,
         descripcion,
-        linea: String(obtenerValorLocal(fila, ["Linea", "Línea", "Recurso"])).trim(),
+        linea: String(obtenerValorLocal(fila, ["Linea", "LÃ­nea", "LÃ­nea", "Recurso"])).trim(),
         semana,
-        plan: convertirNumero(obtenerValorLocal(fila, ["HL"])),
+        plan: convertirNumero(obtenerValorLocal(fila, ["HL", "Cantidad HL"])),
         real: 0,
       });
     });
 
-    (hojaConsumos?.datos || []).forEach((fila) => {
+    filasConsumos.forEach((fila: any) => {
       const codigo = String(
-        obtenerValorLocal(fila, ["Material", "SAP", "Codigo SAP", "Código SAP"])
+        obtenerValorLocal(fila, ["Material", "SAP", "Codigo SAP", "CÃ³digo SAP", "CÃ³digo SAP", "Codigo"])
       ).trim();
       if (!codigo) return;
 
       const fechaConsumo =
-        obtenerValorLocal(fila, ["Fe.Cont", "Fecha", "Inicio Ejec.", "Fin Ejec."]) || "";
+        obtenerValorLocal(fila, [
+          "Fe.Cont",
+          "Fe Cont",
+          "Fecha Cont",
+          "Fecha Contabilizacion",
+          "Fecha ContabilizaciÃ³n",
+          "Fecha",
+          "Inicio Ejec.",
+          "Fin Ejec.",
+        ]) || "";
       const semana = semanaDesdeFecha(fechaConsumo);
-      if (semanasConsumoActivas.length > 0 && semana && !semanasConsumoActivas.includes(semana)) {
+      if (semanasRealActivas.length > 0 && semana && !semanasRealActivas.includes(semana)) {
         return;
       }
 
@@ -792,14 +818,17 @@ export default function DashboardModule({
           String(
             obtenerValorLocal(fila, [
               "Descripcion Material",
-              "Descripción Material",
+              "DescripciÃ³n Material",
+              "DescripciÃ³n Material",
               "SKU",
             ])
           ).trim(),
-        linea: String(obtenerValorLocal(fila, ["Recurso", "Linea", "Línea"])).trim(),
+        linea: String(obtenerValorLocal(fila, ["Recurso", "Linea", "LÃ­nea", "LÃ­nea"])).trim(),
         semana,
         plan: 0,
-        real: convertirNumero(obtenerValorLocal(fila, ["Cantidad HL", "HL"])),
+        real: convertirNumero(
+          obtenerValorLocal(fila, ["Cantidad HL", "CantidadHL", "Cantidad H.L.", "Cant HL", "HL"])
+        ),
       });
     });
 
@@ -846,6 +875,11 @@ export default function DashboardModule({
     return {
       entradas,
       filtradas,
+      tieneHojaPlan: Boolean(hojaPlan),
+      tieneHojaConsumos: Boolean(hojaConsumos),
+      filasPlan: contarFilasConDatos(hojaPlan),
+      filasConsumos: contarFilasConDatos(hojaConsumos),
+      realTotalSinFiltros: entradas.reduce((acc, row) => acc + row.real, 0),
       porCategoria: agrupar(
         filtradas,
         (row) => row.categoria,
@@ -890,7 +924,6 @@ export default function DashboardModule({
     filtroConsumoLineas,
     filtroConsumoSemanas,
   ]);
-
   const opcionesCategoriaConsumo = Array.from(
     new Set(consumosPlanReal.entradas.map((row) => row.categoria).filter(Boolean))
   ).sort();
@@ -902,7 +935,7 @@ export default function DashboardModule({
           row.codigo,
           {
             value: row.codigo,
-            label: `${row.codigo} · ${row.descripcion || "Sin descripcion"}`,
+            label: `${row.codigo} Â· ${row.descripcion || "Sin descripcion"}`,
           },
         ])
     ).values()
@@ -922,7 +955,7 @@ export default function DashboardModule({
       return {
         titulo: "Consumo por categoria",
         registro: `${consumosPlanReal.porCategoria.length} categorias`,
-        columns: ["Categoria", "Plan", "Real", "% Cum"],
+        columns: ["Categoria", "Plan", "Real", "% Cum", "Diferencia"],
         rows: consumosPlanReal.porCategoria,
       };
     }
@@ -931,7 +964,7 @@ export default function DashboardModule({
       return {
         titulo: "Consumo por categoria y SKU de produccion",
         registro: `${consumosPlanReal.porSku.length} SKU`,
-        columns: ["Categoria", "SAP", "Descripcion", "Plan", "Real", "% Cum"],
+        columns: ["Categoria", "SAP", "Descripcion", "Plan", "Real", "% Cum", "Diferencia"],
         rows: consumosPlanReal.porSku,
       };
     }
@@ -947,6 +980,7 @@ export default function DashboardModule({
         "Plan",
         "Real",
         "% Cum",
+        "Diferencia",
       ],
       rows: consumosPlanReal.porLinea,
     };
@@ -984,6 +1018,24 @@ export default function DashboardModule({
     { plan: 0, real: 0 }
   );
 
+  const mensajeConsumo = (() => {
+    if (cargandoPlanHistorico || cargandoRealHistorico) {
+      return "Cargando datos completos del balance historico seleccionado...";
+    }
+    if (!consumosPlanReal.tieneHojaPlan) {
+      return "El Plan base seleccionado no trae hoja Plan guardada.";
+    }
+    if (!consumosPlanReal.tieneHojaConsumos) {
+      return "El Consumo real seleccionado no trae hoja Consumos guardada.";
+    }
+    if (consumosPlanReal.filasConsumos === 0) {
+      return "La hoja Consumos del balance real seleccionado esta vacia.";
+    }
+    if (consumosPlanReal.realTotalSinFiltros > 0 && totalConsumoInforme.real === 0) {
+      return "El balance real si trae consumos, pero los filtros actuales no tienen coincidencias.";
+    }
+    return "";
+  })();
   const renderConsumoRows = (dense = false) => {
     if (modoConsumo === "CATEGORIA") {
       return consumoInforme.rows.map((row) => (
@@ -1000,7 +1052,7 @@ export default function DashboardModule({
     const rows: ReactNode[] = [];
     let categoriaActual = "";
     let subtotal = { plan: 0, real: 0 };
-    const labelSpan = Math.max(consumoInforme.columns.length - 3, 1);
+    const labelSpan = Math.max(consumoInforme.columns.length - 4, 1);
 
     const pushSubtotal = () => {
       if (!categoriaActual) return;
@@ -1065,7 +1117,7 @@ export default function DashboardModule({
           </div>
 
           <div className="rounded-lg border border-[#2F80ED]/30 bg-[#EAF4FF] px-2 py-1 text-[11px] font-black text-[#0B4EA2]">
-            Base AG01 + AG04 · {almacenesDetectados.length} almacenes detectados
+            Base AG01 + AG04 Â· {almacenesDetectados.length} almacenes detectados
           </div>
         </div>
       </div>
@@ -1764,6 +1816,11 @@ export default function DashboardModule({
               </div>
             )}
 
+            {mensajeConsumo && (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800">
+                {mensajeConsumo}
+              </div>
+            )}
             <div className="mt-4 rounded-xl border border-[#BBD7FF] bg-[#F5FAFF] p-3">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap gap-2">
@@ -1802,7 +1859,7 @@ export default function DashboardModule({
               >
                 {renderConsumoRows(false)}
                 <ConsumoTotalRow
-                  labelSpan={consumoInforme.columns.length - 3}
+                  labelSpan={consumoInforme.columns.length - 4}
                   plan={totalConsumoInforme.plan}
                   real={totalConsumoInforme.real}
                 />
@@ -1866,7 +1923,7 @@ export default function DashboardModule({
                     >
                       {renderConsumoRows(true)}
                       <ConsumoTotalRow
-                        labelSpan={consumoInforme.columns.length - 3}
+                        labelSpan={consumoInforme.columns.length - 4}
                         plan={totalConsumoInforme.plan}
                         real={totalConsumoInforme.real}
                         dense
@@ -2272,7 +2329,7 @@ function MultiSelectFilter({
             ? `${seleccionados.length} ${titulo.toLowerCase()}`
             : titulo}
         </span>
-        <span className="text-slate-400">▾</span>
+        <span className="text-slate-400">â–¾</span>
       </summary>
 
       <div className="absolute left-0 right-0 z-40 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
@@ -2307,7 +2364,7 @@ function MultiSelectFilter({
                 </span>
                 {opcion.label !== opcion.value && (
                   <span className="block truncate text-[11px] text-slate-500">
-                    {opcion.label.replace(`${opcion.value} · `, "")}
+                    {opcion.label.replace(`${opcion.value} Â· `, "")}
                   </span>
                 )}
               </span>
@@ -2397,6 +2454,12 @@ function ConsumoTable({
   );
 }
 
+function claseDiferenciaConsumo(valor: number) {
+  if (valor > 0) return "text-emerald-700";
+  if (valor < 0) return "text-[#e30613]";
+  return "text-[#0B4EA2]";
+}
+
 function ConsumoRow({
   cells,
   plan,
@@ -2409,6 +2472,7 @@ function ConsumoRow({
   dense?: boolean;
 }) {
   const cellClass = dense ? "px-1.5 py-0.5 leading-tight" : "px-3 py-2";
+  const diferencia = real - plan;
 
   return (
     <tr className="border-b border-slate-100 transition hover:bg-[#fbfbfa]">
@@ -2435,6 +2499,9 @@ function ConsumoRow({
       >
         {formatoPorcentaje(real, plan)}
       </td>
+      <td className={`${cellClass} text-right font-black ${claseDiferenciaConsumo(diferencia)}`}>
+        {formatoNumero(diferencia)}
+      </td>
     </tr>
   );
 }
@@ -2453,6 +2520,7 @@ function ConsumoCategoryTotalRow({
   dense?: boolean;
 }) {
   const cellClass = dense ? "px-1.5 py-0.5 leading-tight" : "px-3 py-2";
+  const diferencia = real - plan;
 
   return (
     <tr className="border-y border-[#7CB8FF] bg-[#EAF4FF]">
@@ -2475,6 +2543,9 @@ function ConsumoCategoryTotalRow({
       >
         {formatoPorcentaje(real, plan)}
       </td>
+      <td className={`${cellClass} text-right font-black ${claseDiferenciaConsumo(diferencia)}`}>
+        {formatoNumero(diferencia)}
+      </td>
     </tr>
   );
 }
@@ -2491,6 +2562,7 @@ function ConsumoTotalRow({
   dense?: boolean;
 }) {
   const cellClass = dense ? "px-1.5 py-0.5 leading-tight" : "px-3 py-2";
+  const diferencia = real - plan;
 
   return (
     <tr className="border-t-2 border-[#7CB8FF] bg-[#DDEEFF]">
@@ -2512,6 +2584,9 @@ function ConsumoTotalRow({
         }`}
       >
         {formatoPorcentaje(real, plan)}
+      </td>
+      <td className={`${cellClass} text-right font-black ${claseDiferenciaConsumo(diferencia)}`}>
+        {formatoNumero(diferencia)}
       </td>
     </tr>
   );
