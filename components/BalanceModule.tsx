@@ -310,14 +310,23 @@ export default function BalanceModule({
       ).trim();
       const componente = String(
         obtenerValorLocal(fila, [
-          "NÂ° componente",
-          "NÂº componente",
-          "NÂ° Componente",
-          "NÂº Componente",
-          "Material",
-          "CÃ³digo",
-          "Codigo",
-        ])
+        "N° componente",
+        "Nº componente",
+        "No. componente",
+        "No componente",
+        "Nro componente",
+        "Numero componente",
+        "Número componente",
+        "N componente",
+        "NÃ‚Â° componente",
+        "NÃ‚Âº componente",
+        "NÃƒâ€šÃ‚Â° componente",
+        "NÃƒâ€šÃ‚Âº componente",
+        "N° Componente",
+        "Nº Componente",
+        "No. Componente",
+        "Componente",
+      ])
       ).trim();
 
       if (!codigoSku || !componente) return;
