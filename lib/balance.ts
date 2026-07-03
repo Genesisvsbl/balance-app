@@ -123,6 +123,7 @@ export function generarBalance(datos: ExcelData): {
   info: BalanceInfo;
 } {
   const hojaReceta: any = obtenerHoja(datos, ["Receta"]);
+  const hojaReceta2: any = obtenerHoja(datos, ["Receta 2", "Receta2"]);
   const hojaExistencias: any = obtenerHoja(datos, ["Existencias"]);
   const hojaConsumos: any = obtenerHoja(datos, ["Consumos", "Consumo"]);
   const hojaPlanProduccion: any = obtenerHoja(datos, ["Plan"]);
@@ -143,6 +144,7 @@ export function generarBalance(datos: ExcelData): {
   }
 
   const receta = hojaReceta.datos || [];
+  const receta2 = hojaReceta2?.datos || [];
   const existencias = hojaExistencias.datos || [];
   const consumos = hojaConsumos?.datos || [];
   const planRecepcion = hojaPlan?.datos || [];
@@ -154,8 +156,15 @@ export function generarBalance(datos: ExcelData): {
   }
 
   const columnasReceta = Object.keys(receta[0] || {});
+  const columnasReceta2 = Object.keys(receta2[0] || {});
   const columnasSemana = obtenerColumnasSemana(columnasReceta);
-  const etiquetasSemana = columnasSemana.map((col) => col.label);
+  const columnasSemanaReceta2 = obtenerColumnasSemana(columnasReceta2);
+  const etiquetasSemana = Array.from(
+    new Set([
+      ...columnasSemana.map((col) => col.label),
+      ...columnasSemanaReceta2.map((col) => col.label),
+    ])
+  );
 
   const mapaExistencias: any = {};
   const almacenesSet = new Set<string>();
@@ -428,6 +437,67 @@ export function generarBalance(datos: ExcelData): {
   > = {};
   const skusPorComponente: Record<string, Map<string, string>> = {};
   const seccionesSet = new Set<string>();
+  const necesidadesReceta2MpA1: Record<string, any> = {};
+
+  receta2.forEach((fila: ExcelRow) => {
+    const codigo = String(
+      obtenerValor(fila, [
+        "NÂ° componente",
+        "NÂº componente",
+        "No. componente",
+        "No componente",
+        "Nro componente",
+        "Numero componente",
+        "NÃºmero componente",
+        "N componente",
+        "NÃƒâ€šÃ‚Â° componente",
+        "NÃƒâ€šÃ‚Âº componente",
+        "NÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â° componente",
+        "NÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âº componente",
+        "NÂ° Componente",
+        "NÂº Componente",
+        "No. Componente",
+        "Componente",
+      ])
+    ).trim();
+    const seccion = String(
+      obtenerValor(fila, ["Seccion", "SecciÃƒÂ³n", "SECCION", "SECCIÃƒâ€œN"])
+    ).trim();
+
+    if (!codigo || !normalizarTexto(seccion).startsWith("mpa1")) return;
+
+    if (!necesidadesReceta2MpA1[codigo]) {
+      necesidadesReceta2MpA1[codigo] = {
+        codigo,
+        material:
+          obtenerValor(fila, [
+            "Texto breve-objeto",
+            "Texto breve objeto",
+            "Texto breve de material",
+            "Texto breve",
+            "DescripciÃƒÂ³n",
+            "Descripcion",
+          ]) || "",
+        um: obtenerValor(fila, ["UM", "UMB"]) || "",
+        secciones: new Set<string>(),
+        necesidadesPorSemana: {},
+        totalNecesidad: 0,
+      };
+
+      etiquetasSemana.forEach((sem) => {
+        necesidadesReceta2MpA1[codigo].necesidadesPorSemana[sem] = 0;
+      });
+    }
+
+    necesidadesReceta2MpA1[codigo].secciones.add(seccion);
+    seccionesSet.add(seccion);
+
+    columnasSemanaReceta2.forEach(({ key, label }) => {
+      const valor = convertirNumero(fila[key]);
+      necesidadesReceta2MpA1[codigo].necesidadesPorSemana[label] += valor;
+      necesidadesReceta2MpA1[codigo].totalNecesidad += valor;
+    });
+  });
 
   receta.forEach((fila: ExcelRow) => {
     const codigo = String(
@@ -520,6 +590,10 @@ export function generarBalance(datos: ExcelData): {
       mapaNecesidades[codigo].necesidadesPorSemana[label] += valor;
       mapaNecesidades[codigo].totalNecesidad += valor;
     });
+  });
+
+  Object.entries(necesidadesReceta2MpA1).forEach(([codigo, item]) => {
+    mapaNecesidades[codigo] = item;
   });
 
   const consumosPorMaterial: Record<string, number> = {};
