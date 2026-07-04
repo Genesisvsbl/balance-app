@@ -410,18 +410,18 @@ export default function Balance2Module({ analisis }: Props) {
                     <td className="min-w-[280px] px-3 py-2 text-[11px] font-bold text-slate-700">{row.texto}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-[11px] font-bold text-slate-600">{row.um}</td>
                     <RefCell refId={`${columnByField.cantidadSap}${rowNumber}`} className="text-[#0057B8]">{formato(row.cantidadSap)}</RefCell>
-                    <EditCell row={row} field="ingresar" />
-                    <EditCell row={row} field="descargar" />
+                    {EditCell({ row, field: "ingresar" })}
+                    {EditCell({ row, field: "descargar" })}
                     <RefCell refId={`${columnByField.teorico}${rowNumber}`}>{formato(row.teorico)}</RefCell>
-                    <EditCell row={row} field="fisicoPiso" />
-                    <EditCell row={row} field="fisicoEstanteria" />
+                    {EditCell({ row, field: "fisicoPiso" })}
+                    {EditCell({ row, field: "fisicoEstanteria" })}
                     <RefCell refId={`${columnByField.diferencia}${rowNumber}`} className={claseNumero(row.diferencia)}>{formato(row.diferencia)}</RefCell>
                     <RefCell refId={`${columnByField.necesidad}${rowNumber}`} className="text-red-600">{formato(row.necesidad)}</RefCell>
-                    <EditCell row={row} field="transito" />
+                    {EditCell({ row, field: "transito" })}
                     <RefCell refId={`${columnByField.requerimiento}${rowNumber}`} className={claseNumero(row.requerimiento)}>{formato(row.requerimiento)}</RefCell>
                     <RefCell refId={`${columnByField.numeroVehiculos}${rowNumber}`} className={claseNumero(row.numeroVehiculos)}>{formato(row.numeroVehiculos, 2)}</RefCell>
-                    <EditCell row={row} field="vehiculo" />
-                    <EditCell row={row} field="gaylor" />
+                    {EditCell({ row, field: "vehiculo" })}
+                    {EditCell({ row, field: "gaylor" })}
                     <RefCell refId={`${columnByField.cantidadGaylor}${rowNumber}`} className={claseNumero(row.cantidadGaylor)}>{formato(row.cantidadGaylor, 2)}</RefCell>
                   </tr>
                 );
