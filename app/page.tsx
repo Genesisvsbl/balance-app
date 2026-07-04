@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Login from "@/components/Login";
@@ -6,6 +6,7 @@ import Header from "@/components/Header";
 import ModuleContainer from "@/components/ModuleContainer";
 import ImportModule from "@/components/ImportModule";
 import BalanceModule from "@/components/BalanceModule";
+import Balance2Module from "@/components/Balance2Module";
 import DashboardModule from "@/components/DashboardModule";
 import HistoricoModule from "@/components/HistoricoModule";
 import VariacionModule from "@/components/VariacionModule";
@@ -88,10 +89,11 @@ export default function Home() {
 
   const titles: Record<string, string> = {
     dashboard: "Dashboard",
-    importacion: "Importación / Bases",
+    importacion: "ImportaciÃ³n / Bases",
     balance: "Balance de materiales",
+    balance2: "Balance 2",
     variacion: "Variaciones",
-    historico: "Histórico",
+    historico: "HistÃ³rico",
   };
 
   return (
@@ -137,6 +139,13 @@ export default function Home() {
           />
         )}
 
+        {activeModule === "balance2" && (
+          <Balance2Module
+            datos={datos}
+            analisis={analisis}
+            infoAnalisis={infoAnalisis}
+          />
+        )}
         {activeModule === "variacion" && <VariacionModule />}
 
         {activeModule === "historico" && (
@@ -146,3 +155,4 @@ export default function Home() {
     </main>
   );
 }
+

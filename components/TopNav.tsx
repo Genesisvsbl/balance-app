@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 type Props = {
   active: string;
@@ -8,9 +8,10 @@ type Props = {
 const modules = [
   { id: "importacion", label: "Bases" },
   { id: "balance", label: "Balance" },
+  { id: "balance2", label: "Balance 2" },
   { id: "dashboard", label: "Dashboard" },
   { id: "variacion", label: "Variaciones" },
-  { id: "historico", label: "Histórico" },
+  { id: "historico", label: "HistÃ³rico" },
 ];
 
 export default function TopNav({ active, setActive }: Props) {
@@ -32,3 +33,4 @@ export default function TopNav({ active, setActive }: Props) {
     </div>
   );
 }
+
