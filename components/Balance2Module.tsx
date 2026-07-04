@@ -286,9 +286,9 @@ export default function Balance2Module({ analisis }: Props) {
 
   function insertarReferencia(ref: string) {
     if (!activeFormula) return;
-    const raw = edits[activeFormula.rowId]?.[activeFormula.field] ?? "=";
-    const next = raw.startsWith("=") ? `${raw}${ref}` : `=${ref}`;
-    setEdit(activeFormula.rowId, activeFormula.field, next);
+    const raw = edits[activeFormula.rowId]?.[activeFormula.field] ?? "";
+    if (!raw.trim().startsWith("=")) return;
+    setEdit(activeFormula.rowId, activeFormula.field, `${raw}${ref}`);
   }
 
   function RefCell({ children, refId, className = "" }: { children: React.ReactNode; refId: string; className?: string }) {
@@ -318,8 +318,18 @@ export default function Balance2Module({ analisis }: Props) {
           value={raw}
           onMouseDown={(event) => event.stopPropagation()}
           onClick={(event) => event.stopPropagation()}
-          onFocus={() => setActiveFormula({ rowId: row.id, field })}
-          onChange={(event) => setEdit(row.id, field, event.target.value)}
+          onFocus={() => {
+            const current = edits[row.id]?.[field] ?? rawEdit(row, field);
+            setActiveFormula(current.trim().startsWith("=") ? { rowId: row.id, field } : null);
+          }}
+          onChange={(event) => {
+            const next = event.target.value;
+            setEdit(row.id, field, next);
+            setActiveFormula(next.trim().startsWith("=") ? { rowId: row.id, field } : null);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setActiveFormula(null);
+          }}
           className="h-8 w-full rounded-lg border border-blue-100 bg-white px-2 text-right text-[11px] font-black text-slate-900 outline-none transition focus:border-[#0057B8] focus:ring-2 focus:ring-blue-100"
           title={`${fieldLabels[field]}: ${formato(value, 2)}`}
         />
@@ -373,7 +383,7 @@ export default function Balance2Module({ analisis }: Props) {
         </div>
       </div>
 
-      {activeFormula && <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-[#003B7A]">Editando formula en {fieldLabels[activeFormula.field]}. Haz clic en una celda numerica de la tabla para insertar su referencia.</div>}
+      {activeFormula && (edits[activeFormula.rowId]?.[activeFormula.field] ?? "").trim().startsWith("=") && <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-[#003B7A]">Editando formula en {fieldLabels[activeFormula.field]}. Haz clic en una celda numerica de la tabla para insertar su referencia.</div>}
 
       <div className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
         <div className="max-h-[62vh] overflow-auto">
