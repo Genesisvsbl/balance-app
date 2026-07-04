@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BalanceInfo, BalanceRow, ExcelData } from "@/types/balance";
 
 type Props = {
@@ -109,6 +109,15 @@ function stockDisponible(row: BalanceRow) {
   return row.inventarioLibre ?? row.almacenes?.AG04 ?? row.totalExistencia ?? 0;
 }
 
+function tipoMaterial(row: Pick<SimBaseRow, "codigo" | "texto" | "seccion">) {
+  const texto = normalizar(`${row.codigo} ${row.texto} ${row.seccion}`);
+  if (texto.includes("preforma")) return "PREFORMA";
+  if (texto.includes("tapa")) return "TAPA";
+  if (texto.includes("plastico") || texto.includes("plastico")) return "PLASTICO";
+  if (texto.includes("pet") || texto.includes("etiq")) return "PET";
+  return row.seccion || "OTROS";
+}
+
 function extraerFilas(analisis: BalanceRow[]) {
   return analisis
     .filter((row) => {
@@ -187,7 +196,8 @@ function claseNumero(value: number) {
 
 export default function Balance2Module({ analisis }: Props) {
   const [busqueda, setBusqueda] = useState("");
-  const [secciones, setSecciones] = useState<string[]>(["PET", "TAPA", "PREFORMA", "PLASTICO"]);
+  const [secciones, setSecciones] = useState<string[]>(["PET"]);
+  const [materiales, setMateriales] = useState<string[]>(["TAPA", "PREFORMA"]);
   const [semanas, setSemanas] = useState<string[]>([]);
   const [edits, setEdits] = useState<Record<string, Partial<Record<EditField, string>>>>({});
   const [activeFormula, setActiveFormula] = useState<{ rowId: string; field: EditField } | null>(null);
@@ -200,6 +210,7 @@ export default function Balance2Module({ analisis }: Props) {
   }, [baseRows]);
   const semanasActivas = semanas.length > 0 ? semanas : semanasDisponibles;
   const seccionesDisponibles = useMemo(() => Array.from(new Set(baseRows.map((row) => row.seccion).filter(Boolean))).sort(), [baseRows]);
+  const materialesDisponibles = useMemo(() => Array.from(new Set(baseRows.map((row) => tipoMaterial(row)).filter(Boolean))).sort(), [baseRows]);
 
   function rawEdit(row: SimBaseRow, field: EditField) {
     const saved = edits[row.id]?.[field];
@@ -250,10 +261,11 @@ export default function Balance2Module({ analisis }: Props) {
       .filter((row) => {
         const matchTexto = !texto || normalizar(`${row.codigo} ${row.texto} ${row.seccion}`).includes(texto);
         const matchSeccion = secciones.length === 0 || secciones.some((sec) => normalizar(row.seccion).includes(normalizar(sec)));
-        return matchTexto && matchSeccion;
+        const matchMaterial = materiales.length === 0 || materiales.includes(tipoMaterial(row));
+        return matchTexto && matchSeccion && matchMaterial;
       })
       .map(calcularRow);
-  }, [baseRows, busqueda, secciones, semanasActivas.join("|"), edits]);
+  }, [baseRows, busqueda, secciones, materiales, semanasActivas.join("|"), edits]);
 
   const resumen = useMemo(() => rows.reduce((acc, row) => {
     acc.sap += row.cantidadSap;
@@ -270,10 +282,6 @@ export default function Balance2Module({ analisis }: Props) {
 
   function toggleSemana(sem: string) {
     setSemanas((actual) => (actual.includes(sem) ? actual.filter((item) => item !== sem) : [...actual, sem]));
-  }
-
-  function toggleSeccion(sec: string) {
-    setSecciones((actual) => (actual.includes(sec) ? actual.filter((item) => item !== sec) : [...actual, sec]));
   }
 
   function insertarReferencia(ref: string) {
@@ -305,7 +313,11 @@ export default function Balance2Module({ analisis }: Props) {
     return (
       <td className="min-w-[110px] px-2 py-1.5">
         <input
+          type="text"
+          inputMode="decimal"
           value={raw}
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
           onFocus={() => setActiveFormula({ rowId: row.id, field })}
           onChange={(event) => setEdit(row.id, field, event.target.value)}
           className="h-8 w-full rounded-lg border border-blue-100 bg-white px-2 text-right text-[11px] font-black text-slate-900 outline-none transition focus:border-[#0057B8] focus:ring-2 focus:ring-blue-100"
@@ -345,7 +357,7 @@ export default function Balance2Module({ analisis }: Props) {
       </div>
 
       <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.3fr_1fr_1fr_auto]">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.25fr_1fr_1fr_1fr_auto]">
           <input value={busqueda} onChange={(event) => setBusqueda(event.target.value)} placeholder="Buscar material, descripcion o seccion..." className="h-11 rounded-xl border border-blue-100 px-4 text-sm font-semibold outline-none focus:border-[#0057B8] focus:ring-2 focus:ring-blue-100" />
           <div className="rounded-xl border border-blue-100 p-3">
             <p className="mb-2 text-[11px] font-black uppercase text-slate-500">Semanas</p>
@@ -355,15 +367,9 @@ export default function Balance2Module({ analisis }: Props) {
               ))}
             </div>
           </div>
-          <div className="rounded-xl border border-blue-100 p-3">
-            <p className="mb-2 text-[11px] font-black uppercase text-slate-500">Secciones</p>
-            <div className="flex max-h-20 flex-wrap gap-2 overflow-auto pr-1">
-              {seccionesDisponibles.map((sec) => (
-                <button key={sec} onClick={() => toggleSeccion(sec)} className={`rounded-lg border px-3 py-1.5 text-xs font-black ${secciones.includes(sec) ? "border-[#0057B8] bg-blue-50 text-[#0057B8]" : "border-slate-200 bg-white text-slate-500"}`}>{sec}</button>
-              ))}
-            </div>
-          </div>
-          <button onClick={() => { setBusqueda(""); setSemanas([]); setSecciones(["PET", "TAPA", "PREFORMA", "PLASTICO"]); }} className="h-11 rounded-xl border border-blue-200 px-5 text-sm font-black text-[#0057B8]">Limpiar</button>
+          <SelectorMultiple label="Materiales" opciones={materialesDisponibles} seleccion={materiales} setSeleccion={setMateriales} />
+          <SelectorMultiple label="Secciones" opciones={seccionesDisponibles} seleccion={secciones} setSeleccion={setSecciones} />
+          <button onClick={() => { setBusqueda(""); setSemanas([]); setSecciones(["PET"]); setMateriales(["TAPA", "PREFORMA"]); }} className="h-11 self-end rounded-xl border border-blue-200 px-5 text-sm font-black text-[#0057B8]">Limpiar</button>
         </div>
       </div>
 
@@ -371,10 +377,18 @@ export default function Balance2Module({ analisis }: Props) {
 
       <div className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
         <div className="max-h-[62vh] overflow-auto">
-          <table className="min-w-[1850px] border-collapse text-left text-xs">
-            <thead className="sticky top-0 z-10 bg-blue-100 text-[#0B4EA2]">
-              <tr>
-                <Th>N componente</Th><Th>Texto breve-objeto</Th><Th>UN</Th><Th right>Cantidad en SAP</Th><Th right>Cantidad X ingresar</Th><Th right>Cantidad X descargar</Th><Th right>Teorico</Th><Th right>Fisico piso</Th><Th right>Fisico estanteria</Th><Th right>Diferencia</Th><Th right>Necesidad</Th><Th right>Transito</Th><Th right>Requerimiento</Th><Th right>No. vehiculos</Th><Th right>Vehiculo</Th><Th right>Gaylor / Estiba</Th><Th right>Cant. gaylor</Th>
+          <table className="min-w-[2050px] border-collapse text-left text-xs">
+            <thead className="sticky top-0 z-10 text-[#0B4EA2]">
+              <tr className="bg-blue-200/80">
+                <Th rowSpan={2}>N componente</Th><Th rowSpan={2}>Texto breve-objeto</Th><Th rowSpan={2}>UN</Th>
+                <GroupTh colSpan={4}>SAP</GroupTh>
+                <GroupTh colSpan={3}>Fisico</GroupTh>
+                <GroupTh colSpan={7}>Necesidad y transporte</GroupTh>
+              </tr>
+              <tr className="bg-blue-100">
+                <Th right>Cantidad en SAP</Th><Th right>Cantidad X ingresar</Th><Th right>Cantidad X descargar</Th><Th right>Teorico</Th>
+                <Th right>Fisico piso</Th><Th right>Fisico estanteria</Th><Th right>Diferencia</Th>
+                <Th right>Necesidad</Th><Th right>Transito</Th><Th right>Requerimiento</Th><Th right>No. vehiculos</Th><Th right>Vehiculo</Th><Th right>Gaylor / Estiba</Th><Th right>Cant. gaylor</Th>
               </tr>
             </thead>
             <tbody>
@@ -412,13 +426,60 @@ export default function Balance2Module({ analisis }: Props) {
   );
 }
 
+function SelectorMultiple({ label, opciones, seleccion, setSeleccion }: { label: string; opciones: string[]; seleccion: string[]; setSeleccion: (value: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function close(event: MouseEvent) {
+      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+
+  const filtradas = opciones.filter((opcion) => normalizar(opcion).includes(normalizar(search)));
+
+  function toggle(opcion: string) {
+    setSeleccion(seleccion.includes(opcion) ? seleccion.filter((item) => item !== opcion) : [...seleccion, opcion]);
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <p className="mb-1 text-[11px] font-black uppercase text-slate-500">{label}</p>
+      <button type="button" onClick={() => setOpen((value) => !value)} className="flex h-11 w-full items-center justify-between rounded-xl border border-blue-100 bg-white px-3 text-left text-xs font-black text-slate-700">
+        <span>{seleccion.length ? `${seleccion.length} seleccionados` : `Todos los ${label.toLowerCase()}`}</span>
+        <span className="text-slate-400">v</span>
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 top-[68px] z-30 rounded-xl border border-blue-100 bg-white p-2 shadow-xl">
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar..." className="mb-2 h-9 w-full rounded-lg border border-blue-100 px-3 text-xs font-semibold outline-none focus:border-[#0057B8]" />
+          <div className="max-h-56 space-y-1 overflow-auto">
+            {filtradas.map((opcion) => (
+              <label key={opcion} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-700 hover:bg-blue-50">
+                <input type="checkbox" checked={seleccion.includes(opcion)} onChange={() => toggle(opcion)} className="h-4 w-4 accent-[#0057B8]" />
+                {opcion}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ResumenCard({ label, value, tone }: { label: string; value: number; tone: "blue" | "green" | "red" }) {
   const color = tone === "green" ? "text-emerald-700 border-emerald-200" : tone === "red" ? "text-red-600 border-red-200" : "text-[#0057B8] border-blue-200";
   return <div className={`rounded-2xl border bg-white p-4 shadow-sm ${color}`}><p className="text-xs font-black uppercase text-slate-500">{label}</p><p className="mt-2 text-2xl font-black">{formato(value)}</p></div>;
 }
 
-function Th({ children, right = false }: { children: React.ReactNode; right?: boolean }) {
-  return <th className={`whitespace-nowrap px-3 py-3 text-[11px] font-black uppercase ${right ? "text-right" : "text-left"}`}>{children}</th>;
+function GroupTh({ children, colSpan }: { children: React.ReactNode; colSpan: number }) {
+  return <th colSpan={colSpan} className="border-l border-blue-300 px-3 py-2 text-center text-[11px] font-black uppercase tracking-wide">{children}</th>;
+}
+
+function Th({ children, right = false, rowSpan }: { children: React.ReactNode; right?: boolean; rowSpan?: number }) {
+  return <th rowSpan={rowSpan} className={`whitespace-nowrap border-l border-blue-200 px-3 py-3 text-[11px] font-black uppercase ${right ? "text-right" : "text-left"}`}>{children}</th>;
 }
 
 

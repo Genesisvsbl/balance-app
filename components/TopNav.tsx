@@ -11,7 +11,7 @@ const modules = [
   { id: "balance2", label: "Balance 2" },
   { id: "dashboard", label: "Dashboard" },
   { id: "variacion", label: "Variaciones" },
-  { id: "historico", label: "HistÃ³rico" },
+  { id: "historico", label: "Historico" },
 ];
 
 export default function TopNav({ active, setActive }: Props) {

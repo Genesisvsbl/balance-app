@@ -89,11 +89,11 @@ export default function Home() {
 
   const titles: Record<string, string> = {
     dashboard: "Dashboard",
-    importacion: "ImportaciÃ³n / Bases",
+    importacion: "Importacion / Bases",
     balance: "Balance de materiales",
     balance2: "Balance 2",
     variacion: "Variaciones",
-    historico: "HistÃ³rico",
+    historico: "Historico",
   };
 
   return (
