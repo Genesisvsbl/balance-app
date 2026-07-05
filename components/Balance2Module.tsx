@@ -301,6 +301,13 @@ export default function Balance2Module({ analisis }: Props) {
       ? (/([=+\-*/(])$/.test(clean) ? `${raw}${ref}` : `${raw}+${ref}`)
       : `=${ref}`;
     setEdit(activeCell.rowId, activeCell.field, next);
+    setTimeout(() => {
+      const input = formulaInputRef.current;
+      if (!input) return;
+      input.focus();
+      const length = input.value.length;
+      input.setSelectionRange(length, length);
+    }, 0);
   }
 
   function RefCell({ children, refId, className = "" }: { children: React.ReactNode; refId: string; className?: string }) {
@@ -466,7 +473,11 @@ export default function Balance2Module({ analisis }: Props) {
                     <RefCell refId={`${columnByField.requerimiento}${rowNumber}`} className={claseNumero(row.requerimiento)}>{formato(row.requerimiento)}</RefCell>
                     <RefCell refId={`${columnByField.numeroVehiculos}${rowNumber}`} className={claseNumero(row.numeroVehiculos)}>{formato(row.numeroVehiculos, 2)}</RefCell>
                     {EditCell({ row, field: "vehiculo" })}
-                    {EditCell({ row, field: "gaylor" })}
+                    <td className="min-w-[110px] px-2 py-1.5">
+                      <div className="h-8 w-full rounded-lg border border-slate-200 bg-slate-100 px-2 text-right text-[11px] font-black leading-8 text-slate-700">
+                        {formato(row.gaylor, 0)}
+                      </div>
+                    </td>
                     <RefCell refId={`${columnByField.cantidadGaylor}${rowNumber}`} className={claseNumero(row.cantidadGaylor)}>{formato(row.cantidadGaylor, 2)}</RefCell>
                   </tr>
                 );
