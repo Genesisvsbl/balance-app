@@ -200,7 +200,8 @@ export default function Balance2Module({ analisis }: Props) {
   const [materiales, setMateriales] = useState<string[]>(["TAPA", "PREFORMA"]);
   const [semanas, setSemanas] = useState<string[]>([]);
   const [edits, setEdits] = useState<Record<string, Partial<Record<EditField, string>>>>({});
-  const [activeFormula, setActiveFormula] = useState<{ rowId: string; field: EditField } | null>(null);
+  const [activeCell, setActiveCell] = useState<{ rowId: string; field: EditField } | null>(null);
+  const formulaInputRef = useRef<HTMLInputElement | null>(null);
 
   const baseRows = useMemo(() => extraerFilas(analisis), [analisis]);
   const semanasDisponibles = useMemo(() => {
@@ -276,6 +277,13 @@ export default function Balance2Module({ analisis }: Props) {
     return acc;
   }, { sap: 0, teorico: 0, fisico: 0, necesidad: 0, requerimiento: 0 }), [rows]);
 
+  const activeRowIndex = activeCell ? rows.findIndex((row) => row.id === activeCell.rowId) : -1;
+  const activeRow = activeRowIndex >= 0 ? rows[activeRowIndex] : null;
+  const activeRaw = activeCell && activeRow ? (edits[activeCell.rowId]?.[activeCell.field] ?? rawEdit(activeRow, activeCell.field)) : "";
+  const activeResult = activeCell && activeRow ? activeRow[activeCell.field] : 0;
+  const activeRef = activeCell && activeRowIndex >= 0 ? `${columnByField[activeCell.field]}${activeRowIndex + 2}` : "";
+  const insertingReference = Boolean(activeCell && activeRaw.trim().startsWith("="));
+
   function setEdit(rowId: string, field: EditField, value: string) {
     setEdits((prev) => ({ ...prev, [rowId]: { ...(prev[rowId] || {}), [field]: value } }));
   }
@@ -285,21 +293,26 @@ export default function Balance2Module({ analisis }: Props) {
   }
 
   function insertarReferencia(ref: string) {
-    if (!activeFormula) return;
-    const raw = edits[activeFormula.rowId]?.[activeFormula.field] ?? "";
-    if (!raw.trim().startsWith("=")) return;
-    setEdit(activeFormula.rowId, activeFormula.field, `${raw}${ref}`);
+    if (!activeCell) return;
+    const currentRow = rows.find((row) => row.id === activeCell.rowId);
+    const raw = edits[activeCell.rowId]?.[activeCell.field] ?? (currentRow ? rawEdit(currentRow, activeCell.field) : "");
+    const clean = raw.trim();
+    const next = clean.startsWith("=")
+      ? (/([=+\-*/(])$/.test(clean) ? `${raw}${ref}` : `${raw}+${ref}`)
+      : `=${ref}`;
+    setEdit(activeCell.rowId, activeCell.field, next);
   }
 
   function RefCell({ children, refId, className = "" }: { children: React.ReactNode; refId: string; className?: string }) {
     return (
       <td
         onMouseDown={(event) => {
-          if (!activeFormula) return;
+          if (!insertingReference) return;
           event.preventDefault();
+          event.stopPropagation();
           insertarReferencia(refId);
         }}
-        className={`whitespace-nowrap px-3 py-2 text-right text-[11px] font-black ${className}`}
+        className={`whitespace-nowrap px-3 py-2 text-right text-[11px] font-black ${insertingReference ? "cursor-copy ring-1 ring-blue-100 hover:bg-blue-100" : ""} ${className}`}
         title={`Referencia ${refId}`}
       >
         {children}
@@ -310,28 +323,42 @@ export default function Balance2Module({ analisis }: Props) {
   function EditCell({ row, field }: { row: CalculatedRow; field: EditField }) {
     const raw = edits[row.id]?.[field] ?? rawEdit(row, field);
     const value = row[field];
+    const isFormula = raw.trim().startsWith("=");
+    const isActive = activeCell?.rowId === row.id && activeCell?.field === field;
+    const displayValue = isFormula ? formato(value, 2) : raw;
+
     return (
       <td className="min-w-[110px] px-2 py-1.5">
         <input
           type="text"
           inputMode="decimal"
-          value={raw}
-          onMouseDown={(event) => event.stopPropagation()}
-          onClick={(event) => event.stopPropagation()}
-          onFocus={() => {
-            const current = edits[row.id]?.[field] ?? rawEdit(row, field);
-            setActiveFormula(current.trim().startsWith("=") ? { rowId: row.id, field } : null);
+          readOnly
+          value={displayValue}
+          onMouseDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
           }}
-          onChange={(event) => {
-            const next = event.target.value;
-            setEdit(row.id, field, next);
-            setActiveFormula(next.trim().startsWith("=") ? { rowId: row.id, field } : null);
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setActiveCell({ rowId: row.id, field });
+            setTimeout(() => formulaInputRef.current?.focus(), 0);
+          }}
+          onFocus={() => {
+            setActiveCell({ rowId: row.id, field });
+            setTimeout(() => formulaInputRef.current?.focus(), 0);
           }}
           onKeyDown={(event) => {
-            if (event.key === "Escape") setActiveFormula(null);
+            if (event.key === "Escape") {
+              setActiveCell(null);
+              return;
+            }
+
+            event.preventDefault();
+            setTimeout(() => formulaInputRef.current?.focus(), 0);
           }}
-          className="h-8 w-full rounded-lg border border-blue-100 bg-white px-2 text-right text-[11px] font-black text-slate-900 outline-none transition focus:border-[#0057B8] focus:ring-2 focus:ring-blue-100"
-          title={`${fieldLabels[field]}: ${formato(value, 2)}`}
+          className={`h-8 w-full cursor-pointer rounded-lg border px-2 text-right text-[11px] font-black outline-none transition ${isActive ? "border-[#0057B8] ring-2 ring-blue-100 bg-white text-slate-950" : "border-blue-100 bg-slate-50 text-slate-900 hover:border-blue-300"}`}
+          title={`Selecciona para editar ${fieldLabels[field]}. Formula actual: ${raw || "0"} | Resultado: ${formato(value, 2)}`}
         />
       </td>
     );
@@ -383,22 +410,37 @@ export default function Balance2Module({ analisis }: Props) {
         </div>
       </div>
 
-      {activeFormula && (edits[activeFormula.rowId]?.[activeFormula.field] ?? "").trim().startsWith("=") && <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-[#003B7A]">Editando formula en {fieldLabels[activeFormula.field]}. Haz clic en una celda numerica de la tabla para insertar su referencia.</div>}
+      {activeCell && activeRow && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-[#003B7A]">
+          <div className="grid gap-3 md:grid-cols-[130px_1fr_190px] md:items-center">
+            <div className="rounded-lg border border-blue-200 bg-white px-3 py-2 font-black">{activeRef || "Celda"}</div>
+            <input
+              ref={formulaInputRef}
+              value={activeRaw}
+              onChange={(event) => setEdit(activeCell.rowId, activeCell.field, event.target.value)}
+              className="h-10 rounded-lg border border-blue-200 bg-white px-3 font-bold text-slate-900 outline-none focus:border-[#0057B8] focus:ring-2 focus:ring-blue-100"
+              placeholder="Escribe un valor o formula. Ej: =40*P2. Haz clic en una celda numerica para insertarla."
+            />
+            <div className="rounded-lg border border-blue-200 bg-white px-3 py-2 font-black">Resultado: {formato(activeResult, 2)}</div>
+          </div>
+          <p className="mt-2 text-xs font-semibold text-slate-500">Tip: selecciona una celda de la tabla y escribe aqui arriba. La celda mostrara el resultado y, si la formula empieza por =, puedes hacer clic en otra celda numerica para insertar su referencia.</p>
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
         <div className="max-h-[62vh] overflow-auto">
-          <table className="min-w-[2050px] border-collapse text-left text-xs">
+          <table className="min-w-[2400px] border-collapse text-left text-xs">
             <thead className="sticky top-0 z-10 text-[#0B4EA2]">
               <tr className="bg-blue-200/80">
                 <Th rowSpan={2}>N componente</Th><Th rowSpan={2}>Texto breve-objeto</Th><Th rowSpan={2}>UN</Th>
                 <GroupTh colSpan={4}>SAP</GroupTh>
                 <GroupTh colSpan={3}>Fisico</GroupTh>
-                <GroupTh colSpan={7}>Necesidad y transporte</GroupTh>
+                <GroupTh colSpan={7 + semanasActivas.length}>Necesidad y transporte</GroupTh>
               </tr>
               <tr className="bg-blue-100">
                 <Th right>Cantidad en SAP</Th><Th right>Cantidad X ingresar</Th><Th right>Cantidad X descargar</Th><Th right>Teorico</Th>
                 <Th right>Fisico piso</Th><Th right>Fisico estanteria</Th><Th right>Diferencia</Th>
-                <Th right>Necesidad</Th><Th right>Transito</Th><Th right>Requerimiento</Th><Th right>No. vehiculos</Th><Th right>Vehiculo</Th><Th right>Gaylor / Estiba</Th><Th right>Cant. gaylor</Th>
+                {semanasActivas.map((sem) => <Th key={`need-${sem}`} right>{sem}<br />Necesidad</Th>)}<Th right>Necesidad total</Th><Th right>Transito</Th><Th right>Requerimiento</Th><Th right>No. vehiculos</Th><Th right>Vehiculo</Th><Th right>Gaylor / Estiba</Th><Th right>Cant. gaylor</Th>
               </tr>
             </thead>
             <tbody>
@@ -416,6 +458,9 @@ export default function Balance2Module({ analisis }: Props) {
                     {EditCell({ row, field: "fisicoPiso" })}
                     {EditCell({ row, field: "fisicoEstanteria" })}
                     <RefCell refId={`${columnByField.diferencia}${rowNumber}`} className={claseNumero(row.diferencia)}>{formato(row.diferencia)}</RefCell>
+                    {semanasActivas.map((sem) => (
+                      <td key={`${row.id}-need-${sem}`} className="whitespace-nowrap px-3 py-2 text-right text-[11px] font-black text-red-600">{formato(row.necesidadesPorSemana[sem] || 0)}</td>
+                    ))}
                     <RefCell refId={`${columnByField.necesidad}${rowNumber}`} className="text-red-600">{formato(row.necesidad)}</RefCell>
                     {EditCell({ row, field: "transito" })}
                     <RefCell refId={`${columnByField.requerimiento}${rowNumber}`} className={claseNumero(row.requerimiento)}>{formato(row.requerimiento)}</RefCell>
@@ -491,5 +536,7 @@ function GroupTh({ children, colSpan }: { children: React.ReactNode; colSpan: nu
 function Th({ children, right = false, rowSpan }: { children: React.ReactNode; right?: boolean; rowSpan?: number }) {
   return <th rowSpan={rowSpan} className={`whitespace-nowrap border-l border-blue-200 px-3 py-3 text-[11px] font-black uppercase ${right ? "text-right" : "text-left"}`}>{children}</th>;
 }
+
+
 
 
