@@ -372,7 +372,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
       </div>
 
       <p className="mt-3 text-xs font-semibold text-slate-500">
-        Tip: 1 clic = &quot;VH por clic&quot; vehiculos. Teclea para poner el numero exacto de VH. Doble clic en una celda la borra. Debajo de cada celda ves las unidades de esos vehiculos.
+        Tip: 1 clic suma &quot;VH por clic&quot;. Teclea el numero exacto de VH. Doble clic borra la celda. Pasa el mouse por una celda para ver las unidades.
       </p>
 
       {filasVisibles.length === 0 ? (
@@ -386,7 +386,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
               <tr className="bg-blue-200/80 text-[#0B4EA2]">
                 <th
                   rowSpan={2}
-                  className="sticky left-0 z-30 w-[150px] border-b border-blue-200 bg-blue-200/95 px-2 py-1 text-[9px] font-black uppercase"
+                  className="sticky left-0 z-30 w-[140px] border-b border-blue-200 bg-blue-200/95 px-2 py-1 text-[8px] font-black uppercase"
                 >
                   Referencia (1 VH = unid.)
                 </th>
@@ -394,7 +394,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                   <th
                     key={g.label}
                     colSpan={g.fechas.length + 1}
-                    className="border-b border-l border-blue-300 px-1 py-1 text-center text-[9px] font-black uppercase"
+                    className="border-b border-l border-blue-300 px-1 py-1 text-center text-[8px] font-black uppercase"
                   >
                     {g.label}
                   </th>
@@ -407,17 +407,17 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
               </tr>
             </thead>
             <tbody>
-              {filasVisibles.map((row) => {
+              {filasVisibles.map((row, idx) => {
                 const base = vhBasePorCodigo[row.codigo] || 0;
                 return (
-                  <tr key={row.codigo} className="border-b border-slate-100 hover:bg-blue-50/40">
-                    <td className="sticky left-0 z-10 w-[150px] bg-white px-2 py-1">
-                      <div className="text-[10px] font-black text-slate-950 text-center">{row.codigo}</div>
-                      <div className="text-[9px] font-semibold text-slate-500 break-words text-center" title={row.material}>
+                  <tr key={row.codigo} className={`border-b border-slate-100 hover:bg-blue-50 ${idx % 2 ? "bg-slate-50/60" : "bg-white"}`}>
+                    <td className="sticky left-0 z-10 w-[140px] bg-inherit px-2 py-1">
+                      <div className="text-[9px] font-black text-slate-900 text-center">{row.codigo}</div>
+                      <div className="text-[8px] font-semibold leading-tight text-slate-500 break-words text-center" title={row.material}>
                         {row.material}
                       </div>
-                      <div className="mt-1 flex items-center gap-1">
-                        <span className="text-[9px] font-bold text-slate-500">1 VH =</span>
+                      <div className="mt-1 flex items-center justify-center gap-1">
+                        <span className="text-[8px] font-bold text-slate-400">1 VH</span>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -429,7 +429,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                             }))
                           }
                           title="Unidades por vehiculo (editable, sobre todo para tapas)"
-                          className="h-6 w-full rounded border border-blue-100 px-1 text-center text-[9px] font-black text-[#0057B8] outline-none focus:border-[#0057B8]"
+                          className="h-5 w-full rounded border border-blue-100 px-1 text-center text-[8px] font-black text-[#0057B8] outline-none focus:border-[#0057B8]"
                         />
                       </div>
                     </td>
@@ -456,8 +456,8 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
             </tbody>
             <tfoot>
               <tr className="bg-slate-50 text-[#0B4EA2]">
-                <td className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-[10px] font-black uppercase">
-                  Total por dia (VH / unid.)
+                <td className="sticky left-0 z-10 bg-slate-50 px-2 py-1 text-[8px] font-black uppercase text-slate-500">
+                  Total por dia
                 </td>
                 {grupos.map((g) => (
                   <FragmentFooter
@@ -480,13 +480,13 @@ function FragmentHeader({ fechas }: { fechas: string[] }) {
   return (
     <>
       {fechas.map((fecha) => (
-        <th key={fecha} className="border-l border-blue-200 px-0.5 py-1 text-center text-[9px] font-black">
+        <th key={fecha} className="border-l border-blue-100 px-0.5 py-1 text-center text-[8px] font-black text-slate-500">
           <div>{diaNombre(fecha)}</div>
-          <div className="text-slate-500">{fechaCorta(fecha)}</div>
+          <div className="font-semibold text-slate-400">{fechaCorta(fecha)}</div>
         </th>
       ))}
-      <th className="border-l-2 border-blue-300 px-0.5 py-1 text-center text-[9px] font-black">
-        Necesidad / Estado
+      <th className="border-l-2 border-blue-200 px-1 py-1 text-center text-[8px] font-black text-slate-500">
+        Necesidad
       </th>
     </>
   );
@@ -512,7 +512,7 @@ function FragmentRow({
   onClear: (fecha: string) => void;
 }) {
   const cubre = necesidad > 0 && asignado >= necesidad;
-  const sobra = asignado - necesidad;
+  const falta = Math.max(0, necesidad - asignado);
   return (
     <>
       {fechas.map((fecha) => {
@@ -520,38 +520,34 @@ function FragmentRow({
         const tiene = numero(vh) > 0;
         const unidades = numero(vh) * base;
         return (
-          <td key={fecha} className="border-l border-slate-100 px-0.5 py-0.5 align-top">
+          <td key={fecha} className="border-l border-slate-100 p-[2px]">
             <input
               type="text"
               inputMode="numeric"
               value={vh}
-              title={tiene ? `${formato(unidades)} unid.` : "Clic para agregar VH"}
+              title={tiene ? `${vh} VH = ${formato(unidades)} unid.` : "Clic para agregar VH"}
               onClick={() => onClic(fecha)}
               onDoubleClick={() => onClear(fecha)}
               onChange={(e) => onChange(fecha, e.target.value.replace(/[^0-9]/g, ""))}
-              placeholder="+"
-              className={`h-7 w-full rounded border px-0.5 text-center text-[9px] font-black outline-none transition ${
-                tiene
-                  ? "border-blue-200 bg-blue-50 text-[#0057B8]"
-                  : "border-dashed border-slate-200 bg-white text-slate-400 hover:border-[#0057B8] hover:bg-blue-50/40"
+              className={`h-6 w-full rounded text-center text-[9px] font-black outline-none transition ${
+                tiene ? "bg-[#0057B8] text-white shadow-sm" : "bg-transparent text-slate-200 hover:bg-blue-50"
               }`}
             />
-            <div className="mt-0.5 text-center text-[9px] font-bold text-slate-400">
-              {tiene ? formato(unidades) : ""}
-            </div>
           </td>
         );
       })}
-      <td className="border-l-2 border-blue-200 px-1 py-0.5 text-center align-top">
-        <div className="text-[9px] font-bold text-red-600">{formato(necesidad)}</div>
+      <td className="border-l-2 border-blue-200 px-1 py-0.5 text-center">
         {necesidad <= 0 ? (
-          <div className="text-[9px] font-black text-slate-300">-</div>
-        ) : cubre ? (
-          <div className="text-[9px] font-black text-emerald-700">
-            CUBRE{sobra > 0 ? ` +${formato(sobra)}` : ""}
-          </div>
+          <span className="text-[9px] text-slate-300">&mdash;</span>
         ) : (
-          <div className="text-[9px] font-black text-red-600">Falta {formato(necesidad - asignado)}</div>
+          <>
+            <div className="text-[8px] font-semibold text-slate-400">{formato(necesidad)}</div>
+            {cubre ? (
+              <span className="inline-block rounded bg-emerald-100 px-1 py-[1px] text-[8px] font-black text-emerald-700">CUBRE</span>
+            ) : (
+              <span className="inline-block rounded bg-red-100 px-1 py-[1px] text-[8px] font-black text-red-600">Falta {formato(falta)}</span>
+            )}
+          </>
         )}
       </td>
     </>
@@ -569,13 +565,19 @@ function FragmentFooter({
 }) {
   return (
     <>
-      {fechas.map((fecha) => (
-        <td key={fecha} className="border-l border-slate-100 px-0.5 py-1 text-center text-[9px] font-black text-slate-700">
-          <div>{formato(vhDia(fecha))} VH</div>
-          <div className="text-[9px] font-bold text-slate-400">{formato(unidDia(fecha))}</div>
-        </td>
-      ))}
-      <td className="border-l-2 border-blue-200 px-2 py-2" />
+      {fechas.map((fecha) => {
+        const vh = vhDia(fecha);
+        return (
+          <td
+            key={fecha}
+            title={vh > 0 ? `${formato(unidDia(fecha))} unid.` : ""}
+            className="border-l border-slate-100 px-0.5 py-1 text-center text-[8px] font-bold text-slate-500"
+          >
+            {vh > 0 ? `${vh} VH` : "·"}
+          </td>
+        );
+      })}
+      <td className="border-l-2 border-blue-200" />
     </>
   );
 }
