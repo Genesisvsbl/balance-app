@@ -37,19 +37,19 @@ function cargarLS(key: string): Record<string, string> {
   }
 }
 
-type Html2Canvas = (el: HTMLElement, opts?: object) => Promise<HTMLCanvasElement>;
-async function cargarHtml2Canvas(): Promise<Html2Canvas> {
-  const w = window as unknown as { html2canvas?: Html2Canvas };
-  if (w.html2canvas) return w.html2canvas;
+type HtmlToImage = { toBlob: (node: HTMLElement, options?: object) => Promise<Blob | null> };
+async function cargarHtmlToImage(): Promise<HtmlToImage> {
+  const w = window as unknown as { htmlToImage?: HtmlToImage };
+  if (w.htmlToImage) return w.htmlToImage;
   await new Promise<void>((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+    script.src = "https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js";
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error("No se pudo cargar html2canvas"));
+    script.onerror = () => reject(new Error("No se pudo cargar la libreria de imagen"));
     document.head.appendChild(script);
   });
-  if (!w.html2canvas) throw new Error("html2canvas no disponible");
-  return w.html2canvas;
+  if (!w.htmlToImage) throw new Error("libreria de imagen no disponible");
+  return w.htmlToImage;
 }
 
 // Gaylords por vehiculo: preformas 40; el SKU 303845 va de 36.
@@ -239,33 +239,33 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     if (!tablaRef.current) return;
     setTextoCorreo("Generando imagen...");
     try {
-      const html2canvas = await cargarHtml2Canvas();
+      const lib = await cargarHtmlToImage();
       const nodo = tablaRef.current;
-      const canvas = await html2canvas(nodo, {
+      const blob = await lib.toBlob(nodo, {
         backgroundColor: "#ffffff",
-        scale: 2,
-        windowWidth: nodo.scrollWidth,
+        pixelRatio: 2,
+        width: nodo.scrollWidth,
+        height: nodo.scrollHeight,
+        style: { overflow: "visible" },
       });
-      canvas.toBlob(async (blob) => {
-        if (!blob) {
-          setTextoCorreo("No se pudo generar la imagen.");
-          return;
-        }
-        try {
-          await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-          setTextoCorreo("Imagen copiada. Pegala en tu correo con Ctrl+V.");
-        } catch {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = "programacion.png";
-          a.click();
-          URL.revokeObjectURL(url);
-          setTextoCorreo("Imagen descargada (no se pudo copiar directo). Adjuntala al correo.");
-        }
-      }, "image/png");
-    } catch {
-      setTextoCorreo("No se pudo generar la imagen.");
+      if (!blob) {
+        setTextoCorreo("No se pudo generar la imagen.");
+        return;
+      }
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        setTextoCorreo("Imagen copiada. Pegala en tu correo con Ctrl+V.");
+      } catch {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "programacion.png";
+        a.click();
+        URL.revokeObjectURL(url);
+        setTextoCorreo("Imagen descargada. Adjuntala al correo.");
+      }
+    } catch (e) {
+      setTextoCorreo("No se pudo generar la imagen: " + (e instanceof Error ? e.message : String(e)));
     }
   }
 
