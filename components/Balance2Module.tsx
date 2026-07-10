@@ -250,9 +250,20 @@ export default function Balance2Module({ analisis }: Props) {
   const [secciones, setSecciones] = useState<string[]>(["PET"]);
   const [materiales, setMateriales] = useState<string[]>(["TAPA", "PREFORMA"]);
   const [semanas, setSemanas] = useState<string[]>([]);
-  const [edits, setEdits] = useState<Record<string, Partial<Record<EditField, string>>>>({});
+  const [edits, setEdits] = useState<Record<string, Partial<Record<EditField, string>>>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      return JSON.parse(window.localStorage.getItem("balance2_edits") || "{}");
+    } catch {
+      return {};
+    }
+  });
   const [activeCell, setActiveCell] = useState<{ rowId: string; field: EditField } | null>(null);
   const formulaInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") window.localStorage.setItem("balance2_edits", JSON.stringify(edits));
+  }, [edits]);
 
   const baseRows = useMemo(() => extraerFilas(analisis), [analisis]);
   const semanasDisponibles = useMemo(() => {

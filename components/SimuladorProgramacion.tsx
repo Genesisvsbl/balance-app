@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export type SimRow = {
   codigo: string;
@@ -25,6 +25,17 @@ const DIAS_SET: Record<DiasHabiles, number[]> = {
 };
 
 const NOMBRE_DIA = ["Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab"];
+
+const LS_VEHICULOS = "balance2_sim_vehiculos";
+const LS_BASE = "balance2_sim_base";
+function cargarLS(key: string): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(window.localStorage.getItem(key) || "{}") as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
 
 // Gaylords por vehiculo: preformas 40; el SKU 303845 va de 36.
 function gaylordsPorVh(codigo: string) {
@@ -99,10 +110,18 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
   const [diasHabiles, setDiasHabiles] = useState<DiasHabiles>("LV");
   const [vhPorClic, setVhPorClic] = useState(1);
   const [semanasOff, setSemanasOff] = useState<Set<string>>(new Set());
-  const [vehiculos, setVehiculos] = useState<Record<string, string>>({});
+  const [vehiculos, setVehiculos] = useState<Record<string, string>>(() => cargarLS(LS_VEHICULOS));
   // Base editable "1 VH = X unidades" por referencia (para tapas u otros que se manejen distinto).
-  const [baseOverride, setBaseOverride] = useState<Record<string, string>>({});
+  const [baseOverride, setBaseOverride] = useState<Record<string, string>>(() => cargarLS(LS_BASE));
   const [semanasCombinar, setSemanasCombinar] = useState<string[]>([]);
+  const [textoCorreo, setTextoCorreo] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") window.localStorage.setItem(LS_VEHICULOS, JSON.stringify(vehiculos));
+  }, [vehiculos]);
+  useEffect(() => {
+    if (typeof window !== "undefined") window.localStorage.setItem(LS_BASE, JSON.stringify(baseOverride));
+  }, [baseOverride]);
 
   const anio = new Date().getFullYear();
   const dias = DIAS_SET[diasHabiles];
@@ -198,6 +217,30 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
 
   function limpiar() {
     setVehiculos({});
+  }
+
+  function generarCorreo() {
+    const lineas: string[] = [];
+    grupos.forEach((g) => {
+      const hayEnGrupo = g.fechas.some((fecha) =>
+        filasVisibles.some((row) => numero(vhCelda(row.codigo, fecha)) > 0)
+      );
+      if (!hayEnGrupo) return;
+      lineas.push(`*** ${g.label} ***`);
+      g.fechas.forEach((fecha) => {
+        const items = filasVisibles
+          .map((row) => ({ row, vh: numero(vhCelda(row.codigo, fecha)) }))
+          .filter((x) => x.vh > 0);
+        if (items.length === 0) return;
+        lineas.push(`${diaNombre(fecha)} ${fechaCorta(fecha)}:`);
+        items.forEach(({ row, vh }) => {
+          const unid = vh * (vhBasePorCodigo[row.codigo] || 0);
+          lineas.push(`   - ${row.codigo} ${row.material}: ${vh} VH (${formato(unid)} und)`);
+        });
+        lineas.push("");
+      });
+    });
+    setTextoCorreo(lineas.length ? lineas.join("\n").trim() : "No hay citas programadas todavia.");
   }
 
   function autollenar() {
@@ -359,6 +402,12 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
         >
           Limpiar
         </button>
+        <button
+          onClick={generarCorreo}
+          className="h-11 rounded-xl border border-emerald-300 bg-emerald-50 px-5 text-sm font-black text-emerald-700 hover:bg-emerald-100"
+        >
+          Generar correo
+        </button>
 
         <div className="ml-auto rounded-xl border border-blue-100 bg-blue-50 px-4 py-2 text-xs font-bold text-[#003B7A]">
           Requerim.: <span className="text-red-600">{formato(totalNecesidad)}</span>
@@ -374,6 +423,35 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
       <p className="mt-3 text-xs font-semibold text-slate-500">
         Tip: 1 clic suma &quot;VH por clic&quot;. Teclea el numero exacto de VH. Doble clic borra la celda. Pasa el mouse por una celda para ver las unidades.
       </p>
+
+      {textoCorreo !== null && (
+        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-sm font-black text-emerald-800">Correo de citas (copia y pega)</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  if (typeof navigator !== "undefined" && navigator.clipboard) navigator.clipboard.writeText(textoCorreo);
+                }}
+                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-black text-white hover:bg-emerald-700"
+              >
+                Copiar
+              </button>
+              <button
+                onClick={() => setTextoCorreo(null)}
+                className="rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-black text-emerald-700"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+          <textarea
+            readOnly
+            value={textoCorreo}
+            className="h-48 w-full rounded-lg border border-emerald-200 bg-white p-3 text-xs text-slate-800 outline-none"
+          />
+        </div>
+      )}
 
       {filasVisibles.length === 0 ? (
         <p className="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-[#003B7A]">
