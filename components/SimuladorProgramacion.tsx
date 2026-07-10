@@ -331,12 +331,12 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
         </p>
       ) : (
         <div className="mt-4 overflow-auto rounded-2xl border border-blue-100">
-          <table className="min-w-full border-collapse text-left text-xs">
+          <table className="w-full table-fixed border-collapse text-left text-[10px]">
             <thead className="sticky top-0 z-20">
               <tr className="bg-blue-200/80 text-[#0B4EA2]">
                 <th
                   rowSpan={2}
-                  className="sticky left-0 z-30 min-w-[240px] border-b border-blue-200 bg-blue-200/95 px-3 py-2 text-[11px] font-black uppercase"
+                  className="sticky left-0 z-30 w-[150px] border-b border-blue-200 bg-blue-200/95 px-2 py-1 text-[10px] font-black uppercase"
                 >
                   Referencia (1 VH = unid.)
                 </th>
@@ -344,7 +344,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                   <th
                     key={sem}
                     colSpan={(fechasPorSemana[sem]?.length || 0) + 1}
-                    className="border-b border-l border-blue-300 px-3 py-2 text-center text-[11px] font-black uppercase"
+                    className="border-b border-l border-blue-300 px-1 py-1 text-center text-[10px] font-black uppercase"
                   >
                     {sem}
                   </th>
@@ -361,7 +361,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                 const base = vhBasePorCodigo[row.codigo] || 0;
                 return (
                   <tr key={row.codigo} className="border-b border-slate-100 hover:bg-blue-50/40">
-                    <td className="sticky left-0 z-10 min-w-[240px] bg-white px-3 py-2">
+                    <td className="sticky left-0 z-10 w-[150px] bg-white px-2 py-1">
                       <div className="text-[11px] font-black text-slate-950">{row.codigo}</div>
                       <div className="truncate text-[10px] font-semibold text-slate-500" title={row.material}>
                         {row.material}
@@ -379,7 +379,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                             }))
                           }
                           title="Unidades por vehiculo (editable, sobre todo para tapas)"
-                          className="h-6 w-24 rounded border border-blue-100 px-1 text-center text-[10px] font-black text-[#0057B8] outline-none focus:border-[#0057B8]"
+                          className="h-6 w-full rounded border border-blue-100 px-1 text-center text-[10px] font-black text-[#0057B8] outline-none focus:border-[#0057B8]"
                         />
                       </div>
                     </td>
@@ -430,12 +430,12 @@ function FragmentHeader({ fechas }: { fechas: string[] }) {
   return (
     <>
       {fechas.map((fecha) => (
-        <th key={fecha} className="min-w-[86px] border-l border-blue-200 px-2 py-2 text-center text-[10px] font-black">
+        <th key={fecha} className="border-l border-blue-200 px-0.5 py-1 text-center text-[9px] font-black">
           <div>{diaNombre(fecha)}</div>
           <div className="text-slate-500">{fechaCorta(fecha)}</div>
         </th>
       ))}
-      <th className="min-w-[96px] border-l-2 border-blue-300 px-2 py-2 text-center text-[10px] font-black">
+      <th className="border-l-2 border-blue-300 px-0.5 py-1 text-center text-[9px] font-black">
         Necesidad / Estado
       </th>
     </>
@@ -470,7 +470,7 @@ function FragmentRow({
         const tiene = numero(vh) > 0;
         const unidades = numero(vh) * base;
         return (
-          <td key={fecha} className="border-l border-slate-100 px-1 py-1 align-top">
+          <td key={fecha} className="border-l border-slate-100 px-0.5 py-0.5 align-top">
             <input
               type="text"
               inputMode="numeric"
@@ -480,7 +480,7 @@ function FragmentRow({
               onDoubleClick={() => onClear(fecha)}
               onChange={(e) => onChange(fecha, e.target.value.replace(/[^0-9]/g, ""))}
               placeholder="+"
-              className={`h-8 w-full rounded-lg border px-1 text-center text-[11px] font-black outline-none transition ${
+              className={`h-7 w-full rounded border px-0.5 text-center text-[10px] font-black outline-none transition ${
                 tiene
                   ? "border-blue-200 bg-blue-50 text-[#0057B8]"
                   : "border-dashed border-slate-200 bg-white text-slate-400 hover:border-[#0057B8] hover:bg-blue-50/40"
@@ -492,7 +492,7 @@ function FragmentRow({
           </td>
         );
       })}
-      <td className="border-l-2 border-blue-200 px-2 py-1 text-center align-top">
+      <td className="border-l-2 border-blue-200 px-1 py-0.5 text-center align-top">
         <div className="text-[10px] font-bold text-red-600">{formato(necesidad)}</div>
         {necesidad <= 0 ? (
           <div className="text-[10px] font-black text-slate-300">-</div>
@@ -520,7 +520,7 @@ function FragmentFooter({
   return (
     <>
       {fechas.map((fecha) => (
-        <td key={fecha} className="border-l border-slate-100 px-1 py-2 text-center text-[10px] font-black text-slate-700">
+        <td key={fecha} className="border-l border-slate-100 px-0.5 py-1 text-center text-[9px] font-black text-slate-700">
           <div>{formato(vhDia(fecha))} VH</div>
           <div className="text-[9px] font-bold text-slate-400">{formato(unidDia(fecha))}</div>
         </td>

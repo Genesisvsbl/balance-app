@@ -234,16 +234,28 @@ export default function Balance2Module({ analisis }: Props) {
   const seccionesDisponibles = useMemo(() => Array.from(new Set(baseRows.map((row) => row.seccion).filter(Boolean))).sort(), [baseRows]);
   const materialesDisponibles = useMemo(() => Array.from(new Set(baseRows.map((row) => tipoMaterial(row)).filter(Boolean))).sort(), [baseRows]);
 
-  // Al elegir una seccion, autoseleccionar los materiales que le corresponden
-  // (PET -> preforma/tapa; Lata -> tapa/lata; etc.).
+  // Al elegir una seccion, autoseleccionar los materiales que le corresponden.
+  // PET -> preforma + tapa; Lata -> lata + tapa (para no mezclar todo).
   useEffect(() => {
     const tipos = new Set<string>();
-    baseRows.forEach((row) => {
-      const enSeccion =
-        secciones.length === 0 ||
-        secciones.some((sec) => normalizar(row.seccion).includes(normalizar(sec)));
-      if (enSeccion) tipos.add(tipoMaterial(row));
-    });
+    if (secciones.length === 0) {
+      baseRows.forEach((row) => tipos.add(tipoMaterial(row)));
+    } else {
+      secciones.forEach((sec) => {
+        const s = normalizar(sec);
+        if (s.includes("pet")) {
+          tipos.add("PREFORMA");
+          tipos.add("TAPA");
+        } else if (s.includes("lata")) {
+          tipos.add("LATA");
+          tipos.add("TAPA");
+        } else {
+          baseRows.forEach((row) => {
+            if (normalizar(row.seccion).includes(s)) tipos.add(tipoMaterial(row));
+          });
+        }
+      });
+    }
     setMateriales(Array.from(tipos));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secciones, baseRows]);
@@ -302,6 +314,7 @@ export default function Balance2Module({ analisis }: Props) {
         const matchMaterial = materiales.length === 0 || materiales.includes(tipoMaterial(row));
         return matchTexto && matchSeccion && matchMaterial;
       })
+      .sort((a, b) => (tipoMaterial(a) === "TAPA" ? 0 : 1) - (tipoMaterial(b) === "TAPA" ? 0 : 1))
       .map(calcularRow);
   }, [baseRows, busqueda, secciones, materiales, semanasActivas.join("|"), edits]);
 
