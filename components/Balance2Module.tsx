@@ -102,7 +102,11 @@ function formato(value: number, decimals = 0) {
 function capacidadGaylor(row: BalanceRow) {
   const texto = normalizar(`${row.codigo} ${row.material} ${row.seccion}`);
   // Tapas primero (una "tapa lata" sigue siendo tapa).
-  if (texto.includes("tapa")) return 332800;
+  if (texto.includes("tapa")) {
+    // Tapas plasticas vienen por 5000; las de aluminio (lata) por 332800.
+    if (texto.includes("plastic")) return 5000;
+    return 332800;
+  }
   // Latas: unidades por pallet segun tamano.
   if (texto.includes("lata")) {
     if (texto.includes("269")) return 9367;
