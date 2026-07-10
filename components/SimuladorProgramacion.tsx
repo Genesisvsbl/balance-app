@@ -128,15 +128,19 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
 
   // Grupos de planeacion: las semanas elegidas en "Combinar" se juntan en un bloque; el resto van separadas.
   const grupos = useMemo(() => {
-    const combSet = semanasCombinar.filter((s) => semanasSel.includes(s));
+    const combSet = semanasCombinar
+      .filter((s) => semanasSel.includes(s))
+      .sort((x, y) => numeroSemana(x) - numeroSemana(y));
     if (combSet.length >= 2) {
+      // La semana objetivo (la mas temprana) es la que se programa: su titulo y sus dias,
+      // pero con la necesidad sumada de todas las semanas combinadas.
+      const target = combSet[0];
       const noComb = semanasSel.filter((s) => !combSet.includes(s));
-      const fechas = Array.from(new Set(combSet.flatMap((sem) => fechasPorSemana[sem] || []))).sort();
       const bloques = [
-        { label: `${combSet[0]} - ${combSet[combSet.length - 1]}`, fechas, semanas: combSet, orden: numeroSemana(combSet[0]) },
+        { label: target, fechas: fechasPorSemana[target] || [], semanas: combSet, orden: numeroSemana(target) },
         ...noComb.map((sem) => ({ label: sem, fechas: fechasPorSemana[sem] || [], semanas: [sem], orden: numeroSemana(sem) })),
       ];
-      bloques.sort((a, b) => a.orden - b.orden);
+      bloques.sort((x, y) => x.orden - y.orden);
       return bloques.map(({ label, fechas, semanas }) => ({ label, fechas, semanas }));
     }
     return semanasSel.map((sem) => ({ label: sem, fechas: fechasPorSemana[sem] || [], semanas: [sem] }));
@@ -201,20 +205,17 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     filasVisibles.forEach((row) => {
       const base = vhBasePorCodigo[row.codigo] || 0;
       if (base <= 0) return;
-      semanasSel.forEach((sem) => {
-        const necesidad = row.necesidadesPorSemana[sem] || 0;
+      grupos.forEach((g) => {
+        const necesidad = g.semanas.reduce((acc, sem) => acc + (row.necesidadesPorSemana[sem] || 0), 0);
         if (necesidad <= 0) return;
-        const fechas = fechasPorSemana[sem] || [];
+        const fechas = g.fechas;
         if (fechas.length === 0) return;
         const vhNecesarios = Math.ceil(necesidad / base);
-        const conteo: Record<string, number> = {};
         for (let i = 0; i < vhNecesarios; i++) {
           const fecha = fechas[i % fechas.length];
-          conteo[fecha] = (conteo[fecha] || 0) + 1;
+          const key = clave(row.codigo, fecha);
+          nuevas[key] = String(numero(nuevas[key] ?? "0") + 1);
         }
-        Object.entries(conteo).forEach(([fecha, vh]) => {
-          nuevas[clave(row.codigo, fecha)] = String(vh);
-        });
       });
     });
     setVehiculos(nuevas);
