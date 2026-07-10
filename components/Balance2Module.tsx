@@ -135,6 +135,14 @@ function tipoMaterial(row: Pick<SimBaseRow, "codigo" | "texto" | "seccion">) {
   return row.seccion || "OTROS";
 }
 
+function etiquetaEmpaque(row: Pick<SimBaseRow, "codigo" | "texto" | "seccion">) {
+  const t = tipoMaterial(row);
+  if (t === "TAPA") return "Estiba";
+  if (t === "LATA") return "Pallet";
+  if (t === "PREFORMA") return "Gaylord";
+  return "Empaque";
+}
+
 function extraerFilas(analisis: BalanceRow[]) {
   return analisis
     // Traer TODAS las referencias del balance; el filtrado se hace con los selectores de Secciones/Materiales.
@@ -435,7 +443,7 @@ export default function Balance2Module({ analisis }: Props) {
             event.preventDefault();
             setTimeout(() => formulaInputRef.current?.focus(), 0);
           }}
-          className={`h-7 w-full cursor-pointer rounded-lg border px-1 text-center text-[9px] font-black outline-none transition ${isActive ? "border-[#0057B8] ring-2 ring-blue-100 bg-white text-slate-950" : "border-blue-100 bg-slate-50 text-slate-900 hover:border-blue-300"}`}
+          className={`h-7 w-full cursor-pointer rounded-lg border px-1 text-center text-[8px] font-black outline-none transition ${isActive ? "border-[#0057B8] ring-2 ring-blue-100 bg-white text-slate-950" : "border-blue-100 bg-slate-50 text-slate-900 hover:border-blue-300"}`}
           title={`Selecciona para editar ${fieldLabels[field]}. Formula actual: ${raw || "0"} | Resultado: ${formato(value, 2)}`}
         />
       </td>
@@ -518,7 +526,7 @@ export default function Balance2Module({ analisis }: Props) {
               <tr className="bg-blue-100">
                 <Th right>Cantidad en SAP</Th><Th right>Cantidad X ingresar</Th><Th right>Cantidad X descargar</Th><Th right>Teorico</Th>
                 <Th right>Fisico piso</Th><Th right>Fisico estanteria</Th><Th right>Diferencia</Th>
-                {semanasActivas.map((sem) => <Th key={`need-${sem}`} right>{sem}<br />Necesidad</Th>)}<Th right>Necesidad total</Th><Th right>Transito</Th><Th right>Requerimiento</Th><Th right>No. vehiculos</Th><Th right>Vehiculo</Th><Th right>Unidad (Gaylor/Pallet)</Th><Th right>Cant. unidad</Th>
+                {semanasActivas.map((sem) => <Th key={`need-${sem}`} right>{sem}<br />Necesidad</Th>)}<Th right>Necesidad total</Th><Th right>Transito</Th><Th right>Requerimiento</Th><Th right>No. vehiculos</Th><Th right>Vehiculo</Th><Th right>Empaque</Th><Th right>Cant. unidad</Th>
               </tr>
             </thead>
             <tbody>
@@ -544,7 +552,7 @@ export default function Balance2Module({ analisis }: Props) {
                     <RefCell refId={`${columnByField.requerimiento}${rowNumber}`} className={claseNumero(row.requerimiento)}>{formato(row.requerimiento)}</RefCell>
                     <RefCell refId={`${columnByField.numeroVehiculos}${rowNumber}`} className={claseNumero(row.numeroVehiculos)}>{formato(row.numeroVehiculos, 2)}</RefCell>
                     {EditCell({ row, field: "vehiculo" })}
-                    {EditCell({ row, field: "gaylor", label: tipoMaterial(row) === "LATA" ? "Pallets" : "Gaylor/estiba" })}
+                    {EditCell({ row, field: "gaylor", label: etiquetaEmpaque(row) })}
                     <RefCell refId={`${columnByField.cantidadGaylor}${rowNumber}`} className={claseNumero(row.cantidadGaylor)}>{formato(row.cantidadGaylor, 2)}</RefCell>
                   </tr>
                 );
