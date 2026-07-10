@@ -31,9 +31,15 @@ function gaylordsPorVh(codigo: string) {
   return codigo === "303845" ? 36 : 40;
 }
 
-// Unidades por vehiculo por defecto = gaylords x (gaylor/estiba).
+function esPreforma(row: SimRow) {
+  return `${row.codigo} ${row.material}`.toLowerCase().includes("preforma");
+}
+
+// 1 VH por defecto: preformas = gaylords x unidad; tapas/latas = la unidad (varia, el usuario ajusta).
 function vhBase(row: SimRow) {
-  return gaylordsPorVh(row.codigo) * (row.capacidadUnidad || 0);
+  const unidad = row.capacidadUnidad || 0;
+  if (esPreforma(row)) return gaylordsPorVh(row.codigo) * unidad;
+  return unidad;
 }
 
 function formato(value: number) {

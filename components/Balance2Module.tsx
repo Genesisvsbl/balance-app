@@ -11,6 +11,7 @@ type Props = {
 };
 
 type EditField =
+  | "sap"
   | "ingresar"
   | "descargar"
   | "fisicoPiso"
@@ -41,6 +42,7 @@ type CalculatedRow = SimBaseRow & Record<EditField, number> & {
 };
 
 const fieldLabels: Record<EditField, string> = {
+  sap: "Cantidad en SAP",
   ingresar: "Cant. x ingresar",
   descargar: "Cant. x descargar",
   fisicoPiso: "Fisico piso",
@@ -52,6 +54,7 @@ const fieldLabels: Record<EditField, string> = {
 
 const columnByField: Record<string, string> = {
   cantidadSap: "D",
+  sap: "D",
   ingresar: "E",
   descargar: "F",
   teorico: "G",
@@ -98,7 +101,15 @@ function formato(value: number, decimals = 0) {
 
 function capacidadGaylor(row: BalanceRow) {
   const texto = normalizar(`${row.codigo} ${row.material} ${row.seccion}`);
-  if (texto.includes("tapa")) return 5000;
+  // Tapas primero (una "tapa lata" sigue siendo tapa).
+  if (texto.includes("tapa")) return 332800;
+  // Latas: unidades por pallet segun tamano.
+  if (texto.includes("lata")) {
+    if (texto.includes("269")) return 9367;
+    if (texto.includes("330")) return 7780;
+    return 9367;
+  }
+  // Preformas: unidades por gaylord segun tamano.
   if (texto.includes("1.5") || texto.includes("1,5")) return 6048;
   if (texto.includes("1000")) return 8136;
   if (texto.includes("330")) return 17088;
@@ -240,7 +251,10 @@ export default function Balance2Module({ analisis }: Props) {
   function rawEdit(row: SimBaseRow, field: EditField) {
     const saved = edits[row.id]?.[field];
     if (saved !== undefined) return saved;
-    // Celdas editables vacias: el usuario ingresa los datos manualmente.
+    // SAP y la unidad (gaylor/pallet) traen su valor por defecto pero editable.
+    if (field === "sap") return String(Math.round(row.cantidadSap || 0));
+    if (field === "gaylor") return String(Math.round(row.capacidadUnidad || 0));
+    // Las demas celdas editables arrancan vacias.
     return "";
   }
 
@@ -262,6 +276,7 @@ export default function Balance2Module({ analisis }: Props) {
       cantidadGaylor: 0,
     };
 
+    partial.cantidadSap = evaluarFormula(rawEdit(row, "sap"), partial) || row.cantidadSap;
     partial.ingresar = evaluarFormula(rawEdit(row, "ingresar"), partial);
     partial.descargar = evaluarFormula(rawEdit(row, "descargar"), partial);
     partial.teorico = partial.cantidadSap + partial.ingresar - partial.descargar;
@@ -363,15 +378,16 @@ export default function Balance2Module({ analisis }: Props) {
     );
   }
 
-  function EditCell({ row, field }: { row: CalculatedRow; field: EditField }) {
+  function EditCell({ row, field, label }: { row: CalculatedRow; field: EditField; label?: string }) {
     const raw = edits[row.id]?.[field] ?? rawEdit(row, field);
-    const value = row[field];
+    const value = field === "sap" ? row.cantidadSap : row[field];
     const isFormula = esExpresionFormula(raw);
     const isActive = activeCell?.rowId === row.id && activeCell?.field === field;
     const displayValue = isFormula ? formato(value, 2) : raw;
 
     return (
       <td className="min-w-[110px] px-2 py-1.5">
+        {label ? <div className="mb-0.5 text-center text-[8px] font-bold text-slate-400">{label}</div> : null}
         <input
           type="text"
           inputMode="decimal"
@@ -483,7 +499,7 @@ export default function Balance2Module({ analisis }: Props) {
               <tr className="bg-blue-100">
                 <Th right>Cantidad en SAP</Th><Th right>Cantidad X ingresar</Th><Th right>Cantidad X descargar</Th><Th right>Teorico</Th>
                 <Th right>Fisico piso</Th><Th right>Fisico estanteria</Th><Th right>Diferencia</Th>
-                {semanasActivas.map((sem) => <Th key={`need-${sem}`} right>{sem}<br />Necesidad</Th>)}<Th right>Necesidad total</Th><Th right>Transito</Th><Th right>Requerimiento</Th><Th right>No. vehiculos</Th><Th right>Vehiculo</Th><Th right>Gaylor / Estiba</Th><Th right>Cant. gaylor</Th>
+                {semanasActivas.map((sem) => <Th key={`need-${sem}`} right>{sem}<br />Necesidad</Th>)}<Th right>Necesidad total</Th><Th right>Transito</Th><Th right>Requerimiento</Th><Th right>No. vehiculos</Th><Th right>Vehiculo</Th><Th right>Unidad (Gaylor/Pallet)</Th><Th right>Cant. unidad</Th>
               </tr>
             </thead>
             <tbody>
@@ -494,7 +510,7 @@ export default function Balance2Module({ analisis }: Props) {
                     <td className="whitespace-nowrap px-3 py-2 text-[11px] font-black text-slate-950">{row.codigo}</td>
                     <td className="min-w-[280px] px-3 py-2 text-[11px] font-bold text-slate-700">{row.texto}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-[11px] font-bold text-slate-600">{row.um}</td>
-                    <RefCell refId={`${columnByField.cantidadSap}${rowNumber}`} className="text-[#0057B8]">{formato(row.cantidadSap)}</RefCell>
+                    {EditCell({ row, field: "sap" })}
                     {EditCell({ row, field: "ingresar" })}
                     {EditCell({ row, field: "descargar" })}
                     <RefCell refId={`${columnByField.teorico}${rowNumber}`}>{formato(row.teorico)}</RefCell>
@@ -509,11 +525,7 @@ export default function Balance2Module({ analisis }: Props) {
                     <RefCell refId={`${columnByField.requerimiento}${rowNumber}`} className={claseNumero(row.requerimiento)}>{formato(row.requerimiento)}</RefCell>
                     <RefCell refId={`${columnByField.numeroVehiculos}${rowNumber}`} className={claseNumero(row.numeroVehiculos)}>{formato(row.numeroVehiculos, 2)}</RefCell>
                     {EditCell({ row, field: "vehiculo" })}
-                    <td className="min-w-[110px] px-2 py-1.5">
-                      <div className="h-8 w-full rounded-lg border border-slate-200 bg-slate-100 px-2 text-right text-[11px] font-black leading-8 text-slate-700">
-                        {formato(row.gaylor, 0)}
-                      </div>
-                    </td>
+                    {EditCell({ row, field: "gaylor", label: tipoMaterial(row) === "LATA" ? "Pallets" : "Gaylor/estiba" })}
                     <RefCell refId={`${columnByField.cantidadGaylor}${rowNumber}`} className={claseNumero(row.cantidadGaylor)}>{formato(row.cantidadGaylor, 2)}</RefCell>
                   </tr>
                 );
