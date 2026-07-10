@@ -16,22 +16,12 @@ type Props = {
   semanas: string[];
 };
 
-type Cita = {
-  id: string;
-  codigo: string;
-  material: string;
-  um: string;
-  sem: string;
-  cantidad: number;
-  fecha: string; // YYYY-MM-DD
-};
-
 type DiasHabiles = "LV" | "LS" | "TODOS";
 
 const DIAS_SET: Record<DiasHabiles, number[]> = {
   LV: [1, 2, 3, 4, 5],
   LS: [1, 2, 3, 4, 5, 6],
-  TODOS: [0, 1, 2, 3, 4, 5, 6],
+  TODOS: [1, 2, 3, 4, 5, 6, 0],
 };
 
 const NOMBRE_DIA = ["Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab"];
@@ -41,15 +31,20 @@ function formato(value: number) {
   return Math.round(value).toLocaleString("en-US");
 }
 
+function numero(value: string) {
+  const limpio = value.replace(/[^0-9.-]/g, "");
+  const n = Number(limpio);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function numeroSemana(sem: string) {
   const match = sem.match(/\d+/);
   return match ? Number(match[0]) : 0;
 }
 
-// Lunes (UTC) de la semana ISO indicada.
 function lunesSemanaISO(week: number, year: number) {
   const enero4 = new Date(Date.UTC(year, 0, 4));
-  const diaSemana = enero4.getUTCDay() || 7; // 1..7 (lunes..domingo)
+  const diaSemana = enero4.getUTCDay() || 7;
   const lunesSemana1 = new Date(enero4);
   lunesSemana1.setUTCDate(enero4.getUTCDate() - (diaSemana - 1));
   const lunes = new Date(lunesSemana1);
@@ -61,153 +56,152 @@ function claveFecha(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-function fechaLegible(clave: string) {
+function fechaCorta(clave: string) {
   const d = new Date(`${clave}T00:00:00Z`);
   const dia = String(d.getUTCDate()).padStart(2, "0");
   const mes = String(d.getUTCMonth() + 1).padStart(2, "0");
-  return `${NOMBRE_DIA[d.getUTCDay()]} ${dia}/${mes}`;
+  return `${dia}/${mes}`;
 }
 
-// Fechas (claves) de los dias habiles de una semana ISO, a partir de la fecha de inicio.
-function fechasDeSemana(sem: string, year: number, dias: number[], inicioClave: string) {
+function diaNombre(clave: string) {
+  const d = new Date(`${clave}T00:00:00Z`);
+  return NOMBRE_DIA[d.getUTCDay()];
+}
+
+function fechasDeSemana(sem: string, year: number, dias: number[]) {
   const lunes = lunesSemanaISO(numeroSemana(sem), year);
   const resultado: string[] = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(lunes);
     d.setUTCDate(lunes.getUTCDate() + i);
-    if (!dias.includes(d.getUTCDay())) continue;
-    const clave = claveFecha(d);
-    if (clave < inicioClave) continue;
-    resultado.push(clave);
+    if (dias.includes(d.getUTCDay())) resultado.push(claveFecha(d));
   }
   return resultado;
 }
 
 export default function SimuladorProgramacion({ rows, semanas }: Props) {
-  const hoy = claveFecha(new Date());
-  const [inicio, setInicio] = useState(hoy);
-  const [unidadesDia, setUnidadesDia] = useState(500000);
+  const [numSemanas, setNumSemanas] = useState(1);
   const [diasHabiles, setDiasHabiles] = useState<DiasHabiles>("LV");
-  const [citas, setCitas] = useState<Cita[]>([]);
-  const [generado, setGenerado] = useState(false);
-  const [arrastrando, setArrastrando] = useState<string | null>(null);
+  const [cantidadPorClic, setCantidadPorClic] = useState(1000000);
+  const [asignaciones, setAsignaciones] = useState<Record<string, string>>({});
 
-  const anio = Number(inicio.slice(0, 4)) || new Date().getFullYear();
+  const anio = new Date().getFullYear();
   const dias = DIAS_SET[diasHabiles];
 
-  function generar() {
-    const nuevas: Cita[] = [];
-    let contador = 0;
+  const semanasSel = useMemo(
+    () => semanas.slice(0, Math.max(1, Math.min(numSemanas, semanas.length))),
+    [semanas, numSemanas]
+  );
 
-    rows.forEach((row) => {
-      semanas.forEach((sem) => {
-        const necesidad = row.necesidadesPorSemana[sem] || 0;
-        if (necesidad <= 0) return;
-
-        const fechas = fechasDeSemana(sem, anio, dias, inicio);
-        if (fechas.length === 0) return;
-
-        let restante = necesidad;
-        let indice = 0;
-        while (restante > 0 && indice < fechas.length) {
-          const cantidad = Math.min(unidadesDia, restante);
-          nuevas.push({
-            id: `c${contador++}`,
-            codigo: row.codigo,
-            material: row.material,
-            um: row.um,
-            sem,
-            cantidad,
-            fecha: fechas[indice],
-          });
-          restante -= cantidad;
-          indice += 1;
-        }
-
-        // Si no alcanzaron los dias de la semana, el resto se apila el ultimo dia habil.
-        if (restante > 0 && fechas.length > 0) {
-          nuevas.push({
-            id: `c${contador++}`,
-            codigo: row.codigo,
-            material: row.material,
-            um: row.um,
-            sem,
-            cantidad: restante,
-            fecha: fechas[fechas.length - 1],
-          });
-        }
-      });
+  const fechasPorSemana = useMemo(() => {
+    const mapa: Record<string, string[]> = {};
+    semanasSel.forEach((sem) => {
+      mapa[sem] = fechasDeSemana(sem, anio, dias);
     });
+    return mapa;
+  }, [semanasSel, anio, dias]);
 
-    setCitas(nuevas);
-    setGenerado(true);
+  function clave(codigo: string, fecha: string) {
+    return `${codigo}|${fecha}`;
   }
 
-  function limpiar() {
-    setCitas([]);
-    setGenerado(false);
+  function valorCelda(codigo: string, fecha: string) {
+    return asignaciones[clave(codigo, fecha)] ?? "";
   }
 
-  function moverCita(id: string, fecha: string) {
-    setCitas((prev) =>
-      prev.map((cita) => (cita.id === id ? { ...cita, fecha } : cita))
+  function setCelda(codigo: string, fecha: string, valor: string) {
+    setAsignaciones((prev) => {
+      const copia = { ...prev };
+      if (valor === "" || valor === "0") delete copia[clave(codigo, fecha)];
+      else copia[clave(codigo, fecha)] = valor;
+      return copia;
+    });
+  }
+
+  function asignadoSemana(codigo: string, sem: string) {
+    return (fechasPorSemana[sem] || []).reduce(
+      (acc, fecha) => acc + numero(valorCelda(codigo, fecha)),
+      0
     );
   }
 
-  // Agrupacion: semana -> fecha -> citas
-  const calendario = useMemo(() => {
-    return semanas.map((sem) => {
-      const fechas = fechasDeSemana(sem, anio, dias, inicio);
-      const necesidadSem = rows.reduce(
-        (acc, row) => acc + (row.necesidadesPorSemana[sem] || 0),
-        0
-      );
-      const programadoSem = citas
-        .filter((c) => c.sem === sem)
-        .reduce((acc, c) => acc + c.cantidad, 0);
+  function faltaSemana(row: SimRow, sem: string) {
+    const necesidad = row.necesidadesPorSemana[sem] || 0;
+    return necesidad - asignadoSemana(row.codigo, sem);
+  }
 
-      const columnas = fechas.map((fecha) => ({
-        fecha,
-        citas: citas.filter((c) => c.sem === sem && c.fecha === fecha),
-      }));
+  function clicCelda(row: SimRow, sem: string, fecha: string) {
+    const actual = numero(valorCelda(row.codigo, fecha));
+    if (actual > 0) return;
+    const falta = faltaSemana(row, sem);
+    if (falta <= 0) return;
+    const cantidad = Math.min(falta, cantidadPorClic);
+    setCelda(row.codigo, fecha, String(Math.round(cantidad)));
+  }
 
-      return { sem, necesidadSem, programadoSem, columnas };
+  function limpiar() {
+    setAsignaciones({});
+  }
+
+  function autollenar() {
+    const nuevas: Record<string, string> = {};
+    rows.forEach((row) => {
+      semanasSel.forEach((sem) => {
+        let restante = row.necesidadesPorSemana[sem] || 0;
+        if (restante <= 0) return;
+        const fechas = fechasPorSemana[sem] || [];
+        for (let i = 0; i < fechas.length && restante > 0; i++) {
+          const cantidad = Math.min(cantidadPorClic, restante);
+          nuevas[clave(row.codigo, fechas[i])] = String(Math.round(cantidad));
+          restante -= cantidad;
+        }
+      });
     });
-  }, [semanas, citas, rows, anio, diasHabiles, inicio]);
+    setAsignaciones(nuevas);
+  }
+
+  const totalNecesidad = useMemo(
+    () =>
+      rows.reduce(
+        (acc, row) =>
+          acc + semanasSel.reduce((s, sem) => s + (row.necesidadesPorSemana[sem] || 0), 0),
+        0
+      ),
+    [rows, semanasSel]
+  );
+
+  const totalAsignado = useMemo(
+    () => Object.entries(asignaciones).reduce((acc, [, v]) => acc + numero(v), 0),
+    [asignaciones]
+  );
 
   if (rows.length === 0) return null;
 
   return (
     <section className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="text-lg font-black text-slate-950">Simulador de programacion</h3>
-          <p className="mt-1 text-sm font-semibold text-slate-500">
-            Genera el calendario de citas de recepcion segun el requerimiento por semana. Arrastra las citas para mover las fechas.
-          </p>
-        </div>
+      <div>
+        <h3 className="text-lg font-black text-slate-950">Simulador de programacion</h3>
+        <p className="mt-1 text-sm font-semibold text-slate-500">
+          Elige cuantas semanas planear. Haz clic en el dia donde quieres que llegue cada referencia (o teclea la cantidad). Cada fila es un material y cada columna un dia.
+        </p>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_1fr_auto_auto]">
+      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[auto_auto_auto_1fr_auto]">
         <label className="text-xs font-black uppercase text-slate-500">
-          Fecha de inicio
-          <input
-            type="date"
-            value={inicio}
-            onChange={(e) => setInicio(e.target.value)}
+          Semanas a planear
+          <select
+            value={numSemanas}
+            onChange={(e) => setNumSemanas(Number(e.target.value))}
             className="mt-1 h-11 w-full rounded-xl border border-blue-100 px-3 text-sm font-bold text-slate-900 outline-none focus:border-[#0057B8]"
-          />
+          >
+            {semanas.map((_, i) => (
+              <option key={i} value={i + 1}>
+                {i + 1} {i === 0 ? "semana" : "semanas"}
+              </option>
+            ))}
+          </select>
         </label>
-        <label className="text-xs font-black uppercase text-slate-500">
-          Unidades por dia
-          <input
-            type="number"
-            min={1}
-            value={unidadesDia}
-            onChange={(e) => setUnidadesDia(Math.max(1, Number(e.target.value) || 1))}
-            className="mt-1 h-11 w-full rounded-xl border border-blue-100 px-3 text-sm font-bold text-slate-900 outline-none focus:border-[#0057B8]"
-          />
-        </label>
+
         <label className="text-xs font-black uppercase text-slate-500">
           Dias habiles
           <select
@@ -220,93 +214,202 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
             <option value="TODOS">Todos los dias</option>
           </select>
         </label>
-        <button
-          onClick={generar}
-          className="h-11 self-end rounded-xl bg-[#0057B8] px-6 text-sm font-black text-white shadow-md transition hover:bg-[#003B7A]"
-        >
-          GENERAR
-        </button>
-        <button
-          onClick={limpiar}
-          className="h-11 self-end rounded-xl border border-blue-200 px-5 text-sm font-black text-[#0057B8]"
-        >
-          Limpiar
-        </button>
+
+        <label className="text-xs font-black uppercase text-slate-500">
+          Cantidad por clic
+          <input
+            type="number"
+            min={1}
+            value={cantidadPorClic}
+            onChange={(e) => setCantidadPorClic(Math.max(1, Number(e.target.value) || 1))}
+            className="mt-1 h-11 w-full rounded-xl border border-blue-100 px-3 text-sm font-bold text-slate-900 outline-none focus:border-[#0057B8]"
+          />
+        </label>
+
+        <div className="flex items-end">
+          <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-bold text-[#003B7A]">
+            Necesidad total: <span className="text-red-600">{formato(totalNecesidad)}</span>
+            {"  ·  "}
+            Asignado: <span className="text-[#0057B8]">{formato(totalAsignado)}</span>
+          </div>
+        </div>
+
+        <div className="flex items-end gap-2">
+          <button
+            onClick={autollenar}
+            className="h-11 rounded-xl bg-[#0057B8] px-5 text-sm font-black text-white shadow-md transition hover:bg-[#003B7A]"
+          >
+            Autollenar
+          </button>
+          <button
+            onClick={limpiar}
+            className="h-11 rounded-xl border border-blue-200 px-5 text-sm font-black text-[#0057B8]"
+          >
+            Limpiar
+          </button>
+        </div>
       </div>
 
-      {!generado && (
-        <p className="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-[#003B7A]">
-          Ajusta la fecha de inicio, las unidades por dia y presiona GENERAR para armar el calendario.
-        </p>
-      )}
+      <p className="mt-3 text-xs font-semibold text-slate-500">
+        Tip: un clic coloca la cantidad por clic (o lo que falte). Teclea para ajustar. Baja la cantidad por clic para repartir en camiones por dia. Autollenar reparte todo automaticamente.
+      </p>
 
-      {generado && (
-        <div className="mt-5 space-y-5">
-          {calendario.map(({ sem, necesidadSem, programadoSem, columnas }) => {
-            const cubre = programadoSem >= necesidadSem;
-            const falta = Math.max(0, necesidadSem - programadoSem);
-            return (
-              <div key={sem} className="rounded-2xl border border-blue-100">
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-t-2xl bg-blue-50 px-4 py-2.5">
-                  <p className="text-sm font-black text-[#003B7A]">{sem}</p>
-                  <div className="flex flex-wrap items-center gap-3 text-xs font-bold">
-                    <span className="text-slate-500">Necesidad: <span className="text-red-600">{formato(necesidadSem)}</span></span>
-                    <span className="text-slate-500">Programado: <span className="text-[#0057B8]">{formato(programadoSem)}</span></span>
-                    <span className={`rounded-full px-3 py-1 font-black ${cubre ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
-                      {cubre ? "CUBRE" : `Falta ${formato(falta)}`}
-                    </span>
+      <div className="mt-4 overflow-auto rounded-2xl border border-blue-100">
+        <table className="min-w-full border-collapse text-left text-xs">
+          <thead className="sticky top-0 z-20">
+            <tr className="bg-blue-200/80 text-[#0B4EA2]">
+              <th
+                rowSpan={2}
+                className="sticky left-0 z-30 min-w-[250px] border-b border-blue-200 bg-blue-200/95 px-3 py-2 text-[11px] font-black uppercase"
+              >
+                Referencia
+              </th>
+              {semanasSel.map((sem) => (
+                <th
+                  key={sem}
+                  colSpan={(fechasPorSemana[sem]?.length || 0) + 1}
+                  className="border-b border-l border-blue-300 px-3 py-2 text-center text-[11px] font-black uppercase"
+                >
+                  {sem}
+                </th>
+              ))}
+            </tr>
+            <tr className="bg-blue-100 text-[#0B4EA2]">
+              {semanasSel.map((sem) => (
+                <FragmentHeader key={sem} fechas={fechasPorSemana[sem] || []} />
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.codigo} className="border-b border-slate-100 hover:bg-blue-50/40">
+                <td className="sticky left-0 z-10 min-w-[250px] bg-white px-3 py-2">
+                  <div className="text-[11px] font-black text-slate-950">{row.codigo}</div>
+                  <div className="truncate text-[10px] font-semibold text-slate-500" title={row.material}>
+                    {row.material}
                   </div>
-                </div>
-
-                {columnas.length === 0 ? (
-                  <p className="px-4 py-3 text-xs font-semibold text-slate-400">
-                    No hay dias habiles de esta semana despues de la fecha de inicio.
-                  </p>
-                ) : (
-                  <div className="grid gap-2 p-3" style={{ gridTemplateColumns: `repeat(${columnas.length}, minmax(140px, 1fr))` }}>
-                    {columnas.map(({ fecha, citas: citasDia }) => {
-                      const totalDia = citasDia.reduce((acc, c) => acc + c.cantidad, 0);
-                      const esDrop = arrastrando !== null;
-                      return (
-                        <div
-                          key={fecha}
-                          onDragOver={(e) => { if (esDrop) e.preventDefault(); }}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            if (arrastrando) moverCita(arrastrando, fecha);
-                            setArrastrando(null);
-                          }}
-                          className={`min-h-[90px] rounded-xl border p-2 transition ${esDrop ? "border-dashed border-[#0057B8] bg-blue-50/50" : "border-slate-200 bg-slate-50"}`}
-                        >
-                          <div className="mb-1 flex items-center justify-between">
-                            <span className="text-[11px] font-black text-slate-600">{fechaLegible(fecha)}</span>
-                            <span className="text-[10px] font-bold text-slate-400">{formato(totalDia)}</span>
-                          </div>
-                          <div className="space-y-1">
-                            {citasDia.map((cita) => (
-                              <div
-                                key={cita.id}
-                                draggable
-                                onDragStart={() => setArrastrando(cita.id)}
-                                onDragEnd={() => setArrastrando(null)}
-                                title={cita.material}
-                                className="cursor-grab rounded-lg border border-blue-200 bg-white px-2 py-1 text-[10px] font-black text-[#003B7A] shadow-sm active:cursor-grabbing"
-                              >
-                                <div className="truncate">{cita.codigo}</div>
-                                <div className="text-[#0057B8]">{formato(cita.cantidad)} {cita.um}</div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+                </td>
+                {semanasSel.map((sem) => {
+                  const necesidad = row.necesidadesPorSemana[sem] || 0;
+                  const falta = faltaSemana(row, sem);
+                  const cubre = necesidad > 0 && falta <= 0;
+                  return (
+                    <FragmentRow
+                      key={sem}
+                      fechas={fechasPorSemana[sem] || []}
+                      necesidad={necesidad}
+                      falta={falta}
+                      cubre={cubre}
+                      valorCelda={(fecha) => valorCelda(row.codigo, fecha)}
+                      onClic={(fecha) => clicCelda(row, sem, fecha)}
+                      onChange={(fecha, v) => setCelda(row.codigo, fecha, v)}
+                    />
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="bg-slate-50 text-[#0B4EA2]">
+              <td className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-[11px] font-black uppercase">
+                Total por dia
+              </td>
+              {semanasSel.map((sem) => (
+                <FragmentFooter
+                  key={sem}
+                  fechas={fechasPorSemana[sem] || []}
+                  totalDia={(fecha) =>
+                    rows.reduce((acc, row) => acc + numero(valorCelda(row.codigo, fecha)), 0)
+                  }
+                />
+              ))}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     </section>
+  );
+}
+
+function FragmentHeader({ fechas }: { fechas: string[] }) {
+  return (
+    <>
+      {fechas.map((fecha) => (
+        <th key={fecha} className="min-w-[92px] border-l border-blue-200 px-2 py-2 text-center text-[10px] font-black">
+          <div>{diaNombre(fecha)}</div>
+          <div className="text-slate-500">{fechaCorta(fecha)}</div>
+        </th>
+      ))}
+      <th className="min-w-[90px] border-l-2 border-blue-300 px-2 py-2 text-center text-[10px] font-black">
+        Necesidad / Falta
+      </th>
+    </>
+  );
+}
+
+function FragmentRow({
+  fechas,
+  necesidad,
+  falta,
+  cubre,
+  valorCelda,
+  onClic,
+  onChange,
+}: {
+  fechas: string[];
+  necesidad: number;
+  falta: number;
+  cubre: boolean;
+  valorCelda: (fecha: string) => string;
+  onClic: (fecha: string) => void;
+  onChange: (fecha: string, valor: string) => void;
+}) {
+  return (
+    <>
+      {fechas.map((fecha) => {
+        const valor = valorCelda(fecha);
+        const tiene = numero(valor) > 0;
+        return (
+          <td key={fecha} className="border-l border-slate-100 px-1 py-1">
+            <input
+              type="text"
+              inputMode="numeric"
+              value={valor}
+              onClick={() => onClic(fecha)}
+              onChange={(e) => onChange(fecha, e.target.value.replace(/[^0-9]/g, ""))}
+              placeholder="+"
+              className={`h-9 w-full rounded-lg border px-1 text-center text-[11px] font-black outline-none transition ${
+                tiene
+                  ? "border-blue-200 bg-blue-50 text-[#0057B8]"
+                  : "border-dashed border-slate-200 bg-white text-slate-400 hover:border-[#0057B8] hover:bg-blue-50/40"
+              }`}
+            />
+          </td>
+        );
+      })}
+      <td className="border-l-2 border-blue-200 px-2 py-1 text-center">
+        <div className="text-[10px] font-bold text-red-600">{formato(necesidad)}</div>
+        <div
+          className={`text-[10px] font-black ${
+            necesidad <= 0 ? "text-slate-300" : cubre ? "text-emerald-700" : "text-red-600"
+          }`}
+        >
+          {necesidad <= 0 ? "-" : cubre ? "OK" : `Falta ${formato(falta)}`}
+        </div>
+      </td>
+    </>
+  );
+}
+
+function FragmentFooter({ fechas, totalDia }: { fechas: string[]; totalDia: (fecha: string) => number }) {
+  return (
+    <>
+      {fechas.map((fecha) => (
+        <td key={fecha} className="border-l border-slate-100 px-1 py-2 text-center text-[10px] font-black text-slate-700">
+          {formato(totalDia(fecha))}
+        </td>
+      ))}
+      <td className="border-l-2 border-blue-200 px-2 py-2" />
+    </>
   );
 }
