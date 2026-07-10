@@ -387,12 +387,12 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                 return (
                   <tr key={row.codigo} className="border-b border-slate-100 hover:bg-blue-50/40">
                     <td className="sticky left-0 z-10 w-[150px] bg-white px-2 py-1">
-                      <div className="text-[10px] font-black text-slate-950">{row.codigo}</div>
-                      <div className="truncate text-[9px] font-semibold text-slate-500" title={row.material}>
+                      <div className="text-[10px] font-black text-slate-950 text-center">{row.codigo}</div>
+                      <div className="text-[9px] font-semibold text-slate-500 break-words text-center" title={row.material}>
                         {row.material}
                       </div>
                       <div className="mt-1 flex items-center gap-1">
-                        <span className="text-[8px] font-bold text-slate-500">1 VH =</span>
+                        <span className="text-[9px] font-bold text-slate-500">1 VH =</span>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -455,12 +455,12 @@ function FragmentHeader({ fechas }: { fechas: string[] }) {
   return (
     <>
       {fechas.map((fecha) => (
-        <th key={fecha} className="border-l border-blue-200 px-0.5 py-1 text-center text-[8px] font-black">
+        <th key={fecha} className="border-l border-blue-200 px-0.5 py-1 text-center text-[9px] font-black">
           <div>{diaNombre(fecha)}</div>
           <div className="text-slate-500">{fechaCorta(fecha)}</div>
         </th>
       ))}
-      <th className="border-l-2 border-blue-300 px-0.5 py-1 text-center text-[8px] font-black">
+      <th className="border-l-2 border-blue-300 px-0.5 py-1 text-center text-[9px] font-black">
         Necesidad / Estado
       </th>
     </>
@@ -511,7 +511,7 @@ function FragmentRow({
                   : "border-dashed border-slate-200 bg-white text-slate-400 hover:border-[#0057B8] hover:bg-blue-50/40"
               }`}
             />
-            <div className="mt-0.5 text-center text-[8px] font-bold text-slate-400">
+            <div className="mt-0.5 text-center text-[9px] font-bold text-slate-400">
               {tiene ? formato(unidades) : ""}
             </div>
           </td>
@@ -545,9 +545,9 @@ function FragmentFooter({
   return (
     <>
       {fechas.map((fecha) => (
-        <td key={fecha} className="border-l border-slate-100 px-0.5 py-1 text-center text-[8px] font-black text-slate-700">
+        <td key={fecha} className="border-l border-slate-100 px-0.5 py-1 text-center text-[9px] font-black text-slate-700">
           <div>{formato(vhDia(fecha))} VH</div>
-          <div className="text-[8px] font-bold text-slate-400">{formato(unidDia(fecha))}</div>
+          <div className="text-[9px] font-bold text-slate-400">{formato(unidDia(fecha))}</div>
         </td>
       ))}
       <td className="border-l-2 border-blue-200 px-2 py-2" />
