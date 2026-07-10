@@ -26,6 +26,14 @@ const DIAS_SET: Record<DiasHabiles, number[]> = {
 
 const NOMBRE_DIA = ["Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab"];
 
+function gaylordsPorVh(codigo: string) {
+  return codigo === "303845" ? 36 : 40;
+}
+
+function vhBase(row: SimRow) {
+  return gaylordsPorVh(row.codigo) * (row.capacidadUnidad || 0);
+}
+
 function formato(value: number) {
   if (!Number.isFinite(value)) return "0";
   return Math.round(value).toLocaleString("en-US");
@@ -80,18 +88,18 @@ function fechasDeSemana(sem: string, year: number, dias: number[]) {
 }
 
 export default function SimuladorProgramacion({ rows, semanas }: Props) {
-  const [numSemanas, setNumSemanas] = useState(1);
   const [diasHabiles, setDiasHabiles] = useState<DiasHabiles>("LV");
-  const [cantidadPorClic, setCantidadPorClic] = useState(1000000);
-  const [asignaciones, setAsignaciones] = useState<Record<string, string>>({});
+  const [vhPorClic, setVhPorClic] = useState(1);
+  const [semanasOff, setSemanasOff] = useState<Set<string>>(new Set());
+  const [vehiculos, setVehiculos] = useState<Record<string, string>>({});
 
   const anio = new Date().getFullYear();
   const dias = DIAS_SET[diasHabiles];
 
-  const semanasSel = useMemo(
-    () => semanas.slice(0, Math.max(1, Math.min(numSemanas, semanas.length))),
-    [semanas, numSemanas]
-  );
+  const semanasSel = useMemo(() => {
+    const sel = semanas.filter((s) => !semanasOff.has(s));
+    return sel.length ? sel : semanas;
+  }, [semanas, semanasOff]);
 
   const fechasPorSemana = useMemo(() => {
     const mapa: Record<string, string[]> = {};
@@ -101,16 +109,24 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     return mapa;
   }, [semanasSel, anio, dias]);
 
+  const vhBasePorCodigo = useMemo(() => {
+    const mapa: Record<string, number> = {};
+    rows.forEach((row) => {
+      mapa[row.codigo] = vhBase(row);
+    });
+    return mapa;
+  }, [rows]);
+
   function clave(codigo: string, fecha: string) {
     return `${codigo}|${fecha}`;
   }
 
-  function valorCelda(codigo: string, fecha: string) {
-    return asignaciones[clave(codigo, fecha)] ?? "";
+  function vhCelda(codigo: string, fecha: string) {
+    return vehiculos[clave(codigo, fecha)] ?? "";
   }
 
-  function setCelda(codigo: string, fecha: string, valor: string) {
-    setAsignaciones((prev) => {
+  function setVh(codigo: string, fecha: string, valor: string) {
+    setVehiculos((prev) => {
       const copia = { ...prev };
       if (valor === "" || valor === "0") delete copia[clave(codigo, fecha)];
       else copia[clave(codigo, fecha)] = valor;
@@ -118,96 +134,126 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     });
   }
 
-  function asignadoSemana(codigo: string, sem: string) {
+  function unidadesCelda(codigo: string, fecha: string) {
+    return numero(vhCelda(codigo, fecha)) * (vhBasePorCodigo[codigo] || 0);
+  }
+
+  function asignadoUnidSemana(codigo: string, sem: string) {
     return (fechasPorSemana[sem] || []).reduce(
-      (acc, fecha) => acc + numero(valorCelda(codigo, fecha)),
+      (acc, fecha) => acc + unidadesCelda(codigo, fecha),
       0
     );
   }
 
-  function faltaSemana(row: SimRow, sem: string) {
-    const necesidad = row.necesidadesPorSemana[sem] || 0;
-    return necesidad - asignadoSemana(row.codigo, sem);
-  }
-
-  function clicCelda(row: SimRow, sem: string, fecha: string) {
-    const actual = numero(valorCelda(row.codigo, fecha));
-    if (actual > 0) return;
-    const falta = faltaSemana(row, sem);
-    if (falta <= 0) return;
-    const cantidad = Math.min(falta, cantidadPorClic);
-    setCelda(row.codigo, fecha, String(Math.round(cantidad)));
+  function clicCelda(codigo: string, fecha: string) {
+    const actual = numero(vhCelda(codigo, fecha));
+    setVh(codigo, fecha, String(actual + vhPorClic));
   }
 
   function limpiar() {
-    setAsignaciones({});
+    setVehiculos({});
   }
 
   function autollenar() {
     const nuevas: Record<string, string> = {};
     rows.forEach((row) => {
+      const base = vhBasePorCodigo[row.codigo] || 0;
+      if (base <= 0) return;
       semanasSel.forEach((sem) => {
-        let restante = row.necesidadesPorSemana[sem] || 0;
-        if (restante <= 0) return;
+        const necesidad = row.necesidadesPorSemana[sem] || 0;
+        if (necesidad <= 0) return;
         const fechas = fechasPorSemana[sem] || [];
-        for (let i = 0; i < fechas.length && restante > 0; i++) {
-          const cantidad = Math.min(cantidadPorClic, restante);
-          nuevas[clave(row.codigo, fechas[i])] = String(Math.round(cantidad));
-          restante -= cantidad;
+        if (fechas.length === 0) return;
+        const vhNecesarios = Math.ceil(necesidad / base);
+        const conteo: Record<string, number> = {};
+        for (let i = 0; i < vhNecesarios; i++) {
+          const fecha = fechas[i % fechas.length];
+          conteo[fecha] = (conteo[fecha] || 0) + 1;
         }
+        Object.entries(conteo).forEach(([fecha, vh]) => {
+          nuevas[clave(row.codigo, fecha)] = String(vh);
+        });
       });
     });
-    setAsignaciones(nuevas);
+    setVehiculos(nuevas);
+  }
+
+  function toggleSemana(sem: string) {
+    setSemanasOff((prev) => {
+      const copia = new Set(prev);
+      if (copia.has(sem)) copia.delete(sem);
+      else copia.add(sem);
+      return copia;
+    });
   }
 
   const totalNecesidad = useMemo(
     () =>
       rows.reduce(
-        (acc, row) =>
-          acc + semanasSel.reduce((s, sem) => s + (row.necesidadesPorSemana[sem] || 0), 0),
+        (acc, row) => acc + semanasSel.reduce((s, sem) => s + (row.necesidadesPorSemana[sem] || 0), 0),
         0
       ),
     [rows, semanasSel]
   );
 
-  const totalAsignado = useMemo(
-    () => Object.entries(asignaciones).reduce((acc, [, v]) => acc + numero(v), 0),
-    [asignaciones]
+  const totalProgramado = useMemo(() => {
+    let total = 0;
+    rows.forEach((row) => {
+      semanasSel.forEach((sem) => {
+        total += asignadoUnidSemana(row.codigo, sem);
+      });
+    });
+    return total;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, semanasSel, vehiculos, fechasPorSemana, vhBasePorCodigo]);
+
+  const totalVh = useMemo(
+    () => Object.values(vehiculos).reduce((acc, v) => acc + numero(v), 0),
+    [vehiculos]
   );
 
   if (rows.length === 0) return null;
 
+  const cubreTotal = totalProgramado >= totalNecesidad;
+
   return (
     <section className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
       <div>
-        <h3 className="text-lg font-black text-slate-950">Simulador de programacion</h3>
+        <h3 className="text-lg font-black text-slate-950">Simulador de programacion (por vehiculos)</h3>
         <p className="mt-1 text-sm font-semibold text-slate-500">
-          Elige cuantas semanas planear. Haz clic en el dia donde quieres que llegue cada referencia (o teclea la cantidad). Cada fila es un material y cada columna un dia.
+          Cada fila es una referencia y cada columna un dia. Haz clic en el dia para agregar vehiculos (1 VH = 40 gaylords x gaylor/estiba; el SKU 303845 va de 36). Puedes pasarte de la necesidad.
         </p>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[auto_auto_auto_1fr_auto]">
-        <label className="text-xs font-black uppercase text-slate-500">
-          Semanas a planear
-          <select
-            value={numSemanas}
-            onChange={(e) => setNumSemanas(Number(e.target.value))}
-            className="mt-1 h-11 w-full rounded-xl border border-blue-100 px-3 text-sm font-bold text-slate-900 outline-none focus:border-[#0057B8]"
-          >
-            {semanas.map((_, i) => (
-              <option key={i} value={i + 1}>
-                {i + 1} {i === 0 ? "semana" : "semanas"}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        <div>
+          <p className="mb-1 text-xs font-black uppercase text-slate-500">Semanas</p>
+          <div className="flex flex-wrap gap-2">
+            {semanas.map((sem) => {
+              const activa = !semanasOff.has(sem);
+              return (
+                <button
+                  key={sem}
+                  onClick={() => toggleSemana(sem)}
+                  className={`rounded-lg border px-3 py-1.5 text-xs font-black ${
+                    activa
+                      ? "border-[#0057B8] bg-blue-50 text-[#0057B8]"
+                      : "border-slate-200 bg-white text-slate-400"
+                  }`}
+                >
+                  {sem}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         <label className="text-xs font-black uppercase text-slate-500">
           Dias habiles
           <select
             value={diasHabiles}
             onChange={(e) => setDiasHabiles(e.target.value as DiasHabiles)}
-            className="mt-1 h-11 w-full rounded-xl border border-blue-100 px-3 text-sm font-bold text-slate-900 outline-none focus:border-[#0057B8]"
+            className="mt-1 block h-11 rounded-xl border border-blue-100 px-3 text-sm font-bold text-slate-900 outline-none focus:border-[#0057B8]"
           >
             <option value="LV">Lunes a viernes</option>
             <option value="LS">Lunes a sabado</option>
@@ -216,42 +262,42 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
         </label>
 
         <label className="text-xs font-black uppercase text-slate-500">
-          Cantidad por clic
+          VH por clic
           <input
             type="number"
             min={1}
-            value={cantidadPorClic}
-            onChange={(e) => setCantidadPorClic(Math.max(1, Number(e.target.value) || 1))}
-            className="mt-1 h-11 w-full rounded-xl border border-blue-100 px-3 text-sm font-bold text-slate-900 outline-none focus:border-[#0057B8]"
+            value={vhPorClic}
+            onChange={(e) => setVhPorClic(Math.max(1, Number(e.target.value) || 1))}
+            className="mt-1 block h-11 w-24 rounded-xl border border-blue-100 px-3 text-sm font-bold text-slate-900 outline-none focus:border-[#0057B8]"
           />
         </label>
 
-        <div className="flex items-end">
-          <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-bold text-[#003B7A]">
-            Necesidad total: <span className="text-red-600">{formato(totalNecesidad)}</span>
-            {"  ·  "}
-            Asignado: <span className="text-[#0057B8]">{formato(totalAsignado)}</span>
-          </div>
-        </div>
+        <button
+          onClick={autollenar}
+          className="h-11 rounded-xl bg-[#0057B8] px-5 text-sm font-black text-white shadow-md transition hover:bg-[#003B7A]"
+        >
+          Autollenar
+        </button>
+        <button
+          onClick={limpiar}
+          className="h-11 rounded-xl border border-blue-200 px-5 text-sm font-black text-[#0057B8]"
+        >
+          Limpiar
+        </button>
 
-        <div className="flex items-end gap-2">
-          <button
-            onClick={autollenar}
-            className="h-11 rounded-xl bg-[#0057B8] px-5 text-sm font-black text-white shadow-md transition hover:bg-[#003B7A]"
-          >
-            Autollenar
-          </button>
-          <button
-            onClick={limpiar}
-            className="h-11 rounded-xl border border-blue-200 px-5 text-sm font-black text-[#0057B8]"
-          >
-            Limpiar
-          </button>
+        <div className="ml-auto rounded-xl border border-blue-100 bg-blue-50 px-4 py-2 text-xs font-bold text-[#003B7A]">
+          Necesidad: <span className="text-red-600">{formato(totalNecesidad)}</span>
+          {"  ·  "}Programado: <span className="text-[#0057B8]">{formato(totalProgramado)}</span>
+          {"  ·  "}VH: <span className="text-slate-900">{formato(totalVh)}</span>
+          {"  ·  "}
+          <span className={cubreTotal ? "text-emerald-700" : "text-red-600"}>
+            {cubreTotal ? "CUBRE" : `Falta ${formato(totalNecesidad - totalProgramado)}`}
+          </span>
         </div>
       </div>
 
       <p className="mt-3 text-xs font-semibold text-slate-500">
-        Tip: un clic coloca la cantidad por clic (o lo que falte). Teclea para ajustar. Baja la cantidad por clic para repartir en camiones por dia. Autollenar reparte todo automaticamente.
+        Tip: 1 clic = &quot;VH por clic&quot; vehiculos. Teclea para poner el numero exacto de VH. Doble clic en una celda la borra. Debajo de cada celda ves las unidades de esos vehiculos.
       </p>
 
       <div className="mt-4 overflow-auto rounded-2xl border border-blue-100">
@@ -260,9 +306,9 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
             <tr className="bg-blue-200/80 text-[#0B4EA2]">
               <th
                 rowSpan={2}
-                className="sticky left-0 z-30 min-w-[250px] border-b border-blue-200 bg-blue-200/95 px-3 py-2 text-[11px] font-black uppercase"
+                className="sticky left-0 z-30 min-w-[240px] border-b border-blue-200 bg-blue-200/95 px-3 py-2 text-[11px] font-black uppercase"
               >
-                Referencia
+                Referencia (1 VH = unid.)
               </th>
               {semanasSel.map((sem) => (
                 <th
@@ -281,46 +327,51 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.codigo} className="border-b border-slate-100 hover:bg-blue-50/40">
-                <td className="sticky left-0 z-10 min-w-[250px] bg-white px-3 py-2">
-                  <div className="text-[11px] font-black text-slate-950">{row.codigo}</div>
-                  <div className="truncate text-[10px] font-semibold text-slate-500" title={row.material}>
-                    {row.material}
-                  </div>
-                </td>
-                {semanasSel.map((sem) => {
-                  const necesidad = row.necesidadesPorSemana[sem] || 0;
-                  const falta = faltaSemana(row, sem);
-                  const cubre = necesidad > 0 && falta <= 0;
-                  return (
-                    <FragmentRow
-                      key={sem}
-                      fechas={fechasPorSemana[sem] || []}
-                      necesidad={necesidad}
-                      falta={falta}
-                      cubre={cubre}
-                      valorCelda={(fecha) => valorCelda(row.codigo, fecha)}
-                      onClic={(fecha) => clicCelda(row, sem, fecha)}
-                      onChange={(fecha, v) => setCelda(row.codigo, fecha, v)}
-                    />
-                  );
-                })}
-              </tr>
-            ))}
+            {rows.map((row) => {
+              const base = vhBasePorCodigo[row.codigo] || 0;
+              return (
+                <tr key={row.codigo} className="border-b border-slate-100 hover:bg-blue-50/40">
+                  <td className="sticky left-0 z-10 min-w-[240px] bg-white px-3 py-2">
+                    <div className="text-[11px] font-black text-slate-950">{row.codigo}</div>
+                    <div className="truncate text-[10px] font-semibold text-slate-500" title={row.material}>
+                      {row.material}
+                    </div>
+                    <div className="text-[9px] font-bold text-[#0057B8]">
+                      1 VH = {formato(base)} ({gaylordsPorVh(row.codigo)} gaylords)
+                    </div>
+                  </td>
+                  {semanasSel.map((sem) => {
+                    const necesidad = row.necesidadesPorSemana[sem] || 0;
+                    const asignado = asignadoUnidSemana(row.codigo, sem);
+                    return (
+                      <FragmentRow
+                        key={sem}
+                        fechas={fechasPorSemana[sem] || []}
+                        base={base}
+                        necesidad={necesidad}
+                        asignado={asignado}
+                        vhCelda={(fecha) => vhCelda(row.codigo, fecha)}
+                        onClic={(fecha) => clicCelda(row.codigo, fecha)}
+                        onChange={(fecha, v) => setVh(row.codigo, fecha, v)}
+                        onClear={(fecha) => setVh(row.codigo, fecha, "")}
+                      />
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
           <tfoot>
             <tr className="bg-slate-50 text-[#0B4EA2]">
               <td className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-[11px] font-black uppercase">
-                Total por dia
+                Total por dia (VH / unid.)
               </td>
               {semanasSel.map((sem) => (
                 <FragmentFooter
                   key={sem}
                   fechas={fechasPorSemana[sem] || []}
-                  totalDia={(fecha) =>
-                    rows.reduce((acc, row) => acc + numero(valorCelda(row.codigo, fecha)), 0)
-                  }
+                  vhDia={(fecha) => rows.reduce((acc, row) => acc + numero(vhCelda(row.codigo, fecha)), 0)}
+                  unidDia={(fecha) => rows.reduce((acc, row) => acc + unidadesCelda(row.codigo, fecha), 0)}
                 />
               ))}
             </tr>
@@ -335,13 +386,13 @@ function FragmentHeader({ fechas }: { fechas: string[] }) {
   return (
     <>
       {fechas.map((fecha) => (
-        <th key={fecha} className="min-w-[92px] border-l border-blue-200 px-2 py-2 text-center text-[10px] font-black">
+        <th key={fecha} className="min-w-[86px] border-l border-blue-200 px-2 py-2 text-center text-[10px] font-black">
           <div>{diaNombre(fecha)}</div>
           <div className="text-slate-500">{fechaCorta(fecha)}</div>
         </th>
       ))}
-      <th className="min-w-[90px] border-l-2 border-blue-300 px-2 py-2 text-center text-[10px] font-black">
-        Necesidad / Falta
+      <th className="min-w-[96px] border-l-2 border-blue-300 px-2 py-2 text-center text-[10px] font-black">
+        Necesidad / Estado
       </th>
     </>
   );
@@ -349,64 +400,85 @@ function FragmentHeader({ fechas }: { fechas: string[] }) {
 
 function FragmentRow({
   fechas,
+  base,
   necesidad,
-  falta,
-  cubre,
-  valorCelda,
+  asignado,
+  vhCelda,
   onClic,
   onChange,
+  onClear,
 }: {
   fechas: string[];
+  base: number;
   necesidad: number;
-  falta: number;
-  cubre: boolean;
-  valorCelda: (fecha: string) => string;
+  asignado: number;
+  vhCelda: (fecha: string) => string;
   onClic: (fecha: string) => void;
   onChange: (fecha: string, valor: string) => void;
+  onClear: (fecha: string) => void;
 }) {
+  const cubre = necesidad > 0 && asignado >= necesidad;
+  const sobra = asignado - necesidad;
   return (
     <>
       {fechas.map((fecha) => {
-        const valor = valorCelda(fecha);
-        const tiene = numero(valor) > 0;
+        const vh = vhCelda(fecha);
+        const tiene = numero(vh) > 0;
+        const unidades = numero(vh) * base;
         return (
-          <td key={fecha} className="border-l border-slate-100 px-1 py-1">
+          <td key={fecha} className="border-l border-slate-100 px-1 py-1 align-top">
             <input
               type="text"
               inputMode="numeric"
-              value={valor}
+              value={vh}
+              title={tiene ? `${formato(unidades)} unid.` : "Clic para agregar VH"}
               onClick={() => onClic(fecha)}
+              onDoubleClick={() => onClear(fecha)}
               onChange={(e) => onChange(fecha, e.target.value.replace(/[^0-9]/g, ""))}
               placeholder="+"
-              className={`h-9 w-full rounded-lg border px-1 text-center text-[11px] font-black outline-none transition ${
+              className={`h-8 w-full rounded-lg border px-1 text-center text-[11px] font-black outline-none transition ${
                 tiene
                   ? "border-blue-200 bg-blue-50 text-[#0057B8]"
                   : "border-dashed border-slate-200 bg-white text-slate-400 hover:border-[#0057B8] hover:bg-blue-50/40"
               }`}
             />
+            <div className="mt-0.5 text-center text-[9px] font-bold text-slate-400">
+              {tiene ? formato(unidades) : ""}
+            </div>
           </td>
         );
       })}
-      <td className="border-l-2 border-blue-200 px-2 py-1 text-center">
+      <td className="border-l-2 border-blue-200 px-2 py-1 text-center align-top">
         <div className="text-[10px] font-bold text-red-600">{formato(necesidad)}</div>
-        <div
-          className={`text-[10px] font-black ${
-            necesidad <= 0 ? "text-slate-300" : cubre ? "text-emerald-700" : "text-red-600"
-          }`}
-        >
-          {necesidad <= 0 ? "-" : cubre ? "OK" : `Falta ${formato(falta)}`}
-        </div>
+        {necesidad <= 0 ? (
+          <div className="text-[10px] font-black text-slate-300">-</div>
+        ) : cubre ? (
+          <div className="text-[10px] font-black text-emerald-700">
+            CUBRE{sobra > 0 ? ` +${formato(sobra)}` : ""}
+          </div>
+        ) : (
+          <div className="text-[10px] font-black text-red-600">Falta {formato(necesidad - asignado)}</div>
+        )}
       </td>
     </>
   );
 }
 
-function FragmentFooter({ fechas, totalDia }: { fechas: string[]; totalDia: (fecha: string) => number }) {
+function FragmentFooter({
+  fechas,
+  vhDia,
+  unidDia,
+}: {
+  fechas: string[];
+  vhDia: (fecha: string) => number;
+  unidDia: (fecha: string) => number;
+}) {
   return (
     <>
       {fechas.map((fecha) => (
         <td key={fecha} className="border-l border-slate-100 px-1 py-2 text-center text-[10px] font-black text-slate-700">
-          {formato(totalDia(fecha))}
+          <div>{formato(vhDia(fecha))} VH</div>
+          <div className="text-[9px] font-bold text-slate-400">{formato(unidDia(fecha))}</div>
         </td>
       ))}
       <td className="border-l-2 border-blue-200 px-2 py-2" />
