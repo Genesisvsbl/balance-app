@@ -1,7 +1,8 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BalanceInfo, BalanceRow, ExcelData } from "@/types/balance";
+import SimuladorProgramacion, { SimRow } from "./SimuladorProgramacion";
 
 type Props = {
   datos: ExcelData;
@@ -69,7 +70,7 @@ const columnByField: Record<string, string> = {
 function normalizar(value: unknown) {
   return String(value ?? "")
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .trim();
 }
@@ -169,12 +170,30 @@ function valorPorRef(row: Partial<CalculatedRow> & SimBaseRow, ref: string) {
   }
 }
 
+// Como en Excel, una celda que empieza por "=", "+" o "-" arranca una formula.
+// Un texto como "-500" (solo, sin otro operador) sigue siendo un numero negativo normal.
+function esExpresionFormula(raw: string) {
+  const formula = raw.trim();
+  if (formula.startsWith("=") || formula.startsWith("+")) return true;
+  if (formula.startsWith("-")) {
+    const resto = formula.slice(1);
+    return ["+", "-", "*", "/"].some((op) => resto.includes(op));
+  }
+  return false;
+}
+
 function evaluarFormula(raw: string, row: Partial<CalculatedRow> & SimBaseRow) {
   const formula = raw.trim();
-  if (!formula.startsWith("=")) return numero(raw);
 
-  const expr = formula
-    .slice(1)
+  if (!esExpresionFormula(formula)) return numero(raw);
+
+  // Quita el "=" o "+" inicial (Excel los ignora al arrancar una formula).
+  const sinPrefijo =
+    formula.startsWith("=") || formula.startsWith("+")
+      ? formula.slice(1)
+      : formula;
+
+  const expr = sinPrefijo
     .replace(/\b([D-Q])(\d+)\b/gi, (match) => String(valorPorRef(row, match)))
     .replace(/,/g, ".");
 
@@ -216,10 +235,8 @@ export default function Balance2Module({ analisis }: Props) {
   function rawEdit(row: SimBaseRow, field: EditField) {
     const saved = edits[row.id]?.[field];
     if (saved !== undefined) return saved;
-    if (field === "fisicoPiso") return String(row.cantidadSap || 0);
-    if (field === "vehiculo") return String(row.capacidadVehiculo || 0);
-    if (field === "gaylor") return String(row.capacidadUnidad || 0);
-    return "0";
+    // Celdas editables vacias: el usuario ingresa los datos manualmente.
+    return "";
   }
 
   function calcularRow(row: SimBaseRow): CalculatedRow {
@@ -268,6 +285,19 @@ export default function Balance2Module({ analisis }: Props) {
       .map(calcularRow);
   }, [baseRows, busqueda, secciones, materiales, semanasActivas.join("|"), edits]);
 
+  const simRows = useMemo<SimRow[]>(
+    () =>
+      rows.map((row) => ({
+        codigo: row.codigo,
+        material: row.texto,
+        um: row.um,
+        necesidadesPorSemana: row.necesidadesPorSemana,
+        capacidadVehiculo: row.capacidadVehiculo,
+        capacidadUnidad: row.capacidadUnidad,
+      })),
+    [rows]
+  );
+
   const resumen = useMemo(() => rows.reduce((acc, row) => {
     acc.sap += row.cantidadSap;
     acc.teorico += row.teorico;
@@ -282,7 +312,7 @@ export default function Balance2Module({ analisis }: Props) {
   const activeRaw = activeCell && activeRow ? (edits[activeCell.rowId]?.[activeCell.field] ?? rawEdit(activeRow, activeCell.field)) : "";
   const activeResult = activeCell && activeRow ? activeRow[activeCell.field] : 0;
   const activeRef = activeCell && activeRowIndex >= 0 ? `${columnByField[activeCell.field]}${activeRowIndex + 2}` : "";
-  const insertingReference = Boolean(activeCell && activeRaw.trim().startsWith("="));
+  const insertingReference = Boolean(activeCell && esExpresionFormula(activeRaw));
 
   function setEdit(rowId: string, field: EditField, value: string) {
     setEdits((prev) => ({ ...prev, [rowId]: { ...(prev[rowId] || {}), [field]: value } }));
@@ -297,8 +327,9 @@ export default function Balance2Module({ analisis }: Props) {
     const currentRow = rows.find((row) => row.id === activeCell.rowId);
     const raw = edits[activeCell.rowId]?.[activeCell.field] ?? (currentRow ? rawEdit(currentRow, activeCell.field) : "");
     const clean = raw.trim();
-    const next = clean.startsWith("=")
-      ? (/([=+\-*/(])$/.test(clean) ? `${raw}${ref}` : `${raw}+${ref}`)
+    const terminaEnOperador = ["=", "+", "-", "*", "/", "("].some((op) => clean.endsWith(op));
+    const next = esExpresionFormula(clean)
+      ? (terminaEnOperador ? `${raw}${ref}` : `${raw}+${ref}`)
       : `=${ref}`;
     setEdit(activeCell.rowId, activeCell.field, next);
     setTimeout(() => {
@@ -330,7 +361,7 @@ export default function Balance2Module({ analisis }: Props) {
   function EditCell({ row, field }: { row: CalculatedRow; field: EditField }) {
     const raw = edits[row.id]?.[field] ?? rawEdit(row, field);
     const value = row[field];
-    const isFormula = raw.trim().startsWith("=");
+    const isFormula = esExpresionFormula(raw);
     const isActive = activeCell?.rowId === row.id && activeCell?.field === field;
     const displayValue = isFormula ? formato(value, 2) : raw;
 
@@ -430,7 +461,7 @@ export default function Balance2Module({ analisis }: Props) {
             />
             <div className="rounded-lg border border-blue-200 bg-white px-3 py-2 font-black">Resultado: {formato(activeResult, 2)}</div>
           </div>
-          <p className="mt-2 text-xs font-semibold text-slate-500">Tip: selecciona una celda de la tabla y escribe aqui arriba. La celda mostrara el resultado y, si la formula empieza por =, puedes hacer clic en otra celda numerica para insertar su referencia.</p>
+          <p className="mt-2 text-xs font-semibold text-slate-500">Tip: selecciona una celda de la tabla y escribe aqui arriba. La celda mostrara el resultado y, si la formula empieza por =, + o -, puedes hacer clic en otra celda numerica para insertar su referencia.</p>
         </div>
       )}
 
@@ -487,7 +518,9 @@ export default function Balance2Module({ analisis }: Props) {
         </div>
       </div>
 
-      <p className="text-xs font-semibold text-slate-500">Tip: en celdas editables puedes escribir valores o formulas como =D2+E2-F2. Mientras editas una formula, haz clic en otra celda numerica para insertar la referencia.</p>
+      <p className="text-xs font-semibold text-slate-500">Tip: en celdas editables puedes escribir valores o formulas como =D2+E2-F2 (tambien +1500+500). Mientras editas una formula, haz clic en otra celda numerica para insertar la referencia.</p>
+
+      <SimuladorProgramacion rows={simRows} semanas={semanasActivas} />
     </section>
   );
 }
@@ -547,7 +580,3 @@ function GroupTh({ children, colSpan }: { children: React.ReactNode; colSpan: nu
 function Th({ children, right = false, rowSpan }: { children: React.ReactNode; right?: boolean; rowSpan?: number }) {
   return <th rowSpan={rowSpan} className={`whitespace-nowrap border-l border-blue-200 px-3 py-3 text-[11px] font-black uppercase ${right ? "text-right" : "text-left"}`}>{children}</th>;
 }
-
-
-
-
