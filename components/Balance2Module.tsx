@@ -114,6 +114,7 @@ function tipoMaterial(row: Pick<SimBaseRow, "codigo" | "texto" | "seccion">) {
   const texto = normalizar(`${row.codigo} ${row.texto} ${row.seccion}`);
   if (texto.includes("preforma")) return "PREFORMA";
   if (texto.includes("tapa")) return "TAPA";
+  if (texto.includes("lata")) return "LATA";
   if (texto.includes("plastico") || texto.includes("plastico")) return "PLASTICO";
   if (texto.includes("pet") || texto.includes("etiq")) return "PET";
   return row.seccion || "OTROS";
@@ -121,18 +122,8 @@ function tipoMaterial(row: Pick<SimBaseRow, "codigo" | "texto" | "seccion">) {
 
 function extraerFilas(analisis: BalanceRow[]) {
   return analisis
-    .filter((row) => {
-      const secciones = normalizar([row.seccion, ...(row.seccionesArray || [])].join(" "));
-      const texto = normalizar(row.material);
-      return (
-        secciones.includes("pet") ||
-        secciones.includes("tapa") ||
-        secciones.includes("preforma") ||
-        secciones.includes("plastico") ||
-        texto.includes("preforma") ||
-        texto.includes("tapa")
-      );
-    })
+    // Traer TODAS las referencias del balance; el filtrado se hace con los selectores de Secciones/Materiales.
+    .filter((row) => Boolean(row.codigo))
     .map<SimBaseRow>((row) => {
       const unidad = capacidadGaylor(row);
       return {
@@ -231,6 +222,20 @@ export default function Balance2Module({ analisis }: Props) {
   const semanasActivas = semanas.length > 0 ? semanas : semanasDisponibles;
   const seccionesDisponibles = useMemo(() => Array.from(new Set(baseRows.map((row) => row.seccion).filter(Boolean))).sort(), [baseRows]);
   const materialesDisponibles = useMemo(() => Array.from(new Set(baseRows.map((row) => tipoMaterial(row)).filter(Boolean))).sort(), [baseRows]);
+
+  // Al elegir una seccion, autoseleccionar los materiales que le corresponden
+  // (PET -> preforma/tapa; Lata -> tapa/lata; etc.).
+  useEffect(() => {
+    const tipos = new Set<string>();
+    baseRows.forEach((row) => {
+      const enSeccion =
+        secciones.length === 0 ||
+        secciones.some((sec) => normalizar(row.seccion).includes(normalizar(sec)));
+      if (enSeccion) tipos.add(tipoMaterial(row));
+    });
+    setMateriales(Array.from(tipos));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secciones, baseRows]);
 
   function rawEdit(row: SimBaseRow, field: EditField) {
     const saved = edits[row.id]?.[field];
