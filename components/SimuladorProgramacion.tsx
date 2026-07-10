@@ -102,6 +102,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
   const [vehiculos, setVehiculos] = useState<Record<string, string>>({});
   // Base editable "1 VH = X unidades" por referencia (para tapas u otros que se manejen distinto).
   const [baseOverride, setBaseOverride] = useState<Record<string, string>>({});
+  const [combinar, setCombinar] = useState(false);
 
   const anio = new Date().getFullYear();
   const dias = DIAS_SET[diasHabiles];
@@ -124,6 +125,16 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     });
     return mapa;
   }, [semanasSel, anio, dias]);
+
+  // Grupos de planeacion: normal = 1 por semana; combinar = un solo bloque con todas las semanas seleccionadas.
+  const grupos = useMemo(() => {
+    if (combinar && semanasSel.length > 0) {
+      const fechas = Array.from(new Set(semanasSel.flatMap((sem) => fechasPorSemana[sem] || []))).sort();
+      const label = semanasSel.length > 1 ? `${semanasSel[0]} - ${semanasSel[semanasSel.length - 1]}` : semanasSel[0];
+      return [{ label, fechas, semanas: semanasSel }];
+    }
+    return semanasSel.map((sem) => ({ label: sem, fechas: fechasPorSemana[sem] || [], semanas: [sem] }));
+  }, [combinar, semanasSel, fechasPorSemana]);
 
   const vhBasePorCodigo = useMemo(() => {
     const mapa: Record<string, number> = {};
@@ -160,6 +171,10 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
       (acc, fecha) => acc + unidadesCelda(codigo, fecha),
       0
     );
+  }
+
+  function asignadoUnidFechas(codigo: string, fechas: string[]) {
+    return fechas.reduce((acc, fecha) => acc + unidadesCelda(codigo, fecha), 0);
   }
 
   function clicCelda(codigo: string, fecha: string) {
@@ -297,6 +312,16 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
           />
         </label>
 
+        <label className="flex h-11 items-center gap-2 rounded-xl border border-blue-100 px-3 text-xs font-black uppercase text-slate-600">
+          <input
+            type="checkbox"
+            checked={combinar}
+            onChange={(e) => setCombinar(e.target.checked)}
+            className="h-4 w-4 accent-[#0057B8]"
+          />
+          Combinar semanas
+        </label>
+
         <button
           onClick={autollenar}
           className="h-11 rounded-xl bg-[#0057B8] px-5 text-sm font-black text-white shadow-md transition hover:bg-[#003B7A]"
@@ -340,19 +365,19 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                 >
                   Referencia (1 VH = unid.)
                 </th>
-                {semanasSel.map((sem) => (
+                {grupos.map((g) => (
                   <th
-                    key={sem}
-                    colSpan={(fechasPorSemana[sem]?.length || 0) + 1}
+                    key={g.label}
+                    colSpan={g.fechas.length + 1}
                     className="border-b border-l border-blue-300 px-1 py-1 text-center text-[10px] font-black uppercase"
                   >
-                    {sem}
+                    {g.label}
                   </th>
                 ))}
               </tr>
               <tr className="bg-blue-100 text-[#0B4EA2]">
-                {semanasSel.map((sem) => (
-                  <FragmentHeader key={sem} fechas={fechasPorSemana[sem] || []} />
+                {grupos.map((g) => (
+                  <FragmentHeader key={g.label} fechas={g.fechas} />
                 ))}
               </tr>
             </thead>
@@ -383,13 +408,13 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                         />
                       </div>
                     </td>
-                    {semanasSel.map((sem) => {
-                      const necesidad = row.necesidadesPorSemana[sem] || 0;
-                      const asignado = asignadoUnidSemana(row.codigo, sem);
+                    {grupos.map((g) => {
+                      const necesidad = g.semanas.reduce((acc, sem) => acc + (row.necesidadesPorSemana[sem] || 0), 0);
+                      const asignado = asignadoUnidFechas(row.codigo, g.fechas);
                       return (
                         <FragmentRow
-                          key={sem}
-                          fechas={fechasPorSemana[sem] || []}
+                          key={g.label}
+                          fechas={g.fechas}
                           base={base}
                           necesidad={necesidad}
                           asignado={asignado}
@@ -409,10 +434,10 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                 <td className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-[11px] font-black uppercase">
                   Total por dia (VH / unid.)
                 </td>
-                {semanasSel.map((sem) => (
+                {grupos.map((g) => (
                   <FragmentFooter
-                    key={sem}
-                    fechas={fechasPorSemana[sem] || []}
+                    key={g.label}
+                    fechas={g.fechas}
                     vhDia={(fecha) => filasVisibles.reduce((acc, row) => acc + numero(vhCelda(row.codigo, fecha)), 0)}
                     unidDia={(fecha) => filasVisibles.reduce((acc, row) => acc + unidadesCelda(row.codigo, fecha), 0)}
                   />
