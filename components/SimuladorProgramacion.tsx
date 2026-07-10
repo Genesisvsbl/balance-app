@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export type SimRow = {
   codigo: string;
@@ -35,6 +35,21 @@ function cargarLS(key: string): Record<string, string> {
   } catch {
     return {};
   }
+}
+
+type Html2Canvas = (el: HTMLElement, opts?: object) => Promise<HTMLCanvasElement>;
+async function cargarHtml2Canvas(): Promise<Html2Canvas> {
+  const w = window as unknown as { html2canvas?: Html2Canvas };
+  if (w.html2canvas) return w.html2canvas;
+  await new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("No se pudo cargar html2canvas"));
+    document.head.appendChild(script);
+  });
+  if (!w.html2canvas) throw new Error("html2canvas no disponible");
+  return w.html2canvas;
 }
 
 // Gaylords por vehiculo: preformas 40; el SKU 303845 va de 36.
@@ -115,6 +130,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
   const [baseOverride, setBaseOverride] = useState<Record<string, string>>(() => cargarLS(LS_BASE));
   const [semanasCombinar, setSemanasCombinar] = useState<string[]>([]);
   const [textoCorreo, setTextoCorreo] = useState<string | null>(null);
+  const tablaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") window.localStorage.setItem(LS_VEHICULOS, JSON.stringify(vehiculos));
@@ -219,28 +235,38 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     setVehiculos({});
   }
 
-  function generarCorreo() {
-    const lineas: string[] = [];
-    grupos.forEach((g) => {
-      const hayEnGrupo = g.fechas.some((fecha) =>
-        filasVisibles.some((row) => numero(vhCelda(row.codigo, fecha)) > 0)
-      );
-      if (!hayEnGrupo) return;
-      lineas.push(`*** ${g.label} ***`);
-      g.fechas.forEach((fecha) => {
-        const items = filasVisibles
-          .map((row) => ({ row, vh: numero(vhCelda(row.codigo, fecha)) }))
-          .filter((x) => x.vh > 0);
-        if (items.length === 0) return;
-        lineas.push(`${diaNombre(fecha)} ${fechaCorta(fecha)}:`);
-        items.forEach(({ row, vh }) => {
-          const unid = vh * (vhBasePorCodigo[row.codigo] || 0);
-          lineas.push(`   - ${row.codigo} ${row.material}: ${vh} VH (${formato(unid)} und)`);
-        });
-        lineas.push("");
+  async function copiarImagen() {
+    if (!tablaRef.current) return;
+    setTextoCorreo("Generando imagen...");
+    try {
+      const html2canvas = await cargarHtml2Canvas();
+      const nodo = tablaRef.current;
+      const canvas = await html2canvas(nodo, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        windowWidth: nodo.scrollWidth,
       });
-    });
-    setTextoCorreo(lineas.length ? lineas.join("\n").trim() : "No hay citas programadas todavia.");
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          setTextoCorreo("No se pudo generar la imagen.");
+          return;
+        }
+        try {
+          await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+          setTextoCorreo("Imagen copiada. Pegala en tu correo con Ctrl+V.");
+        } catch {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "programacion.png";
+          a.click();
+          URL.revokeObjectURL(url);
+          setTextoCorreo("Imagen descargada (no se pudo copiar directo). Adjuntala al correo.");
+        }
+      }, "image/png");
+    } catch {
+      setTextoCorreo("No se pudo generar la imagen.");
+    }
   }
 
   function autollenar() {
@@ -403,10 +429,10 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
           Limpiar
         </button>
         <button
-          onClick={generarCorreo}
+          onClick={copiarImagen}
           className="h-11 rounded-xl border border-emerald-300 bg-emerald-50 px-5 text-sm font-black text-emerald-700 hover:bg-emerald-100"
         >
-          Generar correo
+          Copiar imagen
         </button>
 
         <div className="ml-auto rounded-xl border border-blue-100 bg-blue-50 px-4 py-2 text-xs font-bold text-[#003B7A]">
@@ -425,31 +451,9 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
       </p>
 
       {textoCorreo !== null && (
-        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-black text-emerald-800">Correo de citas (copia y pega)</p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  if (typeof navigator !== "undefined" && navigator.clipboard) navigator.clipboard.writeText(textoCorreo);
-                }}
-                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-black text-white hover:bg-emerald-700"
-              >
-                Copiar
-              </button>
-              <button
-                onClick={() => setTextoCorreo(null)}
-                className="rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-black text-emerald-700"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-          <textarea
-            readOnly
-            value={textoCorreo}
-            className="h-48 w-full rounded-lg border border-emerald-200 bg-white p-3 text-xs text-slate-800 outline-none"
-          />
+        <div className="mt-3 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-800">
+          <span>{textoCorreo}</span>
+          <button onClick={() => setTextoCorreo(null)} className="rounded-lg border border-emerald-300 px-3 py-1 text-xs font-black text-emerald-700">Cerrar</button>
         </div>
       )}
 
@@ -458,7 +462,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
           No hay referencias con requerimiento en las semanas seleccionadas.
         </p>
       ) : (
-        <div className="mt-4 overflow-auto rounded-2xl border border-blue-100">
+        <div ref={tablaRef} className="mt-4 overflow-auto rounded-2xl border border-blue-100">
           <table className="w-full table-fixed border-collapse text-left text-[9px]">
             <thead className="sticky top-0 z-20">
               <tr className="bg-blue-200/80 text-[#0B4EA2]">
