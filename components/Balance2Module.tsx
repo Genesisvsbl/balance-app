@@ -93,17 +93,10 @@ function numero(value: unknown) {
 
 function formato(value: number, decimals = 0) {
   if (!Number.isFinite(value)) return "0";
-  if (decimals > 0) {
-    return value.toLocaleString("en-US", {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-    });
-  }
-  const n = Math.round(value);
-  const abs = Math.abs(n);
-  if (abs >= 1000000) return (n / 1000000).toFixed(abs >= 10000000 ? 0 : 1) + "M";
-  if (abs >= 1000) return (n / 1000).toFixed(0) + "K";
-  return n.toLocaleString("en-US");
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
 }
 
 function capacidadGaylor(row: BalanceRow) {

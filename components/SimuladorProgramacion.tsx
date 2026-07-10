@@ -44,11 +44,7 @@ function vhBase(row: SimRow) {
 
 function formato(value: number) {
   if (!Number.isFinite(value)) return "0";
-  const n = Math.round(value);
-  const abs = Math.abs(n);
-  if (abs >= 1000000) return (n / 1000000).toFixed(abs >= 10000000 ? 0 : 1) + "M";
-  if (abs >= 1000) return (n / 1000).toFixed(0) + "K";
-  return n.toLocaleString("en-US");
+  return Math.round(value).toLocaleString("en-US");
 }
 
 function numero(value: string) {
