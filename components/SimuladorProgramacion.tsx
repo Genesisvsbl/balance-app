@@ -521,20 +521,28 @@ function FragmentRow({
         const unidades = numero(vh) * base;
         return (
           <td key={fecha} className="border-l border-slate-100 p-[2px]">
-            <input
-              type="text"
-              inputMode="numeric"
-              value={vh}
-              title={tiene ? `${vh} VH = ${formato(unidades)} unid.` : "Clic para agregar VH"}
+            <div
               onClick={() => onClic(fecha)}
               onDoubleClick={() => onClear(fecha)}
-              onChange={(e) => onChange(fecha, e.target.value.replace(/[^0-9]/g, ""))}
-              className={`h-6 w-full rounded text-center text-[9px] font-black outline-none transition ${
+              title={tiene ? `${vh} VH = ${formato(unidades)} unid.` : "Clic para agregar VH"}
+              className={`flex h-6 w-full cursor-pointer items-center justify-center overflow-hidden rounded text-center text-[9px] font-black transition ${
                 tiene ? "bg-[#0057B8] text-white shadow-sm" : "bg-transparent text-slate-200 hover:bg-blue-50"
               }`}
-            />
+            >
+              {tiene ? formato(unidades) : "+"}
+            </div>
             {tiene ? (
-              <div className="mt-0.5 text-center text-[8px] font-semibold text-slate-500">{formato(unidades)}</div>
+              <div className="mt-0.5 flex items-center justify-center gap-0.5">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={vh}
+                  onChange={(e) => onChange(fecha, e.target.value.replace(/[^0-9]/g, ""))}
+                  title="N de vehiculos (editable)"
+                  className="h-4 w-6 rounded border border-blue-100 text-center text-[8px] font-bold text-[#0057B8] outline-none focus:border-[#0057B8]"
+                />
+                <span className="text-[8px] font-bold text-slate-400">VH</span>
+              </div>
             ) : null}
           </td>
         );
