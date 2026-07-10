@@ -93,10 +93,17 @@ function numero(value: unknown) {
 
 function formato(value: number, decimals = 0) {
   if (!Number.isFinite(value)) return "0";
-  return value.toLocaleString("en-US", {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
+  if (decimals > 0) {
+    return value.toLocaleString("en-US", {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+  }
+  const n = Math.round(value);
+  const abs = Math.abs(n);
+  if (abs >= 1000000) return (n / 1000000).toFixed(abs >= 10000000 ? 0 : 1) + "M";
+  if (abs >= 1000) return (n / 1000).toFixed(0) + "K";
+  return n.toLocaleString("en-US");
 }
 
 function capacidadGaylor(row: BalanceRow) {
@@ -383,7 +390,7 @@ export default function Balance2Module({ analisis }: Props) {
           event.stopPropagation();
           insertarReferencia(refId);
         }}
-        className={`whitespace-nowrap px-1 py-0.5 text-right text-[10px] font-black ${insertingReference ? "cursor-copy ring-1 ring-blue-100 hover:bg-blue-100" : ""} ${className}`}
+        className={`whitespace-nowrap px-1 py-0.5 text-right text-[9px] font-black ${insertingReference ? "cursor-copy ring-1 ring-blue-100 hover:bg-blue-100" : ""} ${className}`}
         title={`Referencia ${refId}`}
       >
         {children}
@@ -429,7 +436,7 @@ export default function Balance2Module({ analisis }: Props) {
             event.preventDefault();
             setTimeout(() => formulaInputRef.current?.focus(), 0);
           }}
-          className={`h-7 w-full cursor-pointer rounded-lg border px-1 text-right text-[10px] font-black outline-none transition ${isActive ? "border-[#0057B8] ring-2 ring-blue-100 bg-white text-slate-950" : "border-blue-100 bg-slate-50 text-slate-900 hover:border-blue-300"}`}
+          className={`h-7 w-full cursor-pointer rounded-lg border px-1 text-right text-[9px] font-black outline-none transition ${isActive ? "border-[#0057B8] ring-2 ring-blue-100 bg-white text-slate-950" : "border-blue-100 bg-slate-50 text-slate-900 hover:border-blue-300"}`}
           title={`Selecciona para editar ${fieldLabels[field]}. Formula actual: ${raw || "0"} | Resultado: ${formato(value, 2)}`}
         />
       </td>
@@ -469,7 +476,7 @@ export default function Balance2Module({ analisis }: Props) {
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.25fr_1fr_1fr_1fr_auto]">
           <input value={busqueda} onChange={(event) => setBusqueda(event.target.value)} placeholder="Buscar material, descripcion o seccion..." className="h-11 rounded-xl border border-blue-100 px-4 text-sm font-semibold outline-none focus:border-[#0057B8] focus:ring-2 focus:ring-blue-100" />
           <div className="rounded-xl border border-blue-100 p-3">
-            <p className="mb-2 text-[11px] font-black uppercase text-slate-500">Semanas</p>
+            <p className="mb-2 text-[10px] font-black uppercase text-slate-500">Semanas</p>
             <div className="flex flex-wrap gap-2">
               {semanasDisponibles.map((sem) => (
                 <button key={sem} onClick={() => toggleSemana(sem)} className={`rounded-lg border px-3 py-1.5 text-xs font-black ${semanasActivas.includes(sem) ? "border-[#0057B8] bg-blue-50 text-[#0057B8]" : "border-slate-200 bg-white text-slate-500"}`}>{sem}</button>
@@ -501,7 +508,7 @@ export default function Balance2Module({ analisis }: Props) {
 
       <div className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
         <div className="max-h-[82vh] overflow-auto">
-          <table className="w-full min-w-[1100px] border-collapse text-left text-[10px]">
+          <table className="w-full min-w-[1100px] border-collapse text-left text-[9px]">
             <thead className="sticky top-0 z-10 text-[#0B4EA2]">
               <tr className="bg-blue-200/80">
                 <Th rowSpan={2}>N componente</Th><Th rowSpan={2}>Texto breve-objeto</Th><Th rowSpan={2}>UN</Th>
@@ -520,9 +527,9 @@ export default function Balance2Module({ analisis }: Props) {
                 const rowNumber = index + 2;
                 return (
                   <tr key={row.id} className="border-b border-slate-100 hover:bg-blue-50/70">
-                    <td className="whitespace-nowrap px-2 py-0.5 text-[10px] font-black text-slate-950">{row.codigo}</td>
-                    <td className="min-w-[150px] px-2 py-0.5 text-[10px] font-bold text-slate-700">{row.texto}</td>
-                    <td className="whitespace-nowrap px-1 py-0.5 text-[10px] font-bold text-slate-600">{row.um}</td>
+                    <td className="whitespace-nowrap px-2 py-0.5 text-[9px] font-black text-slate-950">{row.codigo}</td>
+                    <td className="min-w-[150px] px-2 py-0.5 text-[9px] font-bold text-slate-700">{row.texto}</td>
+                    <td className="whitespace-nowrap px-1 py-0.5 text-[9px] font-bold text-slate-600">{row.um}</td>
                     {EditCell({ row, field: "sap" })}
                     {EditCell({ row, field: "ingresar" })}
                     {EditCell({ row, field: "descargar" })}
@@ -531,7 +538,7 @@ export default function Balance2Module({ analisis }: Props) {
                     {EditCell({ row, field: "fisicoEstanteria" })}
                     <RefCell refId={`${columnByField.diferencia}${rowNumber}`} className={claseNumero(row.diferencia)}>{formato(row.diferencia)}</RefCell>
                     {semanasActivas.map((sem) => (
-                      <td key={`${row.id}-need-${sem}`} className="whitespace-nowrap px-1 py-0.5 text-right text-[10px] font-black text-red-600">{formato(row.necesidadesPorSemana[sem] || 0)}</td>
+                      <td key={`${row.id}-need-${sem}`} className="whitespace-nowrap px-1 py-0.5 text-right text-[9px] font-black text-red-600">{formato(row.necesidadesPorSemana[sem] || 0)}</td>
                     ))}
                     <RefCell refId={`${columnByField.necesidad}${rowNumber}`} className="text-red-600">{formato(row.necesidad)}</RefCell>
                     {EditCell({ row, field: "transito" })}
@@ -576,7 +583,7 @@ function SelectorMultiple({ label, opciones, seleccion, setSeleccion }: { label:
 
   return (
     <div ref={ref} className="relative">
-      <p className="mb-1 text-[11px] font-black uppercase text-slate-500">{label}</p>
+      <p className="mb-1 text-[10px] font-black uppercase text-slate-500">{label}</p>
       <button type="button" onClick={() => setOpen((value) => !value)} className="flex h-11 w-full items-center justify-between rounded-xl border border-blue-100 bg-white px-3 text-left text-xs font-black text-slate-700">
         <span>{seleccion.length ? `${seleccion.length} seleccionados` : `Todos los ${label.toLowerCase()}`}</span>
         <span className="text-slate-400">v</span>
@@ -604,9 +611,9 @@ function ResumenCard({ label, value, tone }: { label: string; value: number; ton
 }
 
 function GroupTh({ children, colSpan }: { children: React.ReactNode; colSpan: number }) {
-  return <th colSpan={colSpan} className="border-l border-blue-300 px-1 py-1 text-center text-[9px] font-black uppercase tracking-wide">{children}</th>;
+  return <th colSpan={colSpan} className="border-l border-blue-300 px-1 py-1 text-center text-[8px] font-black uppercase tracking-wide">{children}</th>;
 }
 
 function Th({ children, right = false, rowSpan }: { children: React.ReactNode; right?: boolean; rowSpan?: number }) {
-  return <th rowSpan={rowSpan} className={`whitespace-nowrap border-l border-blue-200 px-1 py-1 text-[9px] font-black uppercase ${right ? "text-right" : "text-left"}`}>{children}</th>;
+  return <th rowSpan={rowSpan} className={`whitespace-nowrap border-l border-blue-200 px-1 py-1 text-[8px] font-black uppercase ${right ? "text-right" : "text-left"}`}>{children}</th>;
 }
