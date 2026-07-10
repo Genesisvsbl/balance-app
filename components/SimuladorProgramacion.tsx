@@ -26,10 +26,12 @@ const DIAS_SET: Record<DiasHabiles, number[]> = {
 
 const NOMBRE_DIA = ["Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab"];
 
+// Gaylords por vehiculo: preformas 40; el SKU 303845 va de 36.
 function gaylordsPorVh(codigo: string) {
   return codigo === "303845" ? 36 : 40;
 }
 
+// Unidades por vehiculo por defecto = gaylords x (gaylor/estiba).
 function vhBase(row: SimRow) {
   return gaylordsPorVh(row.codigo) * (row.capacidadUnidad || 0);
 }
@@ -92,6 +94,8 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
   const [vhPorClic, setVhPorClic] = useState(1);
   const [semanasOff, setSemanasOff] = useState<Set<string>>(new Set());
   const [vehiculos, setVehiculos] = useState<Record<string, string>>({});
+  // Base editable "1 VH = X unidades" por referencia (para tapas u otros que se manejen distinto).
+  const [baseOverride, setBaseOverride] = useState<Record<string, string>>({});
 
   const anio = new Date().getFullYear();
   const dias = DIAS_SET[diasHabiles];
@@ -112,10 +116,11 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
   const vhBasePorCodigo = useMemo(() => {
     const mapa: Record<string, number> = {};
     rows.forEach((row) => {
-      mapa[row.codigo] = vhBase(row);
+      const ov = baseOverride[row.codigo];
+      mapa[row.codigo] = ov !== undefined && ov !== "" ? numero(ov) : vhBase(row);
     });
     return mapa;
-  }, [rows]);
+  }, [rows, baseOverride]);
 
   function clave(codigo: string, fecha: string) {
     return `${codigo}|${fecha}`;
@@ -221,7 +226,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
       <div>
         <h3 className="text-lg font-black text-slate-950">Simulador de programacion (por vehiculos)</h3>
         <p className="mt-1 text-sm font-semibold text-slate-500">
-          Cada fila es una referencia y cada columna un dia. Haz clic en el dia para agregar vehiculos (1 VH = 40 gaylords x gaylor/estiba; el SKU 303845 va de 36). Puedes pasarte de la necesidad.
+          Cada fila es una referencia y cada columna un dia. Haz clic en el dia para agregar vehiculos. 1 VH = gaylords x gaylor/estiba (preformas 40, SKU 303845 va de 36); el valor de &quot;1 VH&quot; es editable por referencia (las tapas 424220 / 424230 lo pones tu). Puedes pasarte de la necesidad.
         </p>
       </div>
 
@@ -336,8 +341,21 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                     <div className="truncate text-[10px] font-semibold text-slate-500" title={row.material}>
                       {row.material}
                     </div>
-                    <div className="text-[9px] font-bold text-[#0057B8]">
-                      1 VH = {formato(base)} ({gaylordsPorVh(row.codigo)} gaylords)
+                    <div className="mt-1 flex items-center gap-1">
+                      <span className="text-[9px] font-bold text-slate-500">1 VH =</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={baseOverride[row.codigo] ?? String(vhBase(row))}
+                        onChange={(e) =>
+                          setBaseOverride((prev) => ({
+                            ...prev,
+                            [row.codigo]: e.target.value.replace(/[^0-9]/g, ""),
+                          }))
+                        }
+                        title="Unidades por vehiculo (editable, sobre todo para tapas)"
+                        className="h-6 w-24 rounded border border-blue-100 px-1 text-center text-[10px] font-black text-[#0057B8] outline-none focus:border-[#0057B8]"
+                      />
                     </div>
                   </td>
                   {semanasSel.map((sem) => {
