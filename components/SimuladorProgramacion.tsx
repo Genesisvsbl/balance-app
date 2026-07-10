@@ -533,6 +533,9 @@ function FragmentRow({
                 tiene ? "bg-[#0057B8] text-white shadow-sm" : "bg-transparent text-slate-200 hover:bg-blue-50"
               }`}
             />
+            {tiene ? (
+              <div className="mt-0.5 text-center text-[8px] font-semibold text-slate-500">{formato(unidades)}</div>
+            ) : null}
           </td>
         );
       })}
