@@ -105,6 +105,12 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     return sel.length ? sel : semanas;
   }, [semanas, semanasOff]);
 
+  // Dinamico: solo referencias con necesidad en alguna de las semanas seleccionadas.
+  const filasVisibles = useMemo(
+    () => rows.filter((row) => semanasSel.some((sem) => (row.necesidadesPorSemana[sem] || 0) > 0)),
+    [rows, semanasSel]
+  );
+
   const fechasPorSemana = useMemo(() => {
     const mapa: Record<string, string[]> = {};
     semanasSel.forEach((sem) => {
@@ -161,7 +167,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
 
   function autollenar() {
     const nuevas: Record<string, string> = {};
-    rows.forEach((row) => {
+    filasVisibles.forEach((row) => {
       const base = vhBasePorCodigo[row.codigo] || 0;
       if (base <= 0) return;
       semanasSel.forEach((sem) => {
@@ -194,28 +200,36 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
 
   const totalNecesidad = useMemo(
     () =>
-      rows.reduce(
+      filasVisibles.reduce(
         (acc, row) => acc + semanasSel.reduce((s, sem) => s + (row.necesidadesPorSemana[sem] || 0), 0),
         0
       ),
-    [rows, semanasSel]
+    [filasVisibles, semanasSel]
   );
 
   const totalProgramado = useMemo(() => {
     let total = 0;
-    rows.forEach((row) => {
+    filasVisibles.forEach((row) => {
       semanasSel.forEach((sem) => {
         total += asignadoUnidSemana(row.codigo, sem);
       });
     });
     return total;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, semanasSel, vehiculos, fechasPorSemana, vhBasePorCodigo]);
+  }, [filasVisibles, semanasSel, vehiculos, fechasPorSemana, vhBasePorCodigo]);
 
-  const totalVh = useMemo(
-    () => Object.values(vehiculos).reduce((acc, v) => acc + numero(v), 0),
-    [vehiculos]
-  );
+  const totalVh = useMemo(() => {
+    let total = 0;
+    filasVisibles.forEach((row) => {
+      semanasSel.forEach((sem) => {
+        (fechasPorSemana[sem] || []).forEach((fecha) => {
+          total += numero(vhCelda(row.codigo, fecha));
+        });
+      });
+    });
+    return total;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filasVisibles, semanasSel, vehiculos, fechasPorSemana]);
 
   if (rows.length === 0) return null;
 
@@ -226,7 +240,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
       <div>
         <h3 className="text-lg font-black text-slate-950">Simulador de programacion (por vehiculos)</h3>
         <p className="mt-1 text-sm font-semibold text-slate-500">
-          Cada fila es una referencia y cada columna un dia. Haz clic en el dia para agregar vehiculos. 1 VH = gaylords x gaylor/estiba (preformas 40, SKU 303845 va de 36); el valor de &quot;1 VH&quot; es editable por referencia (las tapas 424220 / 424230 lo pones tu). Puedes pasarte de la necesidad.
+          Solo aparecen las referencias con necesidad en las semanas que elijas. Haz clic en el dia para agregar vehiculos. 1 VH = gaylords x gaylor/estiba (preformas 40, SKU 303845 va de 36); el valor de &quot;1 VH&quot; es editable por referencia (las tapas 424220 / 424230 lo pones tu). Puedes pasarte de la necesidad.
         </p>
       </div>
 
@@ -305,97 +319,103 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
         Tip: 1 clic = &quot;VH por clic&quot; vehiculos. Teclea para poner el numero exacto de VH. Doble clic en una celda la borra. Debajo de cada celda ves las unidades de esos vehiculos.
       </p>
 
-      <div className="mt-4 overflow-auto rounded-2xl border border-blue-100">
-        <table className="min-w-full border-collapse text-left text-xs">
-          <thead className="sticky top-0 z-20">
-            <tr className="bg-blue-200/80 text-[#0B4EA2]">
-              <th
-                rowSpan={2}
-                className="sticky left-0 z-30 min-w-[240px] border-b border-blue-200 bg-blue-200/95 px-3 py-2 text-[11px] font-black uppercase"
-              >
-                Referencia (1 VH = unid.)
-              </th>
-              {semanasSel.map((sem) => (
+      {filasVisibles.length === 0 ? (
+        <p className="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-[#003B7A]">
+          No hay referencias con necesidad en las semanas seleccionadas.
+        </p>
+      ) : (
+        <div className="mt-4 overflow-auto rounded-2xl border border-blue-100">
+          <table className="min-w-full border-collapse text-left text-xs">
+            <thead className="sticky top-0 z-20">
+              <tr className="bg-blue-200/80 text-[#0B4EA2]">
                 <th
-                  key={sem}
-                  colSpan={(fechasPorSemana[sem]?.length || 0) + 1}
-                  className="border-b border-l border-blue-300 px-3 py-2 text-center text-[11px] font-black uppercase"
+                  rowSpan={2}
+                  className="sticky left-0 z-30 min-w-[240px] border-b border-blue-200 bg-blue-200/95 px-3 py-2 text-[11px] font-black uppercase"
                 >
-                  {sem}
+                  Referencia (1 VH = unid.)
                 </th>
-              ))}
-            </tr>
-            <tr className="bg-blue-100 text-[#0B4EA2]">
-              {semanasSel.map((sem) => (
-                <FragmentHeader key={sem} fechas={fechasPorSemana[sem] || []} />
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => {
-              const base = vhBasePorCodigo[row.codigo] || 0;
-              return (
-                <tr key={row.codigo} className="border-b border-slate-100 hover:bg-blue-50/40">
-                  <td className="sticky left-0 z-10 min-w-[240px] bg-white px-3 py-2">
-                    <div className="text-[11px] font-black text-slate-950">{row.codigo}</div>
-                    <div className="truncate text-[10px] font-semibold text-slate-500" title={row.material}>
-                      {row.material}
-                    </div>
-                    <div className="mt-1 flex items-center gap-1">
-                      <span className="text-[9px] font-bold text-slate-500">1 VH =</span>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={baseOverride[row.codigo] ?? String(vhBase(row))}
-                        onChange={(e) =>
-                          setBaseOverride((prev) => ({
-                            ...prev,
-                            [row.codigo]: e.target.value.replace(/[^0-9]/g, ""),
-                          }))
-                        }
-                        title="Unidades por vehiculo (editable, sobre todo para tapas)"
-                        className="h-6 w-24 rounded border border-blue-100 px-1 text-center text-[10px] font-black text-[#0057B8] outline-none focus:border-[#0057B8]"
-                      />
-                    </div>
-                  </td>
-                  {semanasSel.map((sem) => {
-                    const necesidad = row.necesidadesPorSemana[sem] || 0;
-                    const asignado = asignadoUnidSemana(row.codigo, sem);
-                    return (
-                      <FragmentRow
-                        key={sem}
-                        fechas={fechasPorSemana[sem] || []}
-                        base={base}
-                        necesidad={necesidad}
-                        asignado={asignado}
-                        vhCelda={(fecha) => vhCelda(row.codigo, fecha)}
-                        onClic={(fecha) => clicCelda(row.codigo, fecha)}
-                        onChange={(fecha, v) => setVh(row.codigo, fecha, v)}
-                        onClear={(fecha) => setVh(row.codigo, fecha, "")}
-                      />
-                    );
-                  })}
-                </tr>
-              );
-            })}
-          </tbody>
-          <tfoot>
-            <tr className="bg-slate-50 text-[#0B4EA2]">
-              <td className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-[11px] font-black uppercase">
-                Total por dia (VH / unid.)
-              </td>
-              {semanasSel.map((sem) => (
-                <FragmentFooter
-                  key={sem}
-                  fechas={fechasPorSemana[sem] || []}
-                  vhDia={(fecha) => rows.reduce((acc, row) => acc + numero(vhCelda(row.codigo, fecha)), 0)}
-                  unidDia={(fecha) => rows.reduce((acc, row) => acc + unidadesCelda(row.codigo, fecha), 0)}
-                />
-              ))}
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+                {semanasSel.map((sem) => (
+                  <th
+                    key={sem}
+                    colSpan={(fechasPorSemana[sem]?.length || 0) + 1}
+                    className="border-b border-l border-blue-300 px-3 py-2 text-center text-[11px] font-black uppercase"
+                  >
+                    {sem}
+                  </th>
+                ))}
+              </tr>
+              <tr className="bg-blue-100 text-[#0B4EA2]">
+                {semanasSel.map((sem) => (
+                  <FragmentHeader key={sem} fechas={fechasPorSemana[sem] || []} />
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filasVisibles.map((row) => {
+                const base = vhBasePorCodigo[row.codigo] || 0;
+                return (
+                  <tr key={row.codigo} className="border-b border-slate-100 hover:bg-blue-50/40">
+                    <td className="sticky left-0 z-10 min-w-[240px] bg-white px-3 py-2">
+                      <div className="text-[11px] font-black text-slate-950">{row.codigo}</div>
+                      <div className="truncate text-[10px] font-semibold text-slate-500" title={row.material}>
+                        {row.material}
+                      </div>
+                      <div className="mt-1 flex items-center gap-1">
+                        <span className="text-[9px] font-bold text-slate-500">1 VH =</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={baseOverride[row.codigo] ?? String(vhBase(row))}
+                          onChange={(e) =>
+                            setBaseOverride((prev) => ({
+                              ...prev,
+                              [row.codigo]: e.target.value.replace(/[^0-9]/g, ""),
+                            }))
+                          }
+                          title="Unidades por vehiculo (editable, sobre todo para tapas)"
+                          className="h-6 w-24 rounded border border-blue-100 px-1 text-center text-[10px] font-black text-[#0057B8] outline-none focus:border-[#0057B8]"
+                        />
+                      </div>
+                    </td>
+                    {semanasSel.map((sem) => {
+                      const necesidad = row.necesidadesPorSemana[sem] || 0;
+                      const asignado = asignadoUnidSemana(row.codigo, sem);
+                      return (
+                        <FragmentRow
+                          key={sem}
+                          fechas={fechasPorSemana[sem] || []}
+                          base={base}
+                          necesidad={necesidad}
+                          asignado={asignado}
+                          vhCelda={(fecha) => vhCelda(row.codigo, fecha)}
+                          onClic={(fecha) => clicCelda(row.codigo, fecha)}
+                          onChange={(fecha, v) => setVh(row.codigo, fecha, v)}
+                          onClear={(fecha) => setVh(row.codigo, fecha, "")}
+                        />
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="bg-slate-50 text-[#0B4EA2]">
+                <td className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-[11px] font-black uppercase">
+                  Total por dia (VH / unid.)
+                </td>
+                {semanasSel.map((sem) => (
+                  <FragmentFooter
+                    key={sem}
+                    fechas={fechasPorSemana[sem] || []}
+                    vhDia={(fecha) => filasVisibles.reduce((acc, row) => acc + numero(vhCelda(row.codigo, fecha)), 0)}
+                    unidDia={(fecha) => filasVisibles.reduce((acc, row) => acc + unidadesCelda(row.codigo, fecha), 0)}
+                  />
+                ))}
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
     </section>
   );
 }
