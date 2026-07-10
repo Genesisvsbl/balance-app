@@ -319,7 +319,9 @@ export default function Balance2Module({ analisis }: Props) {
         return matchTexto && matchSeccion && matchMaterial;
       })
       .sort((a, b) => (tipoMaterial(a) === "TAPA" ? 0 : 1) - (tipoMaterial(b) === "TAPA" ? 0 : 1))
-      .map(calcularRow);
+      .map(calcularRow)
+      // Ocultar referencias sin necesidad en las semanas activas (no estorban).
+      .filter((fila) => fila.necesidad > 0);
   }, [baseRows, busqueda, secciones, materiales, semanasActivas.join("|"), edits]);
 
   const simRows = useMemo<SimRow[]>(
