@@ -272,7 +272,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
       <div>
         <h3 className="text-lg font-black text-slate-950">Simulador de programacion (por vehiculos)</h3>
         <p className="mt-1 text-sm font-semibold text-slate-500">
-          Solo aparecen las referencias con necesidad en las semanas que elijas. Haz clic en el dia para agregar vehiculos. 1 VH = gaylords x gaylor/estiba (preformas 40, SKU 303845 va de 36); el valor de &quot;1 VH&quot; es editable por referencia (las tapas 424220 / 424230 lo pones tu). Puedes pasarte de la necesidad.
+          Solo aparecen las referencias con requerimiento en las semanas que elijas. Haz clic en el dia para agregar vehiculos. 1 VH = gaylords x gaylor/estiba (preformas 40, SKU 303845 va de 36); el valor de &quot;1 VH&quot; es editable por referencia (las tapas 424220 / 424230 lo pones tu). Puedes pasarte del requerimiento.
         </p>
       </div>
 
@@ -361,7 +361,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
         </button>
 
         <div className="ml-auto rounded-xl border border-blue-100 bg-blue-50 px-4 py-2 text-xs font-bold text-[#003B7A]">
-          Necesidad: <span className="text-red-600">{formato(totalNecesidad)}</span>
+          Requerim.: <span className="text-red-600">{formato(totalNecesidad)}</span>
           {"  ·  "}Programado: <span className="text-[#0057B8]">{formato(totalProgramado)}</span>
           {"  ·  "}VH: <span className="text-slate-900">{formato(totalVh)}</span>
           {"  ·  "}
@@ -377,7 +377,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
 
       {filasVisibles.length === 0 ? (
         <p className="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-[#003B7A]">
-          No hay referencias con necesidad en las semanas seleccionadas.
+          No hay referencias con requerimiento en las semanas seleccionadas.
         </p>
       ) : (
         <div className="mt-4 overflow-auto rounded-2xl border border-blue-100">
@@ -486,7 +486,7 @@ function FragmentHeader({ fechas }: { fechas: string[] }) {
         </th>
       ))}
       <th className="border-l-2 border-blue-200 px-1 py-1 text-center text-[8px] font-black text-slate-500">
-        Necesidad
+        Requerim.
       </th>
     </>
   );

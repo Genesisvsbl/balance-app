@@ -227,6 +227,24 @@ function claseNumero(value: number) {
   return "text-[#0B4EA2]";
 }
 
+// Requerimiento por semana: neta el inventario disponible (fisico piso + estanteria + transito)
+// contra la necesidad, semana a semana en orden. Solo pide lo que falta despues de consumir lo que hay.
+function requerimientoPorSemana(row: CalculatedRow, semanas: string[]): Record<string, number> {
+  let disponible = (row.fisicoPiso || 0) + (row.fisicoEstanteria || 0) + (row.transito || 0);
+  const req: Record<string, number> = {};
+  semanas.forEach((sem) => {
+    const nec = row.necesidadesPorSemana[sem] || 0;
+    if (disponible >= nec) {
+      disponible -= nec;
+      req[sem] = 0;
+    } else {
+      req[sem] = nec - disponible;
+      disponible = 0;
+    }
+  });
+  return req;
+}
+
 export default function Balance2Module({ analisis }: Props) {
   const [busqueda, setBusqueda] = useState("");
   const [secciones, setSecciones] = useState<string[]>(["PET"]);
@@ -338,11 +356,11 @@ export default function Balance2Module({ analisis }: Props) {
         codigo: row.codigo,
         material: row.texto,
         um: row.um,
-        necesidadesPorSemana: row.necesidadesPorSemana,
+        necesidadesPorSemana: requerimientoPorSemana(row, semanasDisponibles),
         capacidadVehiculo: row.capacidadVehiculo,
         capacidadUnidad: row.capacidadUnidad,
       })),
-    [rows]
+    [rows, semanasDisponibles]
   );
 
   const resumen = useMemo(() => rows.reduce((acc, row) => {
