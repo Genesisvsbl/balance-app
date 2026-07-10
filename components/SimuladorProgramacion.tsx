@@ -102,7 +102,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
   const [vehiculos, setVehiculos] = useState<Record<string, string>>({});
   // Base editable "1 VH = X unidades" por referencia (para tapas u otros que se manejen distinto).
   const [baseOverride, setBaseOverride] = useState<Record<string, string>>({});
-  const [combinar, setCombinar] = useState(false);
+  const [semanasCombinar, setSemanasCombinar] = useState<string[]>([]);
 
   const anio = new Date().getFullYear();
   const dias = DIAS_SET[diasHabiles];
@@ -126,15 +126,25 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     return mapa;
   }, [semanasSel, anio, dias]);
 
-  // Grupos de planeacion: normal = 1 por semana; combinar = un solo bloque con todas las semanas seleccionadas.
+  // Grupos de planeacion: las semanas elegidas en "Combinar" se juntan en un bloque; el resto van separadas.
   const grupos = useMemo(() => {
-    if (combinar && semanasSel.length > 0) {
-      const fechas = Array.from(new Set(semanasSel.flatMap((sem) => fechasPorSemana[sem] || []))).sort();
-      const label = semanasSel.length > 1 ? `${semanasSel[0]} - ${semanasSel[semanasSel.length - 1]}` : semanasSel[0];
-      return [{ label, fechas, semanas: semanasSel }];
+    const combSet = semanasCombinar.filter((s) => semanasSel.includes(s));
+    if (combSet.length >= 2) {
+      const noComb = semanasSel.filter((s) => !combSet.includes(s));
+      const fechas = Array.from(new Set(combSet.flatMap((sem) => fechasPorSemana[sem] || []))).sort();
+      const bloques = [
+        { label: `${combSet[0]} - ${combSet[combSet.length - 1]}`, fechas, semanas: combSet, orden: numeroSemana(combSet[0]) },
+        ...noComb.map((sem) => ({ label: sem, fechas: fechasPorSemana[sem] || [], semanas: [sem], orden: numeroSemana(sem) })),
+      ];
+      bloques.sort((a, b) => a.orden - b.orden);
+      return bloques.map(({ label, fechas, semanas }) => ({ label, fechas, semanas }));
     }
     return semanasSel.map((sem) => ({ label: sem, fechas: fechasPorSemana[sem] || [], semanas: [sem] }));
-  }, [combinar, semanasSel, fechasPorSemana]);
+  }, [semanasCombinar, semanasSel, fechasPorSemana]);
+
+  function toggleCombinar(sem: string) {
+    setSemanasCombinar((prev) => (prev.includes(sem) ? prev.filter((s) => s !== sem) : [...prev, sem]));
+  }
 
   const vhBasePorCodigo = useMemo(() => {
     const mapa: Record<string, number> = {};
@@ -312,15 +322,29 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
           />
         </label>
 
-        <label className="flex h-11 items-center gap-2 rounded-xl border border-blue-100 px-3 text-xs font-black uppercase text-slate-600">
-          <input
-            type="checkbox"
-            checked={combinar}
-            onChange={(e) => setCombinar(e.target.checked)}
-            className="h-4 w-4 accent-[#0057B8]"
-          />
-          Combinar semanas
-        </label>
+        <div className="relative">
+          <p className="mb-1 text-xs font-black uppercase text-slate-500">Combinar semanas</p>
+          <details className="group">
+            <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-blue-100 px-3 text-xs font-black text-slate-600">
+              {semanasCombinar.filter((s) => semanasSel.includes(s)).length >= 2
+                ? `${semanasCombinar.filter((s) => semanasSel.includes(s)).length} combinadas`
+                : "Ninguna"}
+            </summary>
+            <div className="absolute left-0 z-30 mt-1 w-40 rounded-xl border border-blue-100 bg-white p-2 shadow-xl">
+              {semanasSel.map((sem) => (
+                <label key={sem} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs font-bold text-slate-700 hover:bg-blue-50">
+                  <input
+                    type="checkbox"
+                    checked={semanasCombinar.includes(sem)}
+                    onChange={() => toggleCombinar(sem)}
+                    className="h-4 w-4 accent-[#0057B8]"
+                  />
+                  {sem}
+                </label>
+              ))}
+            </div>
+          </details>
+        </div>
 
         <button
           onClick={autollenar}
