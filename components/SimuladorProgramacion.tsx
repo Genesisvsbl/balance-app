@@ -599,7 +599,13 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
       grupos.forEach((g) => {
         const necesidad = g.semanas.reduce((acc, sem) => acc + (row.necesidadesPorSemana[sem] || 0), 0);
         if (necesidad <= 0) return;
-        let fechas = g.fechas.filter((f) => diasProd.includes(new Date(`${f}T00:00:00Z`).getUTCDay()));
+        const fechasProd = g.fechas.filter((f) => diasProd.includes(new Date(`${f}T00:00:00Z`).getUTCDay()));
+        // Que el material entre ANTES: ventana desde el inicio de la semana hasta el primer dia de produccion.
+        let fechas = g.fechas;
+        if (fechasProd.length > 0) {
+          const idx = g.fechas.indexOf(fechasProd[0]);
+          fechas = g.fechas.slice(0, idx + 1);
+        }
         if (fechas.length === 0) fechas = g.fechas;
         const vhNecesarios = Math.ceil(necesidad / base);
         for (let i = 0; i < vhNecesarios; i++) {
@@ -777,24 +783,6 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
         >
           Copiar imagen
         </button>
-        <button
-          onClick={() => fileRef.current?.click()}
-          className="h-11 rounded-xl border border-amber-300 bg-amber-50 px-5 text-sm font-black text-amber-700 hover:bg-amber-100"
-        >
-          Subir foto
-        </button>
-        <input ref={fileRef} type="file" accept="image/*" onChange={subirFoto} className="hidden" />
-        <input
-          type="password"
-          value={geminiKey}
-          onChange={(e) => {
-            setGeminiKey(e.target.value);
-            if (typeof window !== "undefined") window.localStorage.setItem("gemini_key", e.target.value);
-          }}
-          placeholder="Clave Gemini (AIza...)"
-          title="Pega aqui tu clave gratis de Google Gemini (se guarda en tu equipo)"
-          className="h-11 w-44 rounded-xl border border-amber-200 px-3 text-xs font-bold text-slate-900 outline-none focus:border-amber-500"
-        />
         <button
           onClick={() => excelRef.current?.click()}
           className="h-11 rounded-xl bg-amber-500 px-5 text-sm font-black text-white shadow-md transition hover:bg-amber-600"
