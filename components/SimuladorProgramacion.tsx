@@ -592,25 +592,41 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
 
   function autollenarFoto() {
     const nuevas: Record<string, string> = {};
-    filasVisibles.forEach((row) => {
-      const base = vhBasePorCodigo[row.codigo] || 0;
-      if (base <= 0) return;
-      const diasProd = produccionDias[row.codigo] || [];
-      grupos.forEach((g) => {
-        const necesidad = g.semanas.reduce((acc, sem) => acc + (row.necesidadesPorSemana[sem] || 0), 0);
-        if (necesidad <= 0) return;
-        const fechasProd = g.fechas.filter((f) => diasProd.includes(new Date(`${f}T00:00:00Z`).getUTCDay()));
-        // Que el material entre ANTES: ventana desde el inicio de la semana hasta el primer dia de produccion.
-        let fechas = g.fechas;
-        if (fechasProd.length > 0) {
-          const idx = g.fechas.indexOf(fechasProd[0]);
-          fechas = g.fechas.slice(0, idx + 1);
-        }
-        if (fechas.length === 0) fechas = g.fechas;
-        const vhNecesarios = Math.ceil(necesidad / base);
-        for (let i = 0; i < vhNecesarios; i++) {
-          const fecha = fechas[i % fechas.length];
-          const key = clave(row.codigo, fecha);
+    const MAX_DIA = 3; // tope duro por dia; se busca promediar ~2.
+    grupos.forEach((g) => {
+      const cargaDia: Record<string, number> = {};
+      g.fechas.forEach((f) => { cargaDia[f] = 0; });
+      // Por referencia: VH necesarios y ventana (desde el lunes hasta su primer dia de produccion).
+      const items = filasVisibles
+        .map((row) => {
+          const base = vhBasePorCodigo[row.codigo] || 0;
+          const necesidad = g.semanas.reduce((acc, sem) => acc + (row.necesidadesPorSemana[sem] || 0), 0);
+          const vh = base > 0 ? Math.ceil(necesidad / base) : 0;
+          const diasProd = produccionDias[row.codigo] || [];
+          const fechasProd = g.fechas.filter((f) => diasProd.includes(new Date(`${f}T00:00:00Z`).getUTCDay()));
+          let ventana = g.fechas;
+          let finIdx = g.fechas.length - 1;
+          if (fechasProd.length > 0) {
+            finIdx = g.fechas.indexOf(fechasProd[0]);
+            ventana = g.fechas.slice(0, finIdx + 1);
+          }
+          return { codigo: row.codigo, vh, ventana, finIdx };
+        })
+        .filter((it) => it.vh > 0 && it.ventana.length > 0);
+      // Las mas urgentes (ventana que cierra antes) se acomodan primero.
+      items.sort((a, b) => a.finIdx - b.finIdx);
+      items.forEach((it) => {
+        for (let k = 0; k < it.vh; k++) {
+          // Dia de la ventana con menor carga; llena hasta 2 antes de usar el 3; empate -> mas temprano.
+          let mejor = it.ventana[0];
+          const penalDe = (c: number) => (c >= MAX_DIA ? 1000 + c : c);
+          let mejorPenal = penalDe(cargaDia[mejor] ?? 0);
+          it.ventana.forEach((f) => {
+            const penal = penalDe(cargaDia[f] ?? 0);
+            if (penal < mejorPenal) { mejorPenal = penal; mejor = f; }
+          });
+          cargaDia[mejor] = (cargaDia[mejor] ?? 0) + 1;
+          const key = clave(it.codigo, mejor);
           nuevas[key] = String(numero(nuevas[key] ?? "0") + 1);
         }
       });
