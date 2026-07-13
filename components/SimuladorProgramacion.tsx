@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
 export type SimRow = {
   codigo: string;
@@ -50,6 +50,76 @@ async function cargarHtmlToImage(): Promise<HtmlToImage> {
   });
   if (!w.htmlToImage) throw new Error("libreria de imagen no disponible");
   return w.htmlToImage;
+}
+
+type OcrWord = { text: string; bbox: { x0: number; y0: number; x1: number; y1: number } };
+type TesseractLib = { recognize: (img: File | string, lang: string) => Promise<{ data: { words?: OcrWord[]; text: string } }> };
+async function cargarTesseract(): Promise<TesseractLib> {
+  const w = window as unknown as { Tesseract?: TesseractLib };
+  if (w.Tesseract) return w.Tesseract;
+  await new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("No se pudo cargar el OCR"));
+    document.head.appendChild(script);
+  });
+  if (!w.Tesseract) throw new Error("OCR no disponible");
+  return w.Tesseract;
+}
+
+function normalizarTexto(t: string) {
+  return (t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+// Encuentra el codigo de referencia que corresponde a un formato leido (1000/330/1500/200/269).
+function formatoAcodigo(fmt: string, filas: SimRow[]): string | null {
+  const aliases: Record<string, string[]> = {
+    "1000": ["1000"],
+    "1500": ["1.5", "1500"],
+    "330": ["330"],
+    "269": ["269"],
+    "200": ["200"],
+  };
+  const al = aliases[fmt] || [fmt];
+  const row = filas.find((r) => {
+    const texto = normalizarTexto(`${r.codigo} ${r.material}`).replace(/,/g, ".");
+    return al.some((a) => texto.includes(a));
+  });
+  return row ? row.codigo : null;
+}
+
+// Lee los dias de produccion por referencia desde las palabras del OCR (usando sus posiciones).
+function parsearFoto(words: OcrWord[], filas: SimRow[]): Record<string, number[]> {
+  const diaNombreNum: Record<string, number> = {
+    lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, domingo: 0,
+  };
+  const cols: { wd: number; x: number }[] = [];
+  words.forEach((word) => {
+    const t = normalizarTexto(word.text);
+    if (diaNombreNum[t] !== undefined) cols.push({ wd: diaNombreNum[t], x: (word.bbox.x0 + word.bbox.x1) / 2 });
+  });
+  if (cols.length === 0) return {};
+  const res: Record<string, Set<number>> = {};
+  const formatos = ["1000", "1500", "330", "269", "200"];
+  words.forEach((word) => {
+    const t = normalizarTexto(word.text).replace(/[^0-9.]/g, "");
+    const fmt = formatos.find((f) => t === f);
+    if (!fmt) return;
+    const codigo = formatoAcodigo(fmt, filas);
+    if (!codigo) return;
+    const x = (word.bbox.x0 + word.bbox.x1) / 2;
+    let best = cols[0];
+    let mejorDist = Math.abs(x - cols[0].x);
+    cols.forEach((c) => {
+      const d = Math.abs(x - c.x);
+      if (d < mejorDist) { mejorDist = d; best = c; }
+    });
+    (res[codigo] ||= new Set<number>()).add(best.wd);
+  });
+  const salida: Record<string, number[]> = {};
+  Object.entries(res).forEach(([k, v]) => { salida[k] = Array.from(v).sort(); });
+  return salida;
 }
 
 // Gaylords por vehiculo: preformas 40; el SKU 303845 va de 36.
@@ -131,6 +201,10 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
   const [semanasCombinar, setSemanasCombinar] = useState<string[]>([]);
   const [textoCorreo, setTextoCorreo] = useState<string | null>(null);
   const tablaRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [produccionDias, setProduccionDias] = useState<Record<string, number[]>>({});
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null);
+  const [ocrEstado, setOcrEstado] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") window.localStorage.setItem(LS_VEHICULOS, JSON.stringify(vehiculos));
@@ -267,6 +341,58 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     } catch (e) {
       setTextoCorreo("No se pudo generar la imagen: " + (e instanceof Error ? e.message : String(e)));
     }
+  }
+
+  async function subirFoto(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setFotoUrl(URL.createObjectURL(file));
+    setOcrEstado("Leyendo la foto... (puede tardar unos segundos)");
+    try {
+      const T = await cargarTesseract();
+      const { data } = await T.recognize(file, "spa");
+      const detectado = parsearFoto(data.words || [], filasVisibles);
+      setProduccionDias(detectado);
+      const cuantas = Object.keys(detectado).length;
+      setOcrEstado(
+        cuantas > 0
+          ? `Detecte dias de produccion en ${cuantas} referencia(s). Revisa/ajusta abajo y dale "Autollenar segun foto".`
+          : "No pude leer los dias automaticamente. Marcalos a mano abajo usando la foto de referencia."
+      );
+    } catch (err) {
+      setOcrEstado("No se pudo leer la foto: " + (err instanceof Error ? err.message : String(err)) + ". Marca los dias a mano abajo.");
+    }
+  }
+
+  function toggleDiaProd(codigo: string, wd: number) {
+    setProduccionDias((prev) => {
+      const actual = prev[codigo] || [];
+      const nuevo = actual.includes(wd) ? actual.filter((d) => d !== wd) : [...actual, wd].sort();
+      return { ...prev, [codigo]: nuevo };
+    });
+  }
+
+  function autollenarFoto() {
+    const nuevas: Record<string, string> = {};
+    filasVisibles.forEach((row) => {
+      const base = vhBasePorCodigo[row.codigo] || 0;
+      if (base <= 0) return;
+      const diasProd = produccionDias[row.codigo] || [];
+      grupos.forEach((g) => {
+        const necesidad = g.semanas.reduce((acc, sem) => acc + (row.necesidadesPorSemana[sem] || 0), 0);
+        if (necesidad <= 0) return;
+        let fechas = g.fechas.filter((f) => diasProd.includes(new Date(`${f}T00:00:00Z`).getUTCDay()));
+        if (fechas.length === 0) fechas = g.fechas;
+        const vhNecesarios = Math.ceil(necesidad / base);
+        for (let i = 0; i < vhNecesarios; i++) {
+          const fecha = fechas[i % fechas.length];
+          const key = clave(row.codigo, fecha);
+          nuevas[key] = String(numero(nuevas[key] ?? "0") + 1);
+        }
+      });
+    });
+    setVehiculos(nuevas);
   }
 
   function autollenar() {
@@ -434,6 +560,13 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
         >
           Copiar imagen
         </button>
+        <button
+          onClick={() => fileRef.current?.click()}
+          className="h-11 rounded-xl border border-amber-300 bg-amber-50 px-5 text-sm font-black text-amber-700 hover:bg-amber-100"
+        >
+          Subir foto
+        </button>
+        <input ref={fileRef} type="file" accept="image/*" onChange={subirFoto} className="hidden" />
 
         <div className="ml-auto rounded-xl border border-blue-100 bg-blue-50 px-4 py-2 text-xs font-bold text-[#003B7A]">
           Requerim.: <span className="text-red-600">{formato(totalNecesidad)}</span>
@@ -454,6 +587,52 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
         <div className="mt-3 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-800">
           <span>{textoCorreo}</span>
           <button onClick={() => setTextoCorreo(null)} className="rounded-lg border border-emerald-300 px-3 py-1 text-xs font-black text-emerald-700">Cerrar</button>
+        </div>
+      )}
+
+      {fotoUrl && (
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-sm font-black text-amber-800">Plan de produccion (dias por referencia)</p>
+            <div className="flex gap-2">
+              <button onClick={autollenarFoto} className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-black text-white hover:bg-amber-700">Autollenar segun foto</button>
+              <button onClick={() => { setFotoUrl(null); setOcrEstado(null); }} className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-black text-amber-700">Cerrar</button>
+            </div>
+          </div>
+          {ocrEstado && <p className="mb-2 text-xs font-semibold text-amber-800">{ocrEstado}</p>}
+          <div className="flex flex-wrap gap-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={fotoUrl} alt="Plan de produccion" className="max-h-44 rounded-lg border border-amber-200" />
+            <div className="flex-1 overflow-auto">
+              <table className="text-[10px]">
+                <thead>
+                  <tr className="text-amber-800">
+                    <th className="px-2 py-1 text-left">Referencia</th>
+                    {dias.map((wd) => (
+                      <th key={wd} className="px-2 py-1 text-center">{NOMBRE_DIA[wd]}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filasVisibles.map((row) => (
+                    <tr key={row.codigo} className="border-t border-amber-100">
+                      <td className="px-2 py-1 font-black text-slate-800">{row.codigo}</td>
+                      {dias.map((wd) => (
+                        <td key={wd} className="px-2 py-1 text-center">
+                          <input
+                            type="checkbox"
+                            checked={(produccionDias[row.codigo] || []).includes(wd)}
+                            onChange={() => toggleDiaProd(row.codigo, wd)}
+                            className="h-4 w-4 accent-amber-600"
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 
