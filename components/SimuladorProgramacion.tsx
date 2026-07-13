@@ -178,15 +178,31 @@ async function leerConGemini(file: File, key: string, filas: SimRow[]): Promise<
     ],
     generationConfig: { temperature: 0, responseMimeType: "application/json" },
   };
-  const resp = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(key)}`,
-    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
-  );
-  if (!resp.ok) {
+  const modelos = [
+    "gemini-2.0-flash-lite",
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash-8b",
+    "gemini-1.5-flash",
+  ];
+  let json: { candidates?: { content?: { parts?: { text?: string }[] } }[] } | null = null;
+  let ultimoError = "";
+  for (const modelo of modelos) {
+    const resp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${encodeURIComponent(key)}`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
+    );
+    if (resp.ok) {
+      json = await resp.json();
+      break;
+    }
     const t = await resp.text();
-    throw new Error(`Gemini ${resp.status}: ${t.slice(0, 140)}`);
+    ultimoError = `${resp.status}: ${t.slice(0, 120)}`;
+    if (resp.status !== 429 && resp.status !== 404 && resp.status !== 400) {
+      throw new Error(`Gemini ${ultimoError}`);
+    }
   }
-  const json = await resp.json();
+  if (!json) throw new Error(`Gemini sin cupo en todos los modelos (${ultimoError})`);
   const texto: string = json?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
   const dias = JSON.parse(texto) as Record<string, string[]>;
   const diaNum: Record<string, number> = { lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, domingo: 0 };
