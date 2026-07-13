@@ -1,6 +1,7 @@
 "use client";
 
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import * as XLSX from "xlsx";
 
 export type SimRow = {
   codigo: string;
@@ -113,7 +114,7 @@ function normalizarTexto(t: string) {
 }
 
 // Encuentra el codigo de referencia que corresponde a un formato leido (1000/330/1500/200/269).
-function formatoAcodigo(fmt: string, filas: SimRow[]): string | null {
+function formatoAcodigo(fmt: string, filas: SimRow[], tipo?: "PREFORMA" | "LATA"): string | null {
   const aliases: Record<string, string[]> = {
     "1000": ["1000"],
     "1500": ["1.5", "1500"],
@@ -124,6 +125,8 @@ function formatoAcodigo(fmt: string, filas: SimRow[]): string | null {
   const al = aliases[fmt] || [fmt];
   const row = filas.find((r) => {
     const texto = normalizarTexto(`${r.codigo} ${r.material}`).replace(/,/g, ".");
+    if (tipo === "PREFORMA" && !texto.includes("preforma")) return false;
+    if (tipo === "LATA" && !texto.includes("lata")) return false;
     return al.some((a) => texto.includes(a));
   });
   return row ? row.codigo : null;
@@ -220,6 +223,50 @@ async function leerConGemini(file: File, key: string, filas: SimRow[]): Promise<
   return salidaG;
 }
 
+// Lee el Excel del plan (hoja con fila de dias y fila "PROGRAMA INICIAL" con los formatos por columna).
+function parsearExcel(rows: unknown[][], filas: SimRow[]): Record<string, number[]> {
+  const diaNum: Record<string, number> = { lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, domingo: 0 };
+  const cols: { wd: number; col: number }[] = [];
+  rows.forEach((r) => {
+    (r || []).forEach((c, col) => {
+      const t = normalizarTexto(String(c ?? ""));
+      for (const [d, wd] of Object.entries(diaNum)) {
+        if (t.startsWith(d)) cols.push({ wd, col });
+      }
+    });
+  });
+  cols.sort((a, b) => a.col - b.col);
+  const res: Record<string, Set<number>> = {};
+  const formatos = ["1000", "1500", "330", "269", "200"];
+  // TREN-7 = PET (preformas); TREN-5 = LATA. Cada tren tiene su fila "PROGRAMA INICIAL" debajo.
+  if (cols.length > 0) {
+    for (let i = 0; i < rows.length; i++) {
+      const m = normalizarTexto(String((rows[i] || [])[0] ?? "")).match(/tren-?\s*(\d+)/);
+      if (!m) continue;
+      const tipo: "PREFORMA" | "LATA" | null = m[1] === "7" ? "PREFORMA" : m[1] === "5" ? "LATA" : null;
+      if (!tipo) continue;
+      let progRow = -1;
+      for (let j = i + 1; j < Math.min(i + 3, rows.length); j++) {
+        if (normalizarTexto(String((rows[j] || [])[0] ?? "")).includes("programa")) { progRow = j; break; }
+      }
+      if (progRow < 0) continue;
+      (rows[progRow] || []).forEach((c, col) => {
+        const nums: string[] = String(c ?? "").match(/\d+/g) || [];
+        const fmt = formatos.find((f) => nums.includes(f));
+        if (!fmt) return;
+        let dia: { wd: number; col: number } | null = null;
+        for (const dc of cols) { if (dc.col <= col) dia = dc; else break; }
+        if (!dia) return;
+        const codigo = formatoAcodigo(fmt, filas, tipo);
+        if (codigo) (res[codigo] ||= new Set<number>()).add(dia.wd);
+      });
+    }
+  }
+  const salida: Record<string, number[]> = {};
+  Object.entries(res).forEach(([k, v]) => { salida[k] = Array.from(v).sort(); });
+  return salida;
+}
+
 // Gaylords por vehiculo: preformas 40; el SKU 303845 va de 36.
 function gaylordsPorVh(codigo: string) {
   return codigo === "303845" ? 36 : 40;
@@ -306,6 +353,8 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
   const [geminiKey, setGeminiKey] = useState<string>(() =>
     typeof window !== "undefined" ? window.localStorage.getItem("gemini_key") || "" : ""
   );
+  const [panelAbierto, setPanelAbierto] = useState(false);
+  const excelRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") window.localStorage.setItem(LS_VEHICULOS, JSON.stringify(vehiculos));
@@ -449,6 +498,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     e.target.value = "";
     if (!file) return;
     setFotoUrl(URL.createObjectURL(file));
+    setPanelAbierto(true);
     try {
       let detectado: Record<string, number[]> = {};
       if (geminiKey.trim()) {
@@ -480,6 +530,31 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
       );
     } catch (err) {
       setOcrEstado("No se pudo leer la foto: " + (err instanceof Error ? err.message : String(err)) + ". Marca los dias a mano abajo.");
+    }
+  }
+
+  async function subirExcel(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setFotoUrl(null);
+    setPanelAbierto(true);
+    setOcrEstado("Leyendo el Excel...");
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: "" }) as unknown[][];
+      const detectado = parsearExcel(rows, filasVisibles);
+      setProduccionDias(detectado);
+      const cuantas = Object.keys(detectado).length;
+      setOcrEstado(
+        cuantas > 0
+          ? `Lei el Excel: dias de produccion en ${cuantas} referencia(s). Revisa/ajusta abajo y dale "Autollenar segun foto".`
+          : "Lei el Excel pero no encontre formatos conocidos. Marca los dias a mano abajo."
+      );
+    } catch (err) {
+      setOcrEstado("No se pudo leer el Excel: " + (err instanceof Error ? err.message : String(err)));
     }
   }
 
@@ -696,6 +771,13 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
           title="Pega aqui tu clave gratis de Google Gemini (se guarda en tu equipo)"
           className="h-11 w-44 rounded-xl border border-amber-200 px-3 text-xs font-bold text-slate-900 outline-none focus:border-amber-500"
         />
+        <button
+          onClick={() => excelRef.current?.click()}
+          className="h-11 rounded-xl bg-amber-500 px-5 text-sm font-black text-white shadow-md transition hover:bg-amber-600"
+        >
+          Subir Excel
+        </button>
+        <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={subirExcel} className="hidden" />
 
         <div className="ml-auto rounded-xl border border-blue-100 bg-blue-50 px-4 py-2 text-xs font-bold text-[#003B7A]">
           Requerim.: <span className="text-red-600">{formato(totalNecesidad)}</span>
@@ -719,19 +801,19 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
         </div>
       )}
 
-      {fotoUrl && (
+      {panelAbierto && (
         <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-sm font-black text-amber-800">Plan de produccion (dias por referencia)</p>
             <div className="flex gap-2">
               <button onClick={autollenarFoto} className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-black text-white hover:bg-amber-700">Autollenar segun foto</button>
-              <button onClick={() => { setFotoUrl(null); setOcrEstado(null); }} className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-black text-amber-700">Cerrar</button>
+              <button onClick={() => { setPanelAbierto(false); setFotoUrl(null); setOcrEstado(null); }} className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-black text-amber-700">Cerrar</button>
             </div>
           </div>
           {ocrEstado && <p className="mb-2 text-xs font-semibold text-amber-800">{ocrEstado}</p>}
           <div className="flex flex-wrap gap-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={fotoUrl} alt="Plan de produccion" className="max-h-44 rounded-lg border border-amber-200" />
+            {fotoUrl && <img src={fotoUrl} alt="Plan de produccion" className="max-h-44 rounded-lg border border-amber-200" />}
             <div className="flex-1 overflow-auto">
               <table className="text-[10px]">
                 <thead>
