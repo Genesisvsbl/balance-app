@@ -53,7 +53,16 @@ async function cargarHtmlToImage(): Promise<HtmlToImage> {
 }
 
 type OcrWord = { text: string; bbox: { x0: number; y0: number; x1: number; y1: number } };
-type TesseractLib = { recognize: (img: File | string, lang: string) => Promise<{ data: { words?: OcrWord[]; text: string } }> };
+type OcrData = { words?: OcrWord[]; text: string };
+type TessWorker = {
+  setParameters: (p: Record<string, unknown>) => Promise<unknown>;
+  recognize: (img: string) => Promise<{ data: OcrData }>;
+  terminate: () => Promise<unknown>;
+};
+type TesseractLib = {
+  createWorker?: (lang?: string) => Promise<TessWorker>;
+  recognize: (img: File | string, lang: string) => Promise<{ data: OcrData }>;
+};
 async function cargarTesseract(): Promise<TesseractLib> {
   const w = window as unknown as { Tesseract?: TesseractLib };
   if (w.Tesseract) return w.Tesseract;
@@ -66,6 +75,37 @@ async function cargarTesseract(): Promise<TesseractLib> {
   });
   if (!w.Tesseract) throw new Error("OCR no disponible");
   return w.Tesseract;
+}
+
+function cargarImagen(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+// Preprocesa la foto para el OCR: la agranda, pasa a gris y sube el contraste.
+async function preprocesar(file: File): Promise<string> {
+  const img = await cargarImagen(file);
+  const escala = img.width > 0 ? Math.min(3, Math.max(1, 2400 / img.width)) : 1;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(img.width * escala);
+  canvas.height = Math.round(img.height * escala);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return canvas.toDataURL("image/png");
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    let g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    g = (g - 128) * 1.5 + 128;
+    g = g < 0 ? 0 : g > 255 ? 255 : g;
+    d[i] = d[i + 1] = d[i + 2] = g;
+  }
+  ctx.putImageData(imgData, 0, 0);
+  return canvas.toDataURL("image/png");
 }
 
 function normalizarTexto(t: string) {
@@ -91,20 +131,20 @@ function formatoAcodigo(fmt: string, filas: SimRow[]): string | null {
 
 // Lee los dias de produccion por referencia desde las palabras del OCR (usando sus posiciones).
 function parsearFoto(words: OcrWord[], filas: SimRow[]): Record<string, number[]> {
-  const diaNombreNum: Record<string, number> = {
-    lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, domingo: 0,
-  };
+  const dia3: Record<string, number> = { lun: 1, mar: 2, mie: 3, jue: 4, vie: 5, sab: 6, dom: 0 };
   const cols: { wd: number; x: number }[] = [];
   words.forEach((word) => {
-    const t = normalizarTexto(word.text);
-    if (diaNombreNum[t] !== undefined) cols.push({ wd: diaNombreNum[t], x: (word.bbox.x0 + word.bbox.x1) / 2 });
+    const t = normalizarTexto(word.text).replace(/[^a-z]/g, "");
+    if (t.length >= 3 && t.length <= 10 && dia3[t.slice(0, 3)] !== undefined) {
+      cols.push({ wd: dia3[t.slice(0, 3)], x: (word.bbox.x0 + word.bbox.x1) / 2 });
+    }
   });
   if (cols.length === 0) return {};
   const res: Record<string, Set<number>> = {};
   const formatos = ["1000", "1500", "330", "269", "200"];
   words.forEach((word) => {
-    const t = normalizarTexto(word.text).replace(/[^0-9.]/g, "");
-    const fmt = formatos.find((f) => t === f);
+    const nums: string[] = word.text.match(/\d+/g) || [];
+    const fmt = formatos.find((f) => nums.includes(f));
     if (!fmt) return;
     const codigo = formatoAcodigo(fmt, filas);
     if (!codigo) return;
@@ -351,7 +391,18 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     setOcrEstado("Leyendo la foto... (puede tardar unos segundos)");
     try {
       const T = await cargarTesseract();
-      const { data } = await T.recognize(file, "spa");
+      const imagen = await preprocesar(file);
+      let data: OcrData;
+      if (T.createWorker) {
+        const worker = await T.createWorker("spa");
+        await worker.setParameters({ tessedit_pageseg_mode: "11" });
+        const r = await worker.recognize(imagen);
+        data = r.data;
+        await worker.terminate();
+      } else {
+        const r = await T.recognize(imagen, "spa");
+        data = r.data;
+      }
       const detectado = parsearFoto(data.words || [], filasVisibles);
       setProduccionDias(detectado);
       const cuantas = Object.keys(detectado).length;
