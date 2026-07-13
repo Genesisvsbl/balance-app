@@ -30,6 +30,7 @@ type SimBaseRow = {
   necesidadesPorSemana: Record<string, number>;
   capacidadVehiculo: number;
   capacidadUnidad: number;
+  skusProduccion: string[];
 };
 
 type CalculatedRow = SimBaseRow & Record<EditField, number> & {
@@ -159,6 +160,7 @@ function extraerFilas(analisis: BalanceRow[]) {
         necesidadesPorSemana: row.necesidadesPorSemana || {},
         capacidadVehiculo: unidad * 550,
         capacidadUnidad: unidad,
+        skusProduccion: (row.skusProduccion || []).map((s) => String(s.codigo)),
       };
     });
 }
@@ -370,6 +372,7 @@ export default function Balance2Module({ analisis }: Props) {
         necesidadesPorSemana: requerimientoPorSemana(row, semanasDisponibles),
         capacidadVehiculo: row.capacidadVehiculo,
         capacidadUnidad: row.capacidadUnidad,
+        skusProduccion: row.skusProduccion,
       })),
     [rows, semanasDisponibles]
   );

@@ -10,6 +10,7 @@ export type SimRow = {
   necesidadesPorSemana: Record<string, number>;
   capacidadVehiculo: number;
   capacidadUnidad: number;
+  skusProduccion: string[];
 };
 
 type Props = {
@@ -237,30 +238,53 @@ function parsearExcel(rows: unknown[][], filas: SimRow[]): Record<string, number
   });
   cols.sort((a, b) => a.col - b.col);
   const res: Record<string, Set<number>> = {};
+  if (cols.length === 0) return {};
+  const diaDeCol = (col: number): number | null => {
+    let wd: number | null = null;
+    for (const dc of cols) { if (dc.col <= col) wd = dc.wd; else break; }
+    return wd;
+  };
+  // 1) SKU de produccion por dia (de las filas TREN-*).
+  const skuDias: Record<string, Set<number>> = {};
+  rows.forEach((r) => {
+    if (!/tren-?\s*\d+/.test(normalizarTexto(String((r || [])[0] ?? "")))) return;
+    (r || []).forEach((c, col) => {
+      const nums = String(c ?? "").match(/\d{3,}/g) || [];
+      if (nums.length === 0) return;
+      const wd = diaDeCol(col);
+      if (wd === null) return;
+      nums.forEach((n) => { (skuDias[n] ||= new Set<number>()).add(wd); });
+    });
+  });
+  // 2) por referencia: dias segun sus SKUs de produccion (receta). Es lo preciso.
+  filas.forEach((row) => {
+    (row.skusProduccion || []).forEach((sku) => {
+      const dset = skuDias[sku];
+      if (dset) dset.forEach((wd) => (res[row.codigo] ||= new Set<number>()).add(wd));
+    });
+  });
+  const conSku = new Set(Object.keys(res));
+  // 3) respaldo por formato (por tren) para referencias que no matchearon por SKU.
   const formatos = ["1000", "1500", "330", "269", "200"];
-  // TREN-7 = PET (preformas); TREN-5 = LATA. Cada tren tiene su fila "PROGRAMA INICIAL" debajo.
-  if (cols.length > 0) {
-    for (let i = 0; i < rows.length; i++) {
-      const m = normalizarTexto(String((rows[i] || [])[0] ?? "")).match(/tren-?\s*(\d+)/);
-      if (!m) continue;
-      const tipo: "PREFORMA" | "LATA" | null = m[1] === "7" ? "PREFORMA" : m[1] === "5" ? "LATA" : null;
-      if (!tipo) continue;
-      let progRow = -1;
-      for (let j = i + 1; j < Math.min(i + 3, rows.length); j++) {
-        if (normalizarTexto(String((rows[j] || [])[0] ?? "")).includes("programa")) { progRow = j; break; }
-      }
-      if (progRow < 0) continue;
-      (rows[progRow] || []).forEach((c, col) => {
-        const nums: string[] = String(c ?? "").match(/\d+/g) || [];
-        const fmt = formatos.find((f) => nums.includes(f));
-        if (!fmt) return;
-        let dia: { wd: number; col: number } | null = null;
-        for (const dc of cols) { if (dc.col <= col) dia = dc; else break; }
-        if (!dia) return;
-        const codigo = formatoAcodigo(fmt, filas, tipo);
-        if (codigo) (res[codigo] ||= new Set<number>()).add(dia.wd);
-      });
+  for (let i = 0; i < rows.length; i++) {
+    const m = normalizarTexto(String((rows[i] || [])[0] ?? "")).match(/tren-?\s*(\d+)/);
+    if (!m) continue;
+    const tipo: "PREFORMA" | "LATA" | null = m[1] === "7" ? "PREFORMA" : m[1] === "5" ? "LATA" : null;
+    if (!tipo) continue;
+    let progRow = -1;
+    for (let j = i + 1; j < Math.min(i + 3, rows.length); j++) {
+      if (normalizarTexto(String((rows[j] || [])[0] ?? "")).includes("programa")) { progRow = j; break; }
     }
+    if (progRow < 0) continue;
+    (rows[progRow] || []).forEach((c, col) => {
+      const nums: string[] = String(c ?? "").match(/\d+/g) || [];
+      const fmt = formatos.find((f) => nums.includes(f));
+      if (!fmt) return;
+      const wd = diaDeCol(col);
+      if (wd === null) return;
+      const codigo = formatoAcodigo(fmt, filas, tipo);
+      if (codigo && !conSku.has(codigo)) (res[codigo] ||= new Set<number>()).add(wd);
+    });
   }
   const salida: Record<string, number[]> = {};
   Object.entries(res).forEach(([k, v]) => { salida[k] = Array.from(v).sort(); });
