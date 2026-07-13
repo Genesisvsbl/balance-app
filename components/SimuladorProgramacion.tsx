@@ -162,6 +162,48 @@ function parsearFoto(words: OcrWord[], filas: SimRow[]): Record<string, number[]
   return salida;
 }
 
+// Lee la foto del plan con Gemini (IA de vision) y devuelve los dias de produccion por referencia.
+async function leerConGemini(file: File, key: string, filas: SimRow[]): Promise<Record<string, number[]>> {
+  const base64 = await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(",")[1] || "");
+    r.onerror = () => reject(new Error("No se pudo leer el archivo"));
+    r.readAsDataURL(file);
+  });
+  const prompt =
+    'Esta es una tabla de programacion de produccion de una linea de embotellado. Las columnas son los dias de la semana (lunes a domingo). Dime que FORMATO de botella se produce cada dia. Los formatos posibles son exactamente: 1000, 330, 1500, 200, 269 (en la tabla aparecen como "1000 X 15", "330 X 24", "1500 X 6", etc.). Ignora las celdas que dicen "NST", "sin programacion" o "demanda". Responde UNICAMENTE un JSON con este formato exacto: {"lunes":["1000"],"martes":["1000"],"miercoles":["1000","330"],"jueves":["330"],"viernes":["330","1500"],"sabado":["1500"],"domingo":[]}. Incluye solo los formatos realmente producidos cada dia.';
+  const body = {
+    contents: [
+      { parts: [{ text: prompt }, { inlineData: { mimeType: file.type || "image/png", data: base64 } }] },
+    ],
+    generationConfig: { temperature: 0, responseMimeType: "application/json" },
+  };
+  const resp = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(key)}`,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
+  );
+  if (!resp.ok) {
+    const t = await resp.text();
+    throw new Error(`Gemini ${resp.status}: ${t.slice(0, 140)}`);
+  }
+  const json = await resp.json();
+  const texto: string = json?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+  const dias = JSON.parse(texto) as Record<string, string[]>;
+  const diaNum: Record<string, number> = { lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, domingo: 0 };
+  const res: Record<string, Set<number>> = {};
+  Object.entries(dias).forEach(([dia, fmts]) => {
+    const wd = diaNum[normalizarTexto(dia)];
+    if (wd === undefined) return;
+    (fmts || []).forEach((fmt) => {
+      const codigo = formatoAcodigo(String(fmt).replace(/[^0-9]/g, ""), filas);
+      if (codigo) (res[codigo] ||= new Set<number>()).add(wd);
+    });
+  });
+  const salidaG: Record<string, number[]> = {};
+  Object.entries(res).forEach(([k, v]) => { salidaG[k] = Array.from(v).sort(); });
+  return salidaG;
+}
+
 // Gaylords por vehiculo: preformas 40; el SKU 303845 va de 36.
 function gaylordsPorVh(codigo: string) {
   return codigo === "303845" ? 36 : 40;
@@ -245,6 +287,9 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
   const [produccionDias, setProduccionDias] = useState<Record<string, number[]>>({});
   const [fotoUrl, setFotoUrl] = useState<string | null>(null);
   const [ocrEstado, setOcrEstado] = useState<string | null>(null);
+  const [geminiKey, setGeminiKey] = useState<string>(() =>
+    typeof window !== "undefined" ? window.localStorage.getItem("gemini_key") || "" : ""
+  );
 
   useEffect(() => {
     if (typeof window !== "undefined") window.localStorage.setItem(LS_VEHICULOS, JSON.stringify(vehiculos));
@@ -388,22 +433,28 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     e.target.value = "";
     if (!file) return;
     setFotoUrl(URL.createObjectURL(file));
-    setOcrEstado("Leyendo la foto... (puede tardar unos segundos)");
     try {
-      const T = await cargarTesseract();
-      const imagen = await preprocesar(file);
-      let data: OcrData;
-      if (T.createWorker) {
-        const worker = await T.createWorker("spa");
-        await worker.setParameters({ tessedit_pageseg_mode: "11" });
-        const r = await worker.recognize(imagen);
-        data = r.data;
-        await worker.terminate();
+      let detectado: Record<string, number[]> = {};
+      if (geminiKey.trim()) {
+        setOcrEstado("Leyendo la foto con IA (Gemini)...");
+        detectado = await leerConGemini(file, geminiKey.trim(), filasVisibles);
       } else {
-        const r = await T.recognize(imagen, "spa");
-        data = r.data;
+        setOcrEstado("Leyendo la foto... (puede tardar unos segundos)");
+        const T = await cargarTesseract();
+        const imagen = await preprocesar(file);
+        let data: OcrData;
+        if (T.createWorker) {
+          const worker = await T.createWorker("spa");
+          await worker.setParameters({ tessedit_pageseg_mode: "11" });
+          const r = await worker.recognize(imagen);
+          data = r.data;
+          await worker.terminate();
+        } else {
+          const r = await T.recognize(imagen, "spa");
+          data = r.data;
+        }
+        detectado = parsearFoto(data.words || [], filasVisibles);
       }
-      const detectado = parsearFoto(data.words || [], filasVisibles);
       setProduccionDias(detectado);
       const cuantas = Object.keys(detectado).length;
       setOcrEstado(
@@ -618,6 +669,17 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
           Subir foto
         </button>
         <input ref={fileRef} type="file" accept="image/*" onChange={subirFoto} className="hidden" />
+        <input
+          type="password"
+          value={geminiKey}
+          onChange={(e) => {
+            setGeminiKey(e.target.value);
+            if (typeof window !== "undefined") window.localStorage.setItem("gemini_key", e.target.value);
+          }}
+          placeholder="Clave Gemini (AIza...)"
+          title="Pega aqui tu clave gratis de Google Gemini (se guarda en tu equipo)"
+          className="h-11 w-44 rounded-xl border border-amber-200 px-3 text-xs font-bold text-slate-900 outline-none focus:border-amber-500"
+        />
 
         <div className="ml-auto rounded-xl border border-blue-100 bg-blue-50 px-4 py-2 text-xs font-bold text-[#003B7A]">
           Requerim.: <span className="text-red-600">{formato(totalNecesidad)}</span>
