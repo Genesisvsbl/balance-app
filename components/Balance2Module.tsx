@@ -230,7 +230,7 @@ function claseNumero(value: number) {
 // Requerimiento por semana: neta el inventario disponible (fisico piso + estanteria + transito)
 // contra la necesidad, semana a semana en orden. Solo pide lo que falta despues de consumir lo que hay.
 function requerimientoPorSemana(row: CalculatedRow, semanas: string[]): Record<string, number> {
-  let disponible = (row.fisicoPiso || 0) + (row.fisicoEstanteria || 0) + (row.transito || 0);
+  let disponible = (row.fisicoPiso || 0) + (row.transito || 0);
   const req: Record<string, number> = {};
   semanas.forEach((sem) => {
     const nec = row.necesidadesPorSemana[sem] || 0;
@@ -335,12 +335,12 @@ export default function Balance2Module({ analisis }: Props) {
     partial.teorico = partial.cantidadSap + partial.ingresar - partial.descargar;
     partial.fisicoPiso = evaluarFormula(rawEdit(row, "fisicoPiso"), partial);
     partial.fisicoEstanteria = evaluarFormula(rawEdit(row, "fisicoEstanteria"), partial);
-    partial.diferencia = partial.fisicoPiso + partial.fisicoEstanteria - partial.teorico;
+    partial.diferencia = partial.fisicoPiso - partial.teorico;
     partial.transito = evaluarFormula(rawEdit(row, "transito"), partial);
     partial.vehiculo = evaluarFormula(rawEdit(row, "vehiculo"), partial) || row.capacidadVehiculo;
     partial.gaylor = evaluarFormula(rawEdit(row, "gaylor"), partial) || row.capacidadUnidad;
     const necesidad = partial.necesidad || 0;
-    partial.requerimiento = partial.fisicoPiso + partial.fisicoEstanteria + partial.transito - necesidad;
+    partial.requerimiento = partial.fisicoPiso + partial.transito - necesidad;
     partial.numeroVehiculos = partial.vehiculo ? partial.requerimiento / partial.vehiculo : 0;
     partial.cantidadGaylor = partial.gaylor ? partial.requerimiento / partial.gaylor : 0;
     return partial as CalculatedRow;
@@ -377,7 +377,7 @@ export default function Balance2Module({ analisis }: Props) {
   const resumen = useMemo(() => rows.reduce((acc, row) => {
     acc.sap += row.cantidadSap;
     acc.teorico += row.teorico;
-    acc.fisico += row.fisicoPiso + row.fisicoEstanteria;
+    acc.fisico += row.fisicoPiso;
     acc.necesidad += row.necesidad;
     acc.requerimiento += row.requerimiento;
     return acc;
@@ -549,12 +549,12 @@ export default function Balance2Module({ analisis }: Props) {
               <tr className="bg-blue-200/80">
                 <Th rowSpan={2}>N componente</Th><Th rowSpan={2}>Texto breve-objeto</Th><Th rowSpan={2}>UN</Th>
                 <GroupTh colSpan={4}>SAP</GroupTh>
-                <GroupTh colSpan={3}>Fisico</GroupTh>
+                <GroupTh colSpan={2}>Fisico</GroupTh>
                 <GroupTh colSpan={7 + semanasActivas.length}>Necesidad y transporte</GroupTh>
               </tr>
               <tr className="bg-blue-100">
                 <Th right>Cantidad en SAP</Th><Th right>Cantidad X ingresar</Th><Th right>Cantidad X descargar</Th><Th right>Teorico</Th>
-                <Th right>Fisico piso</Th><Th right>Fisico estanteria</Th><Th right>Diferencia</Th>
+                <Th right>Fisico piso</Th><Th right>Diferencia</Th>
                 {semanasActivas.map((sem) => <Th key={`need-${sem}`} right>{sem}<br />Necesidad</Th>)}<Th right>Necesidad total</Th><Th right>Transito</Th><Th right>Requerimiento</Th><Th right>No. vehiculos</Th><Th right>Vehiculo</Th><Th right>Empaque</Th><Th right>Cant. unidad</Th>
               </tr>
             </thead>
@@ -571,7 +571,6 @@ export default function Balance2Module({ analisis }: Props) {
                     {EditCell({ row, field: "descargar" })}
                     <RefCell refId={`${columnByField.teorico}${rowNumber}`}>{formato(row.teorico)}</RefCell>
                     {EditCell({ row, field: "fisicoPiso" })}
-                    {EditCell({ row, field: "fisicoEstanteria" })}
                     <RefCell refId={`${columnByField.diferencia}${rowNumber}`} className={claseNumero(row.diferencia)}>{formato(row.diferencia)}</RefCell>
                     {semanasActivas.map((sem) => (
                       <td key={`${row.id}-need-${sem}`} className="whitespace-nowrap px-1 py-0.5 text-center text-[9px] font-black text-red-600">{formato(row.necesidadesPorSemana[sem] || 0)}</td>
