@@ -1096,11 +1096,11 @@ function FragmentRow({
             ) : null}
             {tVh > 0 ? (
               <div
-                title={`Transito ya en camino: ${tVh} VH = ${formato(tUnid)} unid.`}
-                className="mt-0.5 flex h-4 w-full items-center justify-center gap-0.5 overflow-hidden rounded bg-emerald-500 px-0.5 text-[8px] font-black text-white"
+                title={`Transito que ingresaste: ${tVh} VH = ${formato(tUnid)} unidades`}
+                className="mt-0.5 w-full rounded bg-emerald-500 px-0.5 py-[1px] text-center leading-tight text-white"
               >
-                <span>{formato(tUnid)}</span>
-                <span className="opacity-80">· {tVh} VH T</span>
+                <div className="text-[9px] font-black">{formato(tUnid)}</div>
+                <div className="text-[7px] font-bold uppercase opacity-90">Transito · {tVh} VH</div>
               </div>
             ) : null}
           </td>
