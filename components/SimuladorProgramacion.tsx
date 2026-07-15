@@ -9,6 +9,9 @@ export type SimRow = {
   um: string;
   necesidadesPorSemana: Record<string, number>;
   transitosPorSemana?: Record<string, number>;
+  necesidadBrutaPorSemana?: Record<string, number>;
+  fisicoPiso?: number;
+  transito?: number;
   capacidadVehiculo: number;
   capacidadUnidad: number;
   skusProduccion: string[];
@@ -398,7 +401,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
 
   // Dinamico: solo referencias con necesidad en alguna de las semanas seleccionadas.
   const filasVisibles = useMemo(
-    () => rows.filter((row) => semanasSel.some((sem) => (row.necesidadesPorSemana[sem] || 0) > 0)),
+    () => rows.filter((row) => semanasSel.some((sem) => ((row.necesidadBrutaPorSemana?.[sem] ?? row.necesidadesPorSemana[sem]) || 0) > 0)),
     [rows, semanasSel]
   );
 
@@ -443,6 +446,46 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     return mapa;
   }, [rows, baseOverride]);
 
+  // Plan coherente por referencia: el TRANSITO (carros enteros) cubre las semanas mas tempranas;
+  // el SUGERIDO (azul) cubre SOLO lo que el transito no alcanza. Asi no se pisan en la misma semana.
+  const planPorRef = useMemo(() => {
+    const out: Record<string, { transito: Record<string, number>; sugerido: Record<string, number> }> = {};
+    const orden = [...semanasSel].sort((a, b) => numeroSemana(a) - numeroSemana(b));
+    filasVisibles.forEach((row) => {
+      const base = vhBasePorCodigo[row.codigo] || 0;
+      const transito: Record<string, number> = {};
+      const sugerido: Record<string, number> = {};
+      if (base > 0) {
+        let remFisico = row.fisicoPiso || 0;
+        let carros = Math.round((row.transito || 0) / base);
+        orden.forEach((sem) => {
+          let need = row.necesidadBrutaPorSemana?.[sem] || 0;
+          const usaF = Math.min(remFisico, need);
+          remFisico -= usaF;
+          need -= usaF;
+          const tCars = need > 0 ? Math.min(carros, Math.ceil(need / base)) : 0;
+          transito[sem] = tCars;
+          carros -= tCars;
+          need -= tCars * base;
+          sugerido[sem] = need > 0 ? Math.ceil(need / base) : 0;
+        });
+        if (carros > 0 && orden.length > 0) {
+          const ult = orden[orden.length - 1];
+          transito[ult] = (transito[ult] || 0) + carros;
+        }
+      }
+      out[row.codigo] = { transito, sugerido };
+    });
+    return out;
+  }, [filasVisibles, vhBasePorCodigo, semanasSel]);
+
+  function sugeridoUnidGrupo(codigo: string, sems: string[]) {
+    const base = vhBasePorCodigo[codigo] || 0;
+    const plan = planPorRef[codigo];
+    if (!plan) return 0;
+    return sems.reduce((acc, sem) => acc + (plan.sugerido[sem] || 0), 0) * base;
+  }
+
   function clave(codigo: string, fecha: string) {
     return `${codigo}|${fecha}`;
   }
@@ -475,31 +518,17 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     return fechas.reduce((acc, fecha) => acc + unidadesCelda(codigo, fecha), 0);
   }
 
-  // VH de TRANSITO (verde): salen del transito que escribe el usuario. Se cuentan como carros
-  // ENTEROS una sola vez (redondeo del total, para que coincida con lo ingresado) y se colocan
-  // por semana en orden, ANTES del primer dia de produccion (para que el material llegue un poco antes).
+  // VH de TRANSITO (verde): del plan coherente (carros enteros que cubren las semanas mas tempranas).
+  // Se colocan ANTES del primer dia de produccion (el mas cercano primero) para que lleguen un poco antes.
   const transitosCelda = useMemo(() => {
     const mapa: Record<string, number> = {};
     filasVisibles.forEach((row) => {
-      const base = vhBasePorCodigo[row.codigo] || 0;
-      if (base <= 0) return;
-      const totalTransito = grupos.reduce(
-        (acc, g) => acc + g.semanas.reduce((s, sem) => s + (row.transitosPorSemana?.[sem] || 0), 0),
-        0,
-      );
-      let vhRestantes = Math.round(totalTransito / base);
-      if (vhRestantes <= 0) return;
-      const conTransito = grupos
-        .map((g) => ({ g, t: g.semanas.reduce((s, sem) => s + (row.transitosPorSemana?.[sem] || 0), 0) }))
-        .filter((x) => x.t > 0);
+      const plan = planPorRef[row.codigo];
+      if (!plan) return;
       const diasProd = produccionDias[row.codigo] || [];
-      conTransito.forEach(({ g, t }, idx) => {
-        if (vhRestantes <= 0) return;
-        const esUltima = idx === conTransito.length - 1;
-        const vhWeek = esUltima ? vhRestantes : Math.min(vhRestantes, Math.round(t / base));
-        vhRestantes -= vhWeek;
+      grupos.forEach((g) => {
+        const vhWeek = g.semanas.reduce((s, sem) => s + (plan.transito[sem] || 0), 0);
         if (vhWeek <= 0) return;
-        // Dias ANTES del primer dia de produccion (el mas cercano primero); si no hay, el propio dia.
         const fechasProd = g.fechas.filter((f) => diasProd.includes(new Date(`${f}T00:00:00Z`).getUTCDay()));
         let ventana: string[];
         if (fechasProd.length > 0) {
@@ -518,7 +547,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     });
     return mapa;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [grupos, filasVisibles, vhBasePorCodigo, produccionDias]);
+  }, [planPorRef, grupos, filasVisibles, produccionDias]);
 
   function clicCelda(codigo: string, fecha: string) {
     const actual = numero(vhCelda(codigo, fecha));
@@ -645,9 +674,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
       const colocar = (filas: SimRow[]) => {
         const items = filas
           .map((row) => {
-            const base = vhBasePorCodigo[row.codigo] || 0;
-            const necesidad = g.semanas.reduce((acc, sem) => acc + (row.necesidadesPorSemana[sem] || 0), 0);
-            const vh = base > 0 ? Math.ceil(necesidad / base) : 0;
+            const vh = g.semanas.reduce((acc, sem) => acc + (planPorRef[row.codigo]?.sugerido[sem] || 0), 0);
             const diasProd = produccionDias[row.codigo] || [];
             const fechasProd = g.fechas.filter((f) => diasProd.includes(new Date(`${f}T00:00:00Z`).getUTCDay()));
             let ventana = g.fechas;
@@ -691,11 +718,10 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
       const base = vhBasePorCodigo[row.codigo] || 0;
       if (base <= 0) return;
       grupos.forEach((g) => {
-        const necesidad = g.semanas.reduce((acc, sem) => acc + (row.necesidadesPorSemana[sem] || 0), 0);
-        if (necesidad <= 0) return;
+        const vhNecesarios = g.semanas.reduce((acc, sem) => acc + (planPorRef[row.codigo]?.sugerido[sem] || 0), 0);
+        if (vhNecesarios <= 0) return;
         const fechas = g.fechas;
         if (fechas.length === 0) return;
-        const vhNecesarios = Math.ceil(necesidad / base);
         for (let i = 0; i < vhNecesarios; i++) {
           const fecha = fechas[i % fechas.length];
           const key = clave(row.codigo, fecha);
@@ -718,10 +744,10 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
   const totalNecesidad = useMemo(
     () =>
       filasVisibles.reduce(
-        (acc, row) => acc + semanasSel.reduce((s, sem) => s + (row.necesidadesPorSemana[sem] || 0), 0),
+        (acc, row) => acc + sugeridoUnidGrupo(row.codigo, semanasSel),
         0
       ),
-    [filasVisibles, semanasSel]
+    [filasVisibles, semanasSel, planPorRef, vhBasePorCodigo]
   );
 
   const totalProgramado = useMemo(() => {
@@ -946,7 +972,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                   Referencia (1 VH = unid.)
                 </th>
                 {grupos.map((g) => {
-                  const req = filasVisibles.reduce((acc, row) => acc + g.semanas.reduce((s, sem) => s + (row.necesidadesPorSemana[sem] || 0), 0), 0);
+                  const req = filasVisibles.reduce((acc, row) => acc + sugeridoUnidGrupo(row.codigo, g.semanas), 0);
                   const asig = filasVisibles.reduce((acc, row) => acc + asignadoUnidFechas(row.codigo, g.fechas), 0);
                   const cubierta = req <= 0 || asig >= req;
                   return (
@@ -999,7 +1025,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                       </div>
                     </td>
                     {grupos.map((g) => {
-                      const necesidad = g.semanas.reduce((acc, sem) => acc + (row.necesidadesPorSemana[sem] || 0), 0);
+                      const necesidad = sugeridoUnidGrupo(row.codigo, g.semanas);
                       const asignado = asignadoUnidFechas(row.codigo, g.fechas);
                       return (
                         <FragmentRow
