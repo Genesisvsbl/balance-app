@@ -1,13 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BalanceInfo, BalanceRow, ExcelData } from "@/types/balance";
+import { BalanceInfo, BalanceRow, ExcelData, SavedLoad } from "@/types/balance";
+import { guardarCarga, crearNombreBalance } from "@/lib/storage";
 import SimuladorProgramacion, { SimRow } from "./SimuladorProgramacion";
 
 type Props = {
   datos: ExcelData;
   analisis: BalanceRow[];
   infoAnalisis: BalanceInfo | null;
+  currentUser: {
+    id: string;
+    username: string;
+    fullName: string;
+  };
 };
 
 type EditField =
@@ -247,8 +253,10 @@ function requerimientoPorSemana(row: CalculatedRow, semanas: string[]): Record<s
   return req;
 }
 
-export default function Balance2Module({ analisis }: Props) {
+export default function Balance2Module({ analisis, datos, infoAnalisis, currentUser }: Props) {
   const [busqueda, setBusqueda] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [msgGuardado, setMsgGuardado] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [secciones, setSecciones] = useState<string[]>(["PET"]);
   const [materiales, setMateriales] = useState<string[]>(["TAPA", "PREFORMA"]);
   const [semanas, setSemanas] = useState<string[]>([]);
@@ -266,6 +274,62 @@ export default function Balance2Module({ analisis }: Props) {
   useEffect(() => {
     if (typeof window !== "undefined") window.localStorage.setItem("balance2_edits", JSON.stringify(edits));
   }, [edits]);
+
+  // Al cargar un balance guardado que trae Balance 2, se restauran ediciones y programacion.
+  useEffect(() => {
+    const b2 = infoAnalisis?.balance2;
+    if (!b2 || typeof window === "undefined") return;
+    if (b2.edits) setEdits(b2.edits as Record<string, Partial<Record<EditField, string>>>);
+    if (b2.programacion) window.localStorage.setItem("balance2_sim_vehiculos", JSON.stringify(b2.programacion));
+    if (b2.baseVh) window.localStorage.setItem("balance2_sim_base", JSON.stringify(b2.baseVh));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [infoAnalisis]);
+
+  async function guardarBalance2() {
+    if (!analisis.length || !infoAnalisis) {
+      setMsgGuardado({ tipo: "error", texto: "Primero genera un balance." });
+      return;
+    }
+    setGuardando(true);
+    setMsgGuardado(null);
+
+    let programacion: Record<string, string> = {};
+    let baseVh: Record<string, string> = {};
+    try {
+      if (typeof window !== "undefined") {
+        programacion = JSON.parse(window.localStorage.getItem("balance2_sim_vehiculos") || "{}");
+        baseVh = JSON.parse(window.localStorage.getItem("balance2_sim_base") || "{}");
+      }
+    } catch {}
+
+    const editsPlano: Record<string, Record<string, string>> = {};
+    Object.entries(edits).forEach(([id, campos]) => {
+      editsPlano[id] = { ...(campos as Record<string, string>) };
+    });
+
+    const carga: SavedLoad = {
+      id: crypto.randomUUID(),
+      fecha: new Date().toISOString(),
+      createdBy: currentUser,
+      archivo: crearNombreBalance().replace("_Balance de materiales", "_Balance 2 (simulador)"),
+      hojas: Object.keys(datos || {}),
+      datos,
+      analisis,
+      info: {
+        ...infoAnalisis,
+        balance2: { edits: editsPlano, programacion, baseVh, guardadoEn: new Date().toISOString() },
+      },
+    };
+
+    try {
+      await guardarCarga(carga);
+      setMsgGuardado({ tipo: "ok", texto: "Balance 2 guardado como corrida del dia." });
+    } catch (error: any) {
+      setMsgGuardado({ tipo: "error", texto: error.message || "No se pudo guardar el balance 2." });
+    } finally {
+      setGuardando(false);
+    }
+  }
 
   const baseRows = useMemo(() => extraerFilas(analisis), [analisis]);
   const semanasDisponibles = useMemo(() => {
@@ -499,7 +563,19 @@ export default function Balance2Module({ analisis }: Props) {
             <h3 className="text-xl font-black text-slate-950">Balance 2 - simulador PET</h3>
             <p className="mt-1 text-sm font-semibold text-slate-500">Simulador operativo con celdas calculables, necesidad por semana y requerimiento de vehiculos.</p>
           </div>
-          <span className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-black text-[#0057B8]">{rows.length} materiales visibles</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-black text-[#0057B8]">{rows.length} materiales visibles</span>
+            <button
+              onClick={guardarBalance2}
+              disabled={guardando}
+              className="h-10 rounded-xl bg-[#0057B8] px-5 text-sm font-black text-white hover:bg-[#0048a0] disabled:opacity-50"
+            >
+              {guardando ? "Guardando..." : "Guardar balance 2"}
+            </button>
+            {msgGuardado && (
+              <span className={`text-xs font-black ${msgGuardado.tipo === "ok" ? "text-emerald-600" : "text-red-600"}`}>{msgGuardado.texto}</span>
+            )}
+          </div>
         </div>
       </div>
 

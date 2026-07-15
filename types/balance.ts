@@ -80,6 +80,12 @@ export type BalanceInfo = {
     string,
     { stockMin?: number | null; stockMed?: number | null; stockMax?: number | null }
   >;
+  balance2?: {
+    edits?: Record<string, Record<string, string>>;
+    programacion?: Record<string, string>;
+    baseVh?: Record<string, string>;
+    guardadoEn?: string;
+  };
 };
 
 export type SavedLoad = {

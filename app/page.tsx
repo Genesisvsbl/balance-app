@@ -144,6 +144,7 @@ export default function Home() {
             datos={datos}
             analisis={analisis}
             infoAnalisis={infoAnalisis}
+            currentUser={currentUser}
           />
         )}
         {activeModule === "variacion" && <VariacionModule />}
