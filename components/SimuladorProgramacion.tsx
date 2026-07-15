@@ -8,6 +8,7 @@ export type SimRow = {
   material: string;
   um: string;
   necesidadesPorSemana: Record<string, number>;
+  transitosPorSemana?: Record<string, number>;
   capacidadVehiculo: number;
   capacidadUnidad: number;
   skusProduccion: string[];
@@ -473,6 +474,31 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
   function asignadoUnidFechas(codigo: string, fechas: string[]) {
     return fechas.reduce((acc, fecha) => acc + unidadesCelda(codigo, fecha), 0);
   }
+
+  // VH de TRANSITO (automaticos): se leen del transito por semana del balance y se organizan
+  // segun el plan (dias de produccion de esa semana). Se pintan aparte, en verde.
+  const transitosCelda = useMemo(() => {
+    const mapa: Record<string, number> = {};
+    grupos.forEach((g) => {
+      filasVisibles.forEach((row) => {
+        const base = vhBasePorCodigo[row.codigo] || 0;
+        if (base <= 0) return;
+        const transito = g.semanas.reduce((acc, sem) => acc + (row.transitosPorSemana?.[sem] || 0), 0);
+        if (transito <= 0) return;
+        const diasProd = produccionDias[row.codigo] || [];
+        const fechasProd = g.fechas.filter((f) => diasProd.includes(new Date(`${f}T00:00:00Z`).getUTCDay()));
+        const ventana = fechasProd.length > 0 ? fechasProd : g.fechas;
+        if (ventana.length === 0) return;
+        const vh = Math.ceil(transito / base);
+        for (let i = 0; i < vh; i++) {
+          const k = clave(row.codigo, ventana[i % ventana.length]);
+          mapa[k] = (mapa[k] || 0) + 1;
+        }
+      });
+    });
+    return mapa;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grupos, filasVisibles, vhBasePorCodigo, produccionDias]);
 
   function clicCelda(codigo: string, fecha: string) {
     const actual = numero(vhCelda(codigo, fecha));
@@ -949,6 +975,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                           necesidad={necesidad}
                           asignado={asignado}
                           vhCelda={(fecha) => vhCelda(row.codigo, fecha)}
+                          transitoVh={(fecha) => transitosCelda[clave(row.codigo, fecha)] || 0}
                           onClic={(fecha) => clicCelda(row.codigo, fecha)}
                           onChange={(fecha, v) => setVh(row.codigo, fecha, v)}
                           onClear={(fecha) => setVh(row.codigo, fecha, "")}
@@ -1003,6 +1030,7 @@ function FragmentRow({
   necesidad,
   asignado,
   vhCelda,
+  transitoVh,
   onClic,
   onChange,
   onClear,
@@ -1012,6 +1040,7 @@ function FragmentRow({
   necesidad: number;
   asignado: number;
   vhCelda: (fecha: string) => string;
+  transitoVh: (fecha: string) => number;
   onClic: (fecha: string) => void;
   onChange: (fecha: string, valor: string) => void;
   onClear: (fecha: string) => void;
@@ -1024,6 +1053,8 @@ function FragmentRow({
         const vh = vhCelda(fecha);
         const tiene = numero(vh) > 0;
         const unidades = numero(vh) * base;
+        const tVh = transitoVh(fecha);
+        const tUnid = tVh * base;
         return (
           <td key={fecha} className="border-l border-slate-100 p-[2px]">
             <div
@@ -1047,6 +1078,15 @@ function FragmentRow({
                   className="h-4 w-6 rounded border border-blue-100 text-center text-[8px] font-bold text-[#0057B8] outline-none focus:border-[#0057B8]"
                 />
                 <span className="text-[8px] font-bold text-slate-400">VH</span>
+              </div>
+            ) : null}
+            {tVh > 0 ? (
+              <div
+                title={`Transito ya en camino: ${tVh} VH = ${formato(tUnid)} unid.`}
+                className="mt-0.5 flex h-4 w-full items-center justify-center gap-0.5 overflow-hidden rounded bg-emerald-500 px-0.5 text-[8px] font-black text-white"
+              >
+                <span>{formato(tUnid)}</span>
+                <span className="opacity-80">· {tVh} VH T</span>
               </div>
             ) : null}
           </td>

@@ -34,6 +34,7 @@ type SimBaseRow = {
   seccion: string;
   cantidadSap: number;
   necesidadesPorSemana: Record<string, number>;
+  transitosPorSemana: Record<string, number>;
   capacidadVehiculo: number;
   capacidadUnidad: number;
   skusProduccion: string[];
@@ -164,6 +165,9 @@ function extraerFilas(analisis: BalanceRow[]) {
         seccion: row.seccionesArray?.[0] || row.seccion || "Sin seccion",
         cantidadSap: stockDisponible(row),
         necesidadesPorSemana: row.necesidadesPorSemana || {},
+        transitosPorSemana: Object.fromEntries(
+          Object.entries(row.transitosPorSemana || {}).map(([sem, arr]) => [sem, (arr || []).reduce((a, t) => a + (t.cantidad || 0), 0)]),
+        ),
         capacidadVehiculo: unidad * 550,
         capacidadUnidad: unidad,
         skusProduccion: (row.skusProduccion || []).map((s) => String(s.codigo)),
@@ -464,6 +468,7 @@ export default function Balance2Module({ analisis, datos, infoAnalisis, currentU
         material: row.texto,
         um: row.um,
         necesidadesPorSemana: requerimientoPorSemana(row, semanasDisponibles),
+        transitosPorSemana: row.transitosPorSemana || {},
         capacidadVehiculo: row.capacidadVehiculo,
         capacidadUnidad: row.capacidadUnidad,
         skusProduccion: row.skusProduccion,
