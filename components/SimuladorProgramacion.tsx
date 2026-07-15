@@ -925,15 +925,25 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                 >
                   Referencia (1 VH = unid.)
                 </th>
-                {grupos.map((g) => (
-                  <th
-                    key={g.label}
-                    colSpan={g.fechas.length + 1}
-                    className="border-b border-l border-blue-300 px-1 py-1 text-center text-[8px] font-black uppercase"
-                  >
-                    {g.label}
-                  </th>
-                ))}
+                {grupos.map((g) => {
+                  const req = filasVisibles.reduce((acc, row) => acc + g.semanas.reduce((s, sem) => s + (row.necesidadesPorSemana[sem] || 0), 0), 0);
+                  const asig = filasVisibles.reduce((acc, row) => acc + asignadoUnidFechas(row.codigo, g.fechas), 0);
+                  const cubierta = req <= 0 || asig >= req;
+                  return (
+                    <th
+                      key={g.label}
+                      colSpan={g.fechas.length + 1}
+                      className="border-b border-l border-blue-300 px-1 py-1 text-center text-[8px] font-black uppercase"
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        <span>{g.label}</span>
+                        <span className={`rounded px-1 py-[1px] text-[7px] font-black ${cubierta ? "bg-emerald-500 text-white" : "bg-red-500 text-white"}`}>
+                          {cubierta ? "CUBIERTA" : "DESCUBIERTA"}
+                        </span>
+                      </div>
+                    </th>
+                  );
+                })}
               </tr>
               <tr className="bg-blue-100 text-[#0B4EA2]">
                 {grupos.map((g) => (
