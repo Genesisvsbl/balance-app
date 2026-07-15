@@ -475,22 +475,42 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     return fechas.reduce((acc, fecha) => acc + unidadesCelda(codigo, fecha), 0);
   }
 
-  // VH de TRANSITO (automaticos): se leen del transito por semana del balance y se organizan
-  // segun el plan (dias de produccion de esa semana). Se pintan aparte, en verde.
+  // VH de TRANSITO (verde): salen del transito que escribe el usuario. Se cuentan como carros
+  // ENTEROS una sola vez (redondeo del total, para que coincida con lo ingresado) y se colocan
+  // por semana en orden, ANTES del primer dia de produccion (para que el material llegue un poco antes).
   const transitosCelda = useMemo(() => {
     const mapa: Record<string, number> = {};
-    grupos.forEach((g) => {
-      filasVisibles.forEach((row) => {
-        const base = vhBasePorCodigo[row.codigo] || 0;
-        if (base <= 0) return;
-        const transito = g.semanas.reduce((acc, sem) => acc + (row.transitosPorSemana?.[sem] || 0), 0);
-        if (transito <= 0) return;
-        const diasProd = produccionDias[row.codigo] || [];
+    filasVisibles.forEach((row) => {
+      const base = vhBasePorCodigo[row.codigo] || 0;
+      if (base <= 0) return;
+      const totalTransito = grupos.reduce(
+        (acc, g) => acc + g.semanas.reduce((s, sem) => s + (row.transitosPorSemana?.[sem] || 0), 0),
+        0,
+      );
+      let vhRestantes = Math.round(totalTransito / base);
+      if (vhRestantes <= 0) return;
+      const conTransito = grupos
+        .map((g) => ({ g, t: g.semanas.reduce((s, sem) => s + (row.transitosPorSemana?.[sem] || 0), 0) }))
+        .filter((x) => x.t > 0);
+      const diasProd = produccionDias[row.codigo] || [];
+      conTransito.forEach(({ g, t }, idx) => {
+        if (vhRestantes <= 0) return;
+        const esUltima = idx === conTransito.length - 1;
+        const vhWeek = esUltima ? vhRestantes : Math.min(vhRestantes, Math.round(t / base));
+        vhRestantes -= vhWeek;
+        if (vhWeek <= 0) return;
+        // Dias ANTES del primer dia de produccion (el mas cercano primero); si no hay, el propio dia.
         const fechasProd = g.fechas.filter((f) => diasProd.includes(new Date(`${f}T00:00:00Z`).getUTCDay()));
-        const ventana = fechasProd.length > 0 ? fechasProd : g.fechas;
-        if (ventana.length === 0) return;
-        const vh = Math.ceil(transito / base);
-        for (let i = 0; i < vh; i++) {
+        let ventana: string[];
+        if (fechasProd.length > 0) {
+          const firstIdx = g.fechas.indexOf(fechasProd[0]);
+          const antes = g.fechas.slice(0, firstIdx);
+          ventana = antes.length > 0 ? [...antes].reverse() : [g.fechas[firstIdx]];
+        } else {
+          ventana = g.fechas;
+        }
+        if (ventana.length === 0) ventana = g.fechas;
+        for (let i = 0; i < vhWeek; i++) {
           const k = clave(row.codigo, ventana[i % ventana.length]);
           mapa[k] = (mapa[k] || 0) + 1;
         }
