@@ -259,6 +259,24 @@ function requerimientoPorSemana(row: CalculatedRow, semanas: string[]): Record<s
   return req;
 }
 
+// Reparte el TRANSITO que el usuario escribe (un valor por referencia) entre las semanas que cubre:
+// primero el fisico piso cubre la necesidad, luego el transito cubre lo que queda, semana a semana.
+function transitoPorSemanaManual(row: CalculatedRow, semanas: string[]): Record<string, number> {
+  let disponibleFisico = row.fisicoPiso || 0;
+  let restanteTransito = row.transito || 0;
+  const out: Record<string, number> = {};
+  semanas.forEach((sem) => {
+    let nec = row.necesidadesPorSemana[sem] || 0;
+    const usaFisico = Math.min(disponibleFisico, nec);
+    disponibleFisico -= usaFisico;
+    nec -= usaFisico;
+    const usaTransito = Math.min(restanteTransito, nec);
+    restanteTransito -= usaTransito;
+    out[sem] = usaTransito;
+  });
+  return out;
+}
+
 function firmaBalance(info: BalanceInfo): string {
   return [
     (info.columnasSemana || []).join(","),
@@ -483,7 +501,7 @@ export default function Balance2Module({ analisis, datos, infoAnalisis, currentU
         material: row.texto,
         um: row.um,
         necesidadesPorSemana: requerimientoPorSemana(row, semanasDisponibles),
-        transitosPorSemana: row.transitosPorSemana || {},
+        transitosPorSemana: transitoPorSemanaManual(row, semanasDisponibles),
         capacidadVehiculo: row.capacidadVehiculo,
         capacidadUnidad: row.capacidadUnidad,
         skusProduccion: row.skusProduccion,

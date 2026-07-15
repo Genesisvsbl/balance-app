@@ -854,7 +854,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
       </p>
       <p className="mt-1 flex flex-wrap items-center gap-3 text-[11px] font-black text-slate-500">
         <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-[#0057B8]"></span> Azul = simulado (plan + requerimiento)</span>
-        <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-emerald-500"></span> Verde = transito ya en camino (automatico)</span>
+        <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-emerald-500"></span> Verde = transito que escribes (se reparte por semana)</span>
       </p>
 
       {textoCorreo !== null && (
