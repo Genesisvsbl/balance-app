@@ -274,6 +274,12 @@ function transitoPorSemanaManual(row: CalculatedRow, semanas: string[]): Record<
     restanteTransito -= usaTransito;
     out[sem] = usaTransito;
   });
+  // Si sobra transito (mas de lo que piden las semanas visibles), se muestra IGUAL en la ultima semana,
+  // para que el total en pantalla coincida con lo que el usuario ingreso (no se recorta).
+  if (restanteTransito > 0 && semanas.length > 0) {
+    const ultima = semanas[semanas.length - 1];
+    out[ultima] = (out[ultima] || 0) + restanteTransito;
+  }
   return out;
 }
 
