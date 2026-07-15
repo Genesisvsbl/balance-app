@@ -253,6 +253,17 @@ function requerimientoPorSemana(row: CalculatedRow, semanas: string[]): Record<s
   return req;
 }
 
+function firmaBalance(info: BalanceInfo): string {
+  return [
+    (info.columnasSemana || []).join(","),
+    (info.seccionesDetectadas || []).join(","),
+    (info.almacenesDetectados || []).join(","),
+    info.totalComponentes ?? "",
+    info.valorInventarioTotal ?? "",
+    info.totalSkuExistencias ?? "",
+  ].join("|");
+}
+
 export default function Balance2Module({ analisis, datos, infoAnalisis, currentUser }: Props) {
   const [busqueda, setBusqueda] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -270,20 +281,39 @@ export default function Balance2Module({ analisis, datos, infoAnalisis, currentU
   });
   const [activeCell, setActiveCell] = useState<{ rowId: string; field: EditField } | null>(null);
   const formulaInputRef = useRef<HTMLInputElement | null>(null);
+  const [simVersion, setSimVersion] = useState(0);
+  const firmaActual = useMemo(() => (infoAnalisis ? firmaBalance(infoAnalisis) : "none"), [infoAnalisis]);
 
   useEffect(() => {
     if (typeof window !== "undefined") window.localStorage.setItem("balance2_edits", JSON.stringify(edits));
   }, [edits]);
 
-  // Al cargar un balance guardado que trae Balance 2, se restauran ediciones y programacion.
+  // Restaura Balance 2 si viene del historico; lo deja LIMPIO si es un balance NUEVO.
   useEffect(() => {
-    const b2 = infoAnalisis?.balance2;
-    if (!b2 || typeof window === "undefined") return;
-    if (b2.edits) setEdits(b2.edits as Record<string, Partial<Record<EditField, string>>>);
-    if (b2.programacion) window.localStorage.setItem("balance2_sim_vehiculos", JSON.stringify(b2.programacion));
-    if (b2.baseVh) window.localStorage.setItem("balance2_sim_base", JSON.stringify(b2.baseVh));
+    if (typeof window === "undefined" || !infoAnalisis) return;
+    const b2 = infoAnalisis.balance2;
+    const firmaGuardada = window.localStorage.getItem("balance2_firma") || "";
+
+    if (b2) {
+      // Cargado desde el historico: restaurar ediciones y programacion.
+      setEdits((b2.edits || {}) as Record<string, Partial<Record<EditField, string>>>);
+      window.localStorage.setItem("balance2_sim_vehiculos", JSON.stringify(b2.programacion || {}));
+      window.localStorage.setItem("balance2_sim_base", JSON.stringify(b2.baseVh || {}));
+      window.localStorage.setItem("balance2_firma", firmaActual);
+      setSimVersion((v) => v + 1);
+      return;
+    }
+
+    if (firmaActual !== firmaGuardada) {
+      // Balance nuevo: empezar en limpio (celdas y programacion vacias).
+      setEdits({});
+      window.localStorage.removeItem("balance2_sim_vehiculos");
+      window.localStorage.removeItem("balance2_sim_base");
+      window.localStorage.setItem("balance2_firma", firmaActual);
+      setSimVersion((v) => v + 1);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [infoAnalisis]);
+  }, [infoAnalisis, firmaActual]);
 
   async function guardarBalance2() {
     if (!analisis.length || !infoAnalisis) {
@@ -671,7 +701,7 @@ export default function Balance2Module({ analisis, datos, infoAnalisis, currentU
 
       <p className="text-xs font-semibold text-slate-500">Tip: en celdas editables puedes escribir valores o formulas como =D2+E2-F2 (tambien +1500+500). Mientras editas una formula, haz clic en otra celda numerica para insertar la referencia.</p>
 
-      <SimuladorProgramacion rows={simRows} semanas={semanasActivas} />
+      <SimuladorProgramacion key={`sim-${firmaActual}-${simVersion}`} rows={simRows} semanas={semanasActivas} />
     </section>
   );
 }
