@@ -852,6 +852,10 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
       <p className="mt-3 text-xs font-semibold text-slate-500">
         Tip: 1 clic suma &quot;VH por clic&quot;. Teclea el numero exacto de VH. Doble clic borra la celda. Pasa el mouse por una celda para ver las unidades.
       </p>
+      <p className="mt-1 flex flex-wrap items-center gap-3 text-[11px] font-black text-slate-500">
+        <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-[#0057B8]"></span> Azul = simulado (plan + requerimiento)</span>
+        <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-emerald-500"></span> Verde = transito ya en camino (automatico)</span>
+      </p>
 
       {textoCorreo !== null && (
         <div className="mt-3 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-800">

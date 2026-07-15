@@ -272,6 +272,7 @@ export default function Balance2Module({ analisis, datos, infoAnalisis, currentU
   const [busqueda, setBusqueda] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [msgGuardado, setMsgGuardado] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const [nombreGuardado, setNombreGuardado] = useState("");
   const [secciones, setSecciones] = useState<string[]>(["PET"]);
   const [materiales, setMateriales] = useState<string[]>(["TAPA", "PREFORMA"]);
   const [semanas, setSemanas] = useState<string[]>([]);
@@ -319,8 +320,17 @@ export default function Balance2Module({ analisis, datos, infoAnalisis, currentU
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [infoAnalisis, firmaActual]);
 
-  async function guardarBalance2() {
+  function abrirModalGuardar() {
     if (!analisis.length || !infoAnalisis) {
+      setMsgGuardado({ tipo: "error", texto: "Primero genera un balance." });
+      return;
+    }
+    setMsgGuardado(null);
+    setNombreGuardado(crearNombreBalance().replace("_Balance de materiales", "_Balance 2 (simulador)"));
+  }
+
+  async function guardarBalance2() {
+    if (!analisis.length || !infoAnalisis || !nombreGuardado.trim()) {
       setMsgGuardado({ tipo: "error", texto: "Primero genera un balance." });
       return;
     }
@@ -345,7 +355,7 @@ export default function Balance2Module({ analisis, datos, infoAnalisis, currentU
       id: crypto.randomUUID(),
       fecha: new Date().toISOString(),
       createdBy: currentUser,
-      archivo: crearNombreBalance().replace("_Balance de materiales", "_Balance 2 (simulador)"),
+      archivo: nombreGuardado.trim(),
       hojas: Object.keys(datos || {}),
       datos,
       analisis,
@@ -357,6 +367,7 @@ export default function Balance2Module({ analisis, datos, infoAnalisis, currentU
 
     try {
       await guardarCarga(carga);
+      setNombreGuardado("");
       setMsgGuardado({ tipo: "ok", texto: "Balance 2 guardado como corrida del dia." });
     } catch (error: any) {
       setMsgGuardado({ tipo: "error", texto: error.message || "No se pudo guardar el balance 2." });
@@ -601,7 +612,7 @@ export default function Balance2Module({ analisis, datos, infoAnalisis, currentU
           <div className="flex flex-wrap items-center gap-3">
             <span className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-black text-[#0057B8]">{rows.length} materiales visibles</span>
             <button
-              onClick={guardarBalance2}
+              onClick={abrirModalGuardar}
               disabled={guardando}
               className="h-10 rounded-xl bg-[#0057B8] px-5 text-sm font-black text-white hover:bg-[#0048a0] disabled:opacity-50"
             >
@@ -707,6 +718,42 @@ export default function Balance2Module({ analisis, datos, infoAnalisis, currentU
       <p className="text-xs font-semibold text-slate-500">Tip: en celdas editables puedes escribir valores o formulas como =D2+E2-F2 (tambien +1500+500). Mientras editas una formula, haz clic en otra celda numerica para insertar la referencia.</p>
 
       <SimuladorProgramacion key={`sim-${firmaActual}-${simVersion}`} rows={simRows} semanas={semanasActivas} />
+
+      {nombreGuardado && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="border-b border-slate-100 px-6 py-5">
+              <h3 className="text-lg font-black text-slate-950">Guardar balance 2</h3>
+              <p className="mt-1 text-sm font-semibold text-slate-500">Confirma el nombre con el que quedara en el historico.</p>
+            </div>
+            <div className="space-y-3 px-6 py-5">
+              <label className="text-xs font-black uppercase text-slate-500">Nombre del balance</label>
+              <input
+                value={nombreGuardado}
+                onChange={(e) => setNombreGuardado(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-[#0057B8] focus:ring-4 focus:ring-[#0057B8]/10"
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-100 bg-[#fbfbfa] px-6 py-4">
+              <button
+                onClick={() => setNombreGuardado("")}
+                disabled={guardando}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={guardarBalance2}
+                disabled={guardando || !nombreGuardado.trim()}
+                className="rounded-xl bg-[#0057B8] px-5 py-2.5 text-sm font-black text-white shadow-sm hover:bg-[#003B7A] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {guardando ? "Guardando..." : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
