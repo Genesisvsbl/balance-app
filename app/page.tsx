@@ -80,7 +80,8 @@ export default function Home() {
     setAnalisis(hidratarAnalisisHistorico(carga));
     setInfoAnalisis(carga.info || null);
     setArchivoNombre(carga.archivo || "Balance historico");
-    setActiveModule("balance");
+    // Si la corrida guardada es de Balance 2, abre directo esa pestana.
+    setActiveModule(carga.info?.balance2 ? "balance2" : "balance");
   }
 
   if (!logged || !currentUser) {
