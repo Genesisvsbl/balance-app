@@ -130,7 +130,9 @@ function capacidadGaylor(row: BalanceRow) {
 }
 
 function stockDisponible(row: BalanceRow) {
-  return row.inventarioLibre ?? row.almacenes?.AG04 ?? row.totalExistencia ?? 0;
+  // Igual que Balance 1: la existencia del balance es AG01 + AG04 (no el inventario libre total).
+  const porAlmacen = (row.almacenes?.AG01 || 0) + (row.almacenes?.AG04 || 0);
+  return porAlmacen || row.totalExistencia || 0;
 }
 
 function tipoMaterial(row: Pick<SimBaseRow, "codigo" | "texto" | "seccion">) {
