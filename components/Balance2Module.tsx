@@ -357,7 +357,9 @@ export default function Balance2Module({ analisis, datos, infoAnalisis, currentU
       createdBy: currentUser,
       archivo: nombreGuardado.trim(),
       hojas: Object.keys(datos || {}),
-      datos,
+      // Balance 2 se reconstruye desde analisis + info.balance2; NO guardamos el Excel completo
+      // (evita que el registro pase el limite de 6MB de las funciones y devuelva HTML al abrir).
+      datos: {},
       analisis,
       info: {
         ...infoAnalisis,
