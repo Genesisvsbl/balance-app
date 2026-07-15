@@ -31,6 +31,9 @@ export default function HistoricoModule({ onLoad }: Props) {
   const [errorAval, setErrorAval] = useState("");
   const [procesandoAval, setProcesandoAval] = useState(false);
   const [cargandoId, setCargandoId] = useState("");
+  const [vista, setVista] = useState<"balance1" | "balance2">("balance1");
+
+  const esBalance2 = (c: SavedLoad) => /balance\s*2/i.test(c.archivo || "");
 
   async function cargar() {
     try {
@@ -47,7 +50,13 @@ export default function HistoricoModule({ onLoad }: Props) {
     cargar();
   }, []);
 
+  const totalB1 = cargas.filter((c) => !esBalance2(c)).length;
+  const totalB2 = cargas.filter((c) => esBalance2(c)).length;
+
   const filtradas = cargas.filter((carga) => {
+    const enVista = vista === "balance2" ? esBalance2(carga) : !esBalance2(carga);
+    if (!enVista) return false;
+
     const texto = busqueda.toLowerCase().trim();
 
     if (!texto) return true;
@@ -195,10 +204,25 @@ export default function HistoricoModule({ onLoad }: Props) {
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex gap-2">
+          <button
+            onClick={() => setVista("balance1")}
+            className={`rounded-xl px-4 py-2 text-sm font-black transition ${vista === "balance1" ? "bg-[#0057B8] text-white" : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"}`}
+          >
+            Balance 1 ({totalB1})
+          </button>
+          <button
+            onClick={() => setVista("balance2")}
+            className={`rounded-xl px-4 py-2 text-sm font-black transition ${vista === "balance2" ? "bg-[#0057B8] text-white" : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"}`}
+          >
+            Balance 2 ({totalB2})
+          </button>
+        </div>
+
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h4 className="text-lg font-black text-slate-950">
-              Balances guardados
+              {vista === "balance2" ? "Balance 2 (simulador)" : "Balance 1 (materiales)"}
             </h4>
             <p className="mt-1 text-sm font-semibold text-slate-500">
               Mostrando {filtradas.length} de {cargas.length} registros.
