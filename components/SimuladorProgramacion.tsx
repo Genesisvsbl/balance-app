@@ -487,6 +487,46 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     return sems.reduce((acc, sem) => acc + (plan.sugerido[sem] || 0), 0) * base;
   }
 
+  // Reparte, para una referencia en un bloque de semanas, el TRANSITO y el SUGERIDO por dia:
+  // el transito ocupa PRIMERO los dias mas tempranos; el sugerido arranca DESPUES, en dias sin
+  // transito (no se mezclan), con tope de 2 por dia por referencia.
+  function distribuirGrupo(codigo: string, g: { fechas: string[]; semanas: string[] }) {
+    const plan = planPorRef[codigo];
+    const transito: Record<string, number> = {};
+    const sugerido: Record<string, number> = {};
+    if (!plan) return { transito, sugerido };
+    const tCars = g.semanas.reduce((a, sem) => a + (plan.transito[sem] || 0), 0);
+    const sCars = g.semanas.reduce((a, sem) => a + (plan.sugerido[sem] || 0), 0);
+    if (tCars === 0 && sCars === 0) return { transito, sugerido };
+    const CAP = 2;
+    const diasProd = produccionDias[codigo] || [];
+    const fechasProd = g.fechas.filter((f) => diasProd.includes(new Date(`${f}T00:00:00Z`).getUTCDay()));
+    let dias = g.fechas;
+    if (fechasProd.length > 0) {
+      const finIdx = g.fechas.indexOf(fechasProd[fechasProd.length - 1]);
+      dias = g.fechas.slice(0, finIdx + 1);
+    }
+    if (dias.length === 0) dias = g.fechas;
+    const carga: Record<string, number> = {};
+    let di = 0;
+    for (let c = 0; c < tCars; c++) {
+      while (di < dias.length - 1 && (carga[dias[di]] || 0) >= CAP) di++;
+      const f = dias[di];
+      carga[f] = (carga[f] || 0) + 1;
+      transito[f] = (transito[f] || 0) + 1;
+    }
+    let ds = 0;
+    while (ds < dias.length && (transito[dias[ds]] || 0) > 0) ds++;
+    let dj = ds;
+    for (let c = 0; c < sCars; c++) {
+      while (dj < dias.length - 1 && (carga[dias[dj]] || 0) >= CAP) dj++;
+      const f = dias[Math.min(dj, dias.length - 1)];
+      carga[f] = (carga[f] || 0) + 1;
+      sugerido[f] = (sugerido[f] || 0) + 1;
+    }
+    return { transito, sugerido };
+  }
+
   function clave(codigo: string, fecha: string) {
     return `${codigo}|${fecha}`;
   }
@@ -519,31 +559,15 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     return fechas.reduce((acc, fecha) => acc + unidadesCelda(codigo, fecha), 0);
   }
 
-  // VH de TRANSITO (verde): del plan coherente (carros enteros que cubren las semanas mas tempranas).
-  // Se colocan ANTES del primer dia de produccion (el mas cercano primero) para que lleguen un poco antes.
+  // VH de TRANSITO (verde): del reparto coherente (transito primero, en dias distintos al sugerido).
   const transitosCelda = useMemo(() => {
     const mapa: Record<string, number> = {};
     filasVisibles.forEach((row) => {
-      const plan = planPorRef[row.codigo];
-      if (!plan) return;
-      const diasProd = produccionDias[row.codigo] || [];
       grupos.forEach((g) => {
-        const vhWeek = g.semanas.reduce((s, sem) => s + (plan.transito[sem] || 0), 0);
-        if (vhWeek <= 0) return;
-        const fechasProd = g.fechas.filter((f) => diasProd.includes(new Date(`${f}T00:00:00Z`).getUTCDay()));
-        let ventana: string[];
-        if (fechasProd.length > 0) {
-          const firstIdx = g.fechas.indexOf(fechasProd[0]);
-          const antes = g.fechas.slice(0, firstIdx);
-          ventana = antes.length > 0 ? [...antes].reverse() : [g.fechas[firstIdx]];
-        } else {
-          ventana = g.fechas;
-        }
-        if (ventana.length === 0) ventana = g.fechas;
-        for (let i = 0; i < vhWeek; i++) {
-          const k = clave(row.codigo, ventana[i % ventana.length]);
-          mapa[k] = (mapa[k] || 0) + 1;
-        }
+        const { transito } = distribuirGrupo(row.codigo, g);
+        Object.entries(transito).forEach(([fecha, cars]) => {
+          mapa[clave(row.codigo, fecha)] = (mapa[clave(row.codigo, fecha)] || 0) + cars;
+        });
       });
     });
     return mapa;
@@ -667,67 +691,19 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
   }
 
   function autollenarFoto() {
-    const nuevas: Record<string, string> = {};
-    const MAX_DIA = 3; // se busca promediar ~2 por dia.
-    grupos.forEach((g) => {
-      const cargaDia: Record<string, number> = {};
-      g.fechas.forEach((f) => { cargaDia[f] = 0; });
-      const colocar = (filas: SimRow[]) => {
-        const items = filas
-          .map((row) => {
-            const vh = g.semanas.reduce((acc, sem) => acc + (planPorRef[row.codigo]?.sugerido[sem] || 0), 0);
-            const diasProd = produccionDias[row.codigo] || [];
-            const fechasProd = g.fechas.filter((f) => diasProd.includes(new Date(`${f}T00:00:00Z`).getUTCDay()));
-            let ventana = g.fechas;
-            let finIdx = g.fechas.length - 1;
-            if (fechasProd.length > 0) {
-              // Ventana hasta el ULTIMO dia de produccion: reparte a lo largo de la produccion (no solo al inicio).
-              finIdx = g.fechas.indexOf(fechasProd[fechasProd.length - 1]);
-              ventana = g.fechas.slice(0, finIdx + 1);
-            }
-            return { codigo: row.codigo, vh, ventana, finIdx };
-          })
-          .filter((it) => it.vh > 0 && it.ventana.length > 0);
-        // Las mas urgentes (ventana que cierra antes) se acomodan primero.
-        items.sort((a, b) => a.finIdx - b.finIdx);
-        items.forEach((it) => {
-          for (let k = 0; k < it.vh; k++) {
-            // Dia de la ventana con menor carga; llena hasta 2 antes de usar el 3; empate -> mas temprano.
-            let mejor = it.ventana[0];
-            const penalDe = (c: number) => (c >= MAX_DIA ? 1000 + c : c);
-            let mejorPenal = penalDe(cargaDia[mejor] ?? 0);
-            it.ventana.forEach((f) => {
-              const penal = penalDe(cargaDia[f] ?? 0);
-              if (penal < mejorPenal) { mejorPenal = penal; mejor = f; }
-            });
-            cargaDia[mejor] = (cargaDia[mejor] ?? 0) + 1;
-            const key = clave(it.codigo, mejor);
-            nuevas[key] = String(numero(nuevas[key] ?? "0") + 1);
-          }
-        });
-      };
-      // El tope de ~2/dia es de PREFORMA: se nivela primero; las tapas/latas rellenan los dias mas livianos.
-      colocar(filasVisibles.filter((r) => esPreforma(r)));
-      colocar(filasVisibles.filter((r) => !esPreforma(r)));
-    });
-    setVehiculos(nuevas);
+    // Mismo reparto coherente que Autollenar (usa los dias de produccion ya leidos del Excel).
+    autollenar();
   }
 
   function autollenar() {
     const nuevas: Record<string, string> = {};
     filasVisibles.forEach((row) => {
-      const base = vhBasePorCodigo[row.codigo] || 0;
-      if (base <= 0) return;
       grupos.forEach((g) => {
-        const vhNecesarios = g.semanas.reduce((acc, sem) => acc + (planPorRef[row.codigo]?.sugerido[sem] || 0), 0);
-        if (vhNecesarios <= 0) return;
-        const fechas = g.fechas;
-        if (fechas.length === 0) return;
-        for (let i = 0; i < vhNecesarios; i++) {
-          const fecha = fechas[i % fechas.length];
+        const { sugerido } = distribuirGrupo(row.codigo, g);
+        Object.entries(sugerido).forEach(([fecha, cars]) => {
           const key = clave(row.codigo, fecha);
-          nuevas[key] = String(numero(nuevas[key] ?? "0") + 1);
-        }
+          nuevas[key] = String(numero(nuevas[key] ?? "0") + cars);
+        });
       });
     });
     setVehiculos(nuevas);
