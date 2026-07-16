@@ -369,6 +369,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
   const [vhPorClic, setVhPorClic] = useState(1);
   const [ocultarTransito, setOcultarTransito] = useState(false);
   const [semanasOff, setSemanasOff] = useState<Set<string>>(new Set());
+  const [vistaOff, setVistaOff] = useState<Set<string>>(new Set());
   const [vehiculos, setVehiculos] = useState<Record<string, string>>(() => cargarLS(LS_VEHICULOS));
   // Base editable "1 VH = X unidades" por referencia (para tapas u otros que se manejen distinto).
   const [baseOverride, setBaseOverride] = useState<Record<string, string>>(() => cargarLS(LS_BASE));
@@ -433,6 +434,17 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     }
     return semanasSel.map((sem) => ({ label: sem, fechas: fechasPorSemana[sem] || [], semanas: [sem] }));
   }, [semanasCombinar, semanasSel, fechasPorSemana]);
+
+  // Semanas ocultas SOLO de la vista (para copiar/pegar); el calculo usa todas igual.
+  const gruposVista = useMemo(() => grupos.filter((g) => !vistaOff.has(g.label)), [grupos, vistaOff]);
+
+  function toggleVista(sem: string) {
+    setVistaOff((prev) => {
+      const copia = new Set(prev);
+      if (copia.has(sem)) copia.delete(sem); else copia.add(sem);
+      return copia;
+    });
+  }
 
   function toggleCombinar(sem: string) {
     setSemanasCombinar((prev) => (prev.includes(sem) ? prev.filter((s) => s !== sem) : [...prev, sem]));
@@ -904,6 +916,28 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
           </details>
         </div>
 
+        <div className="relative">
+          <p className="mb-1 text-xs font-black uppercase text-slate-500">Ver semanas</p>
+          <details className="group">
+            <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-blue-100 px-3 text-xs font-black text-slate-600">
+              {vistaOff.size > 0 ? `${gruposVista.length} visibles` : "Todas"}
+            </summary>
+            <div className="absolute left-0 z-30 mt-1 w-40 rounded-xl border border-blue-100 bg-white p-2 shadow-xl">
+              {semanasSel.map((sem) => (
+                <label key={sem} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs font-bold text-slate-700 hover:bg-blue-50">
+                  <input
+                    type="checkbox"
+                    checked={!vistaOff.has(sem)}
+                    onChange={() => toggleVista(sem)}
+                    className="h-4 w-4 accent-[#0057B8]"
+                  />
+                  {sem}
+                </label>
+              ))}
+            </div>
+          </details>
+        </div>
+
         <button
           onClick={autollenar}
           className="h-11 rounded-xl bg-[#0057B8] px-5 text-sm font-black text-white shadow-md transition hover:bg-[#003B7A]"
@@ -1029,7 +1063,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                 >
                   Referencia (1 VH = unid.)
                 </th>
-                {grupos.map((g) => {
+                {gruposVista.map((g) => {
                   const req = filasVisibles.reduce((acc, row) => acc + sugeridoUnidGrupo(row.codigo, g.semanas), 0);
                   const asig = filasVisibles.reduce((acc, row) => acc + asignadoUnidFechas(row.codigo, g.fechas), 0);
                   const cubierta = req <= 0 || asig >= req;
@@ -1050,7 +1084,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                 })}
               </tr>
               <tr className="bg-blue-100 text-[#0B4EA2]">
-                {grupos.map((g) => (
+                {gruposVista.map((g) => (
                   <FragmentHeader key={g.label} fechas={g.fechas} />
                 ))}
               </tr>
@@ -1082,7 +1116,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                         />
                       </div>
                     </td>
-                    {grupos.map((g) => {
+                    {gruposVista.map((g) => {
                       const necesidad = sugeridoUnidGrupo(row.codigo, g.semanas);
                       const asignado = asignadoUnidFechas(row.codigo, g.fechas);
                       return (
@@ -1110,7 +1144,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                 <td className="sticky left-0 z-10 bg-slate-50 px-2 py-1 text-[8px] font-black uppercase text-slate-500">
                   Total por dia
                 </td>
-                {grupos.map((g) => (
+                {gruposVista.map((g) => (
                   <FragmentFooter
                     key={g.label}
                     fechas={g.fechas}
