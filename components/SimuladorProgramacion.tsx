@@ -464,12 +464,33 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
   const planPorRef = useMemo(() => {
     const out: Record<string, { transito: Record<string, number>; sugerido: Record<string, number> }> = {};
     const orden = [...semanasSel].sort((a, b) => numeroSemana(a) - numeroSemana(b));
+    const TAPAS = ["424220", "424230"];
     filasVisibles.forEach((row) => {
       const base = vhBasePorCodigo[row.codigo] || 0;
       const baseT = vhBaseTransitoPorCodigo[row.codigo] || base;
       const transito: Record<string, number> = {};
       const sugerido: Record<string, number> = {};
-      if (base > 0) {
+      const esTapa = TAPAS.includes(row.codigo) && (row.transito || 0) > 0;
+      if (base > 0 && esTapa) {
+        // Tapa: el transito cubre por MONTO (SEM a SEM, cargando el sobrante a la siguiente),
+        // pero se muestra como 1 VH con el valor completo del balance.
+        let remFisico = row.fisicoPiso || 0;
+        let remT = row.transito || 0;
+        let semT = "";
+        orden.forEach((sem) => {
+          let need = row.necesidadBrutaPorSemana?.[sem] || 0;
+          const usaF = Math.min(remFisico, need);
+          remFisico -= usaF;
+          need -= usaF;
+          const usaT = Math.min(remT, need);
+          remT -= usaT;
+          need -= usaT;
+          if (usaT > 0 && !semT) semT = sem;
+          sugerido[sem] = need > 0 ? Math.ceil(need / base) : 0;
+        });
+        if (!semT && orden.length > 0) semT = orden[0];
+        if (semT) transito[semT] = 1;
+      } else if (base > 0) {
         let remFisico = row.fisicoPiso || 0;
         let carros = baseT > 0 ? Math.round((row.transito || 0) / baseT) : 0;
         orden.forEach((sem) => {
