@@ -447,18 +447,6 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     return mapa;
   }, [rows, baseOverride]);
 
-  // Base del TRANSITO: para las tapas 424220/424230 el transito del balance = 1 VH (su valor completo,
-  // no se divide por la base del sugerido). El resto usa la misma base del sugerido.
-  const vhBaseTransitoPorCodigo = useMemo(() => {
-    const TAPAS = ["424220", "424230"];
-    const mapa: Record<string, number> = {};
-    rows.forEach((row) => {
-      const baseSug = vhBasePorCodigo[row.codigo] || 0;
-      mapa[row.codigo] = TAPAS.includes(row.codigo) && (row.transito || 0) > 0 ? (row.transito || 0) : baseSug;
-    });
-    return mapa;
-  }, [rows, vhBasePorCodigo]);
-
   // Plan coherente por referencia: el TRANSITO (carros enteros) cubre las semanas mas tempranas;
   // el SUGERIDO (azul) cubre SOLO lo que el transito no alcanza. Asi no se pisan en la misma semana.
   const planPorRef = useMemo(() => {
@@ -466,21 +454,20 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     const orden = [...semanasSel].sort((a, b) => numeroSemana(a) - numeroSemana(b));
     filasVisibles.forEach((row) => {
       const base = vhBasePorCodigo[row.codigo] || 0;
-      const baseT = vhBaseTransitoPorCodigo[row.codigo] || base;
       const transito: Record<string, number> = {};
       const sugerido: Record<string, number> = {};
       if (base > 0) {
         let remFisico = row.fisicoPiso || 0;
-        let carros = baseT > 0 ? Math.round((row.transito || 0) / baseT) : 0;
+        let carros = Math.round((row.transito || 0) / base);
         orden.forEach((sem) => {
           let need = row.necesidadBrutaPorSemana?.[sem] || 0;
           const usaF = Math.min(remFisico, need);
           remFisico -= usaF;
           need -= usaF;
-          const tCars = need > 0 && baseT > 0 ? Math.min(carros, Math.ceil(need / baseT)) : 0;
+          const tCars = need > 0 ? Math.min(carros, Math.ceil(need / base)) : 0;
           transito[sem] = tCars;
           carros -= tCars;
-          need -= tCars * baseT;
+          need -= tCars * base;
           sugerido[sem] = need > 0 ? Math.ceil(need / base) : 0;
         });
         if (carros > 0 && orden.length > 0) {
@@ -491,7 +478,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
       out[row.codigo] = { transito, sugerido };
     });
     return out;
-  }, [filasVisibles, vhBasePorCodigo, vhBaseTransitoPorCodigo, semanasSel]);
+  }, [filasVisibles, vhBasePorCodigo, semanasSel]);
 
   function sugeridoUnidGrupo(codigo: string, sems: string[]) {
     const base = vhBasePorCodigo[codigo] || 0;
@@ -1034,7 +1021,6 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                           key={g.label}
                           fechas={g.fechas}
                           base={base}
-                          baseTransito={vhBaseTransitoPorCodigo[row.codigo] || base}
                           necesidad={necesidad}
                           asignado={asignado}
                           vhCelda={(fecha) => vhCelda(row.codigo, fecha)}
@@ -1090,7 +1076,6 @@ function FragmentHeader({ fechas }: { fechas: string[] }) {
 function FragmentRow({
   fechas,
   base,
-  baseTransito,
   necesidad,
   asignado,
   vhCelda,
@@ -1101,7 +1086,6 @@ function FragmentRow({
 }: {
   fechas: string[];
   base: number;
-  baseTransito: number;
   necesidad: number;
   asignado: number;
   vhCelda: (fecha: string) => string;
@@ -1119,7 +1103,7 @@ function FragmentRow({
         const tiene = numero(vh) > 0;
         const unidades = numero(vh) * base;
         const tVh = transitoVh(fecha);
-        const tUnid = tVh * baseTransito;
+        const tUnid = tVh * base;
         return (
           <td key={fecha} className="border-l border-slate-100 p-[2px]">
             <div
