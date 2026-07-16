@@ -711,13 +711,47 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
 
   function autollenar() {
     const nuevas: Record<string, string> = {};
-    filasVisibles.forEach((row) => {
-      grupos.forEach((g) => {
-        const { sugerido } = distribuirGrupo(row.codigo, g);
-        Object.entries(sugerido).forEach(([fecha, cars]) => {
-          const key = clave(row.codigo, fecha);
-          nuevas[key] = String(numero(nuevas[key] ?? "0") + cars);
-        });
+    const CAP_DIA = 2; // tope GLOBAL por dia (todas las referencias juntas).
+    grupos.forEach((g) => {
+      const cargaDia: Record<string, number> = {};
+      const diasTPorRef: Record<string, Set<string>> = {};
+      // El transito (verde) ya ocupa dias: se cuenta en la carga global para no encimar.
+      filasVisibles.forEach((row) => {
+        const { transito } = distribuirGrupo(row.codigo, g);
+        const set = new Set<string>();
+        Object.entries(transito).forEach(([f, cnt]) => { cargaDia[f] = (cargaDia[f] || 0) + cnt; set.add(f); });
+        diasTPorRef[row.codigo] = set;
+      });
+      // Ventana de sugerido por referencia (dias de produccion, sin los dias de su propio transito).
+      const items = filasVisibles
+        .map((row) => {
+          const sCars = g.semanas.reduce((a, sem) => a + (planPorRef[row.codigo]?.sugerido[sem] || 0), 0);
+          const diasProd = produccionDias[row.codigo] || [];
+          const fechasProd = g.fechas.filter((f) => diasProd.includes(new Date(`${f}T00:00:00Z`).getUTCDay()));
+          let win = g.fechas;
+          if (fechasProd.length > 0) {
+            const fin = g.fechas.indexOf(fechasProd[fechasProd.length - 1]);
+            win = g.fechas.slice(0, fin + 1);
+          }
+          if (win.length === 0) win = g.fechas;
+          const setT = diasTPorRef[row.codigo] || new Set<string>();
+          let dias = win.filter((f) => !setT.has(f));
+          if (dias.length === 0) dias = win;
+          return { codigo: row.codigo, sCars, dias };
+        })
+        .filter((it) => it.sCars > 0);
+      // Reparte GLOBALMENTE: cada carro al dia menos cargado (de todas las refs) dentro de su ventana.
+      items.sort((a, b) => b.sCars - a.sCars);
+      items.forEach((it) => {
+        for (let c = 0; c < it.sCars; c++) {
+          const pen = (f: string) => { const v = cargaDia[f] || 0; return v >= CAP_DIA ? 1000 + v : v; };
+          let mejor = it.dias[0];
+          let mp = pen(mejor);
+          it.dias.forEach((f) => { const p = pen(f); if (p < mp) { mp = p; mejor = f; } });
+          cargaDia[mejor] = (cargaDia[mejor] || 0) + 1;
+          const key = clave(it.codigo, mejor);
+          nuevas[key] = String(numero(nuevas[key] ?? "0") + 1);
+        }
       });
     });
     setVehiculos(nuevas);
