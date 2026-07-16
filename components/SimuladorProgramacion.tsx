@@ -521,9 +521,10 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     }
     if (dias.length === 0) dias = g.fechas;
     const carga: Record<string, number> = {};
+    // El transito se coloca 1 por dia (cada celda = 1 VH = la base), sin apilar.
     let di = 0;
     for (let c = 0; c < tCars; c++) {
-      while (di < dias.length - 1 && (carga[dias[di]] || 0) >= CAP) di++;
+      while (di < dias.length - 1 && (carga[dias[di]] || 0) >= 1) di++;
       const f = dias[di];
       carga[f] = (carga[f] || 0) + 1;
       transito[f] = (transito[f] || 0) + 1;
