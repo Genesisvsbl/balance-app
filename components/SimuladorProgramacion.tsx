@@ -1188,19 +1188,18 @@ function FragmentRow({
             >
               {tiene ? formato(unidades) : "+"}
             </div>
-            {tiene ? (
-              <div className="mt-0.5 flex items-center justify-center gap-0.5">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={vh}
-                  onChange={(e) => onChange(fecha, e.target.value.replace(/[^0-9]/g, ""))}
-                  title="N de vehiculos (editable)"
-                  className="h-4 w-6 rounded border border-blue-100 text-center text-[8px] font-bold text-[#0057B8] outline-none focus:border-[#0057B8]"
-                />
-                <span className="text-[8px] font-bold text-slate-400">VH</span>
-              </div>
-            ) : null}
+            <div className="mt-0.5 flex items-center justify-center gap-0.5">
+              <input
+                type="text"
+                inputMode="numeric"
+                value={vh}
+                onChange={(e) => onChange(fecha, e.target.value.replace(/[^0-9]/g, ""))}
+                title="N de vehiculos (editable). Escribe el numero, o 0/vacio para quitarlo."
+                placeholder="0"
+                className="h-4 w-7 rounded border border-blue-100 text-center text-[8px] font-bold text-[#0057B8] outline-none focus:border-blue-300 focus:border-[#0057B8]"
+              />
+              <span className="text-[8px] font-bold text-slate-400">VH</span>
+            </div>
             {tVh > 0 ? (
               <div
                 title={`Transito que ingresaste: ${tVh} VH = ${formato(tUnid)} unidades`}
