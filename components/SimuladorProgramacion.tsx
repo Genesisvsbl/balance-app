@@ -649,7 +649,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
       const cuantas = Object.keys(detectado).length;
       setOcrEstado(
         cuantas > 0
-          ? `Detecte dias de produccion en ${cuantas} referencia(s). Revisa/ajusta abajo y dale "Autollenar segun foto".`
+          ? `Detecte dias de produccion en ${cuantas} referencia(s). Revisa/ajusta abajo y dale "Sugerido".`
           : "No pude leer los dias automaticamente. Marcalos a mano abajo usando la foto de referencia."
       );
     } catch (err) {
@@ -674,7 +674,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
       const cuantas = Object.keys(detectado).length;
       setOcrEstado(
         cuantas > 0
-          ? `Lei el Excel: dias de produccion en ${cuantas} referencia(s). Revisa/ajusta abajo y dale "Autollenar segun foto".`
+          ? `Lei el Excel: dias de produccion en ${cuantas} referencia(s). Revisa/ajusta abajo y dale "Sugerido".`
           : "Lei el Excel pero no encontre formatos conocidos. Marca los dias a mano abajo."
       );
     } catch (err) {
@@ -847,13 +847,18 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
         >
           Limpiar
         </button>
-        <button
-          onClick={() => setOcultarTransito((v) => !v)}
-          title="Oculta el verde de transito para enviar la programacion limpia"
-          className={`h-11 rounded-xl border px-5 text-sm font-black transition ${ocultarTransito ? "border-emerald-600 bg-emerald-600 text-white" : "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"}`}
+        <label
+          title="OT = mostrar transito (verde). Por defecto activo; desmarca para ocultarlo y enviar la programacion limpia."
+          className="flex h-11 items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 text-xs font-black text-emerald-700"
         >
-          {ocultarTransito ? "Mostrar transitos" : "Ocultar transitos"}
-        </button>
+          <input
+            type="checkbox"
+            checked={!ocultarTransito}
+            onChange={(e) => setOcultarTransito(!e.target.checked)}
+            className="h-4 w-4 accent-emerald-600"
+          />
+          OT
+        </label>
         <button
           onClick={copiarImagen}
           className="h-11 rounded-xl border border-emerald-300 bg-emerald-50 px-5 text-sm font-black text-emerald-700 hover:bg-emerald-100"
@@ -899,7 +904,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
           <div className="mb-2 flex items-center justify-between">
             <p className="text-sm font-black text-amber-800">Plan de produccion (dias por referencia)</p>
             <div className="flex gap-2">
-              <button onClick={autollenarFoto} className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-black text-white hover:bg-amber-700">Autollenar segun foto</button>
+              <button onClick={autollenarFoto} className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-black text-white hover:bg-amber-700">Sugerido</button>
               <button onClick={() => { setPanelAbierto(false); setFotoUrl(null); setOcrEstado(null); }} className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-black text-amber-700">Cerrar</button>
             </div>
           </div>
