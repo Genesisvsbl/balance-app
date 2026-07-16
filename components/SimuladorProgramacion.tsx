@@ -367,6 +367,7 @@ function fechasDeSemana(sem: string, year: number, dias: number[]) {
 export default function SimuladorProgramacion({ rows, semanas }: Props) {
   const [diasHabiles, setDiasHabiles] = useState<DiasHabiles>("LV");
   const [vhPorClic, setVhPorClic] = useState(1);
+  const [ocultarTransito, setOcultarTransito] = useState(false);
   const [semanasOff, setSemanasOff] = useState<Set<string>>(new Set());
   const [vehiculos, setVehiculos] = useState<Record<string, string>>(() => cargarLS(LS_VEHICULOS));
   // Base editable "1 VH = X unidades" por referencia (para tapas u otros que se manejen distinto).
@@ -871,6 +872,13 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
           Limpiar
         </button>
         <button
+          onClick={() => setOcultarTransito((v) => !v)}
+          title="Oculta el verde de transito para enviar la programacion limpia"
+          className={`h-11 rounded-xl border px-5 text-sm font-black transition ${ocultarTransito ? "border-emerald-600 bg-emerald-600 text-white" : "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"}`}
+        >
+          {ocultarTransito ? "Mostrar transitos" : "Ocultar transitos"}
+        </button>
+        <button
           onClick={copiarImagen}
           className="h-11 rounded-xl border border-emerald-300 bg-emerald-50 px-5 text-sm font-black text-emerald-700 hover:bg-emerald-100"
         >
@@ -1035,7 +1043,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                           necesidad={necesidad}
                           asignado={asignado}
                           vhCelda={(fecha) => vhCelda(row.codigo, fecha)}
-                          transitoVh={(fecha) => transitosCelda[clave(row.codigo, fecha)] || 0}
+                          transitoVh={(fecha) => (ocultarTransito ? 0 : transitosCelda[clave(row.codigo, fecha)] || 0)}
                           onClic={(fecha) => clicCelda(row.codigo, fecha)}
                           onChange={(fecha, v) => setVh(row.codigo, fecha, v)}
                           onClear={(fecha) => setVh(row.codigo, fecha, "")}
