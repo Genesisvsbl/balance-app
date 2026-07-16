@@ -34,6 +34,7 @@ const NOMBRE_DIA = ["Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab"];
 
 const LS_VEHICULOS = "balance2_sim_vehiculos";
 const LS_BASE = "balance2_sim_base";
+const LS_BASE_T = "balance2_sim_base_transito";
 function cargarLS(key: string): Record<string, string> {
   if (typeof window === "undefined") return {};
   try {
@@ -372,6 +373,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
   const [vehiculos, setVehiculos] = useState<Record<string, string>>(() => cargarLS(LS_VEHICULOS));
   // Base editable "1 VH = X unidades" por referencia (para tapas u otros que se manejen distinto).
   const [baseOverride, setBaseOverride] = useState<Record<string, string>>(() => cargarLS(LS_BASE));
+  const [baseTransitoOverride, setBaseTransitoOverride] = useState<Record<string, string>>(() => cargarLS(LS_BASE_T));
   const [semanasCombinar, setSemanasCombinar] = useState<string[]>([]);
   const [textoCorreo, setTextoCorreo] = useState<string | null>(null);
   const tablaRef = useRef<HTMLDivElement>(null);
@@ -391,6 +393,10 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
   useEffect(() => {
     if (typeof window !== "undefined") window.localStorage.setItem(LS_BASE, JSON.stringify(baseOverride));
   }, [baseOverride]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") window.localStorage.setItem(LS_BASE_T, JSON.stringify(baseTransitoOverride));
+  }, [baseTransitoOverride]);
 
   const anio = new Date().getFullYear();
   const dias = DIAS_SET[diasHabiles];
@@ -447,6 +453,16 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     return mapa;
   }, [rows, baseOverride]);
 
+  // Base del TRANSITO por referencia (por defecto = base del sugerido; para tapas la pones distinta).
+  const vhBaseTransitoPorCodigo = useMemo(() => {
+    const mapa: Record<string, number> = {};
+    rows.forEach((row) => {
+      const ov = baseTransitoOverride[row.codigo];
+      mapa[row.codigo] = ov !== undefined && ov !== "" ? numero(ov) : (vhBasePorCodigo[row.codigo] || 0);
+    });
+    return mapa;
+  }, [rows, baseTransitoOverride, vhBasePorCodigo]);
+
   // Plan coherente por referencia: el TRANSITO (carros enteros) cubre las semanas mas tempranas;
   // el SUGERIDO (azul) cubre SOLO lo que el transito no alcanza. Asi no se pisan en la misma semana.
   const planPorRef = useMemo(() => {
@@ -454,20 +470,21 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     const orden = [...semanasSel].sort((a, b) => numeroSemana(a) - numeroSemana(b));
     filasVisibles.forEach((row) => {
       const base = vhBasePorCodigo[row.codigo] || 0;
+      const baseT = vhBaseTransitoPorCodigo[row.codigo] || base;
       const transito: Record<string, number> = {};
       const sugerido: Record<string, number> = {};
       if (base > 0) {
         let remFisico = row.fisicoPiso || 0;
-        let carros = Math.round((row.transito || 0) / base);
+        let carros = baseT > 0 ? Math.round((row.transito || 0) / baseT) : 0;
         orden.forEach((sem) => {
           let need = row.necesidadBrutaPorSemana?.[sem] || 0;
           const usaF = Math.min(remFisico, need);
           remFisico -= usaF;
           need -= usaF;
-          const tCars = need > 0 ? Math.min(carros, Math.ceil(need / base)) : 0;
+          const tCars = need > 0 && baseT > 0 ? Math.min(carros, Math.ceil(need / baseT)) : 0;
           transito[sem] = tCars;
           carros -= tCars;
-          need -= tCars * base;
+          need -= tCars * baseT;
           sugerido[sem] = need > 0 ? Math.ceil(need / base) : 0;
         });
         if (carros > 0 && orden.length > 0) {
@@ -478,7 +495,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
       out[row.codigo] = { transito, sugerido };
     });
     return out;
-  }, [filasVisibles, vhBasePorCodigo, semanasSel]);
+  }, [filasVisibles, vhBasePorCodigo, vhBaseTransitoPorCodigo, semanasSel]);
 
   function sugeridoUnidGrupo(codigo: string, sems: string[]) {
     const base = vhBasePorCodigo[codigo] || 0;
@@ -1012,6 +1029,22 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                           className="h-5 w-full rounded border border-blue-100 px-1 text-center text-[8px] font-black text-[#0057B8] outline-none focus:border-[#0057B8]"
                         />
                       </div>
+                      <div className="mt-0.5 flex items-center justify-center gap-1">
+                        <span className="text-[8px] font-bold text-emerald-500">1 VH T</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={baseTransitoOverride[row.codigo] ?? String(vhBaseTransitoPorCodigo[row.codigo] || base)}
+                          onChange={(e) =>
+                            setBaseTransitoOverride((prev) => ({
+                              ...prev,
+                              [row.codigo]: e.target.value.replace(/[^0-9]/g, ""),
+                            }))
+                          }
+                          title="Unidades por vehiculo de TRANSITO (para tapas ej. 2750000 = 1 VH). Por defecto igual al sugerido."
+                          className="h-5 w-full rounded border border-emerald-100 px-1 text-center text-[8px] font-black text-emerald-600 outline-none focus:border-emerald-500"
+                        />
+                      </div>
                     </td>
                     {grupos.map((g) => {
                       const necesidad = sugeridoUnidGrupo(row.codigo, g.semanas);
@@ -1021,6 +1054,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                           key={g.label}
                           fechas={g.fechas}
                           base={base}
+                          baseTransito={vhBaseTransitoPorCodigo[row.codigo] || base}
                           necesidad={necesidad}
                           asignado={asignado}
                           vhCelda={(fecha) => vhCelda(row.codigo, fecha)}
@@ -1076,6 +1110,7 @@ function FragmentHeader({ fechas }: { fechas: string[] }) {
 function FragmentRow({
   fechas,
   base,
+  baseTransito,
   necesidad,
   asignado,
   vhCelda,
@@ -1086,6 +1121,7 @@ function FragmentRow({
 }: {
   fechas: string[];
   base: number;
+  baseTransito: number;
   necesidad: number;
   asignado: number;
   vhCelda: (fecha: string) => string;
@@ -1103,7 +1139,7 @@ function FragmentRow({
         const tiene = numero(vh) > 0;
         const unidades = numero(vh) * base;
         const tVh = transitoVh(fecha);
-        const tUnid = tVh * base;
+        const tUnid = tVh * baseTransito;
         return (
           <td key={fecha} className="border-l border-slate-100 p-[2px]">
             <div
