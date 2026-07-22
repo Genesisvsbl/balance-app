@@ -385,6 +385,11 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
   );
   const [panelAbierto, setPanelAbierto] = useState(false);
   const excelRef = useRef<HTMLInputElement>(null);
+  const [transitoMovs, setTransitoMovs] = useState<Record<string, Record<string, number>>>(() => {
+    if (typeof window === "undefined") return {};
+    try { return JSON.parse(window.localStorage.getItem("balance2_sim_tmovs") || "{}"); } catch { return {}; }
+  });
+  const dragTransito = useRef<{ codigo: string; fecha: string } | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") window.localStorage.setItem(LS_VEHICULOS, JSON.stringify(vehiculos));
@@ -392,6 +397,9 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
   useEffect(() => {
     if (typeof window !== "undefined") window.localStorage.setItem(LS_BASE, JSON.stringify(baseOverride));
   }, [baseOverride]);
+  useEffect(() => {
+    if (typeof window !== "undefined") window.localStorage.setItem("balance2_sim_tmovs", JSON.stringify(transitoMovs));
+  }, [transitoMovs]);
 
   const anio = new Date().getFullYear();
   const dias = DIAS_SET[diasHabiles];
@@ -621,6 +629,36 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planPorRef, grupos, filasVisibles, produccionDias]);
 
+  // Transito visible por celda: usa la version MOVIDA a mano si existe; si no, la calculada.
+  function transitoVhCelda(codigo: string, fecha: string) {
+    if (ocultarTransito) return 0;
+    const mov = transitoMovs[codigo];
+    if (mov) return mov[fecha] || 0;
+    return transitosCelda[clave(codigo, fecha)] || 0;
+  }
+
+  // Mueve 1 VH de transito de un dia a otro (arrastrar y soltar), dentro de la misma referencia.
+  function moverTransito(codigo: string, origen: string, destino: string) {
+    if (origen === destino) return;
+    setTransitoMovs((prev) => {
+      let base: Record<string, number>;
+      if (prev[codigo]) {
+        base = { ...prev[codigo] };
+      } else {
+        base = {};
+        grupos.forEach((g) => g.fechas.forEach((f) => {
+          const v = transitosCelda[clave(codigo, f)] || 0;
+          if (v > 0) base[f] = v;
+        }));
+      }
+      if (!base[origen]) return prev;
+      base[origen] -= 1;
+      if (base[origen] <= 0) delete base[origen];
+      base[destino] = (base[destino] || 0) + 1;
+      return { ...prev, [codigo]: base };
+    });
+  }
+
   function clicCelda(codigo: string, fecha: string) {
     const actual = numero(vhCelda(codigo, fecha));
     setVh(codigo, fecha, String(actual + vhPorClic));
@@ -628,6 +666,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
 
   function limpiar() {
     setVehiculos({});
+    setTransitoMovs({});
   }
 
   async function copiarImagen() {
@@ -1128,7 +1167,9 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                           necesidad={necesidad}
                           asignado={asignado}
                           vhCelda={(fecha) => vhCelda(row.codigo, fecha)}
-                          transitoVh={(fecha) => (ocultarTransito ? 0 : transitosCelda[clave(row.codigo, fecha)] || 0)}
+                          transitoVh={(fecha) => transitoVhCelda(row.codigo, fecha)}
+                          onDragTransito={(fecha) => { dragTransito.current = { codigo: row.codigo, fecha }; }}
+                          onDropTransito={(fecha) => { const src = dragTransito.current; if (src && src.codigo === row.codigo) moverTransito(row.codigo, src.fecha, fecha); dragTransito.current = null; }}
                           onClic={(fecha) => clicCelda(row.codigo, fecha)}
                           onChange={(fecha, v) => setVh(row.codigo, fecha, v)}
                           onClear={(fecha) => setVh(row.codigo, fecha, "")}
@@ -1185,6 +1226,8 @@ function FragmentRow({
   asignado,
   vhCelda,
   transitoVh,
+  onDragTransito,
+  onDropTransito,
   onClic,
   onChange,
   onClear,
@@ -1196,6 +1239,8 @@ function FragmentRow({
   asignado: number;
   vhCelda: (fecha: string) => string;
   transitoVh: (fecha: string) => number;
+  onDragTransito: (fecha: string) => void;
+  onDropTransito: (fecha: string) => void;
   onClic: (fecha: string) => void;
   onChange: (fecha: string, valor: string) => void;
   onClear: (fecha: string) => void;
@@ -1211,7 +1256,7 @@ function FragmentRow({
         const tVh = transitoVh(fecha);
         const tUnid = tVh * baseTransito;
         return (
-          <td key={fecha} className="border-l border-slate-100 p-[2px]">
+          <td key={fecha} onDragOver={(e) => e.preventDefault()} onDrop={() => onDropTransito(fecha)} className="border-l border-slate-100 p-[2px]">
             <div
               onClick={() => onClic(fecha)}
               onDoubleClick={() => onClear(fecha)}
@@ -1237,8 +1282,10 @@ function FragmentRow({
             ) : null}
             {tVh > 0 ? (
               <div
-                title={`Transito que ingresaste: ${tVh} VH = ${formato(tUnid)} unidades`}
-                className="mt-0.5 w-full rounded bg-emerald-500 px-0.5 py-[1px] text-center leading-tight text-white"
+                draggable
+                onDragStart={() => onDragTransito(fecha)}
+                title={`Transito ${tVh} VH = ${formato(tUnid)} unidades. Arrastralo a otro dia.`}
+                className="mt-0.5 w-full cursor-move rounded bg-emerald-500 px-0.5 py-[1px] text-center leading-tight text-white"
               >
                 <div className="text-[9px] font-black">{formato(tUnid)}</div>
                 <div className="text-[7px] font-bold uppercase opacity-90">Transito · {tVh} VH</div>
