@@ -368,6 +368,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
   const [diasHabiles, setDiasHabiles] = useState<DiasHabiles>("LV");
   const [vhPorClic, setVhPorClic] = useState(1);
   const [ocultarTransito, setOcultarTransito] = useState(false);
+  const [ocultarProg, setOcultarProg] = useState(false);
   const [semanasOff, setSemanasOff] = useState<Set<string>>(new Set());
   const [vistaOff, setVistaOff] = useState<Set<string>>(new Set());
   const [vehiculos, setVehiculos] = useState<Record<string, string>>(() => cargarLS(LS_VEHICULOS));
@@ -1001,6 +1002,18 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
           />
           OT
         </label>
+        <label
+          title="PROG = mostrar lo que programas (azul). Por defecto activo; desmarca para ocultarlo."
+          className="flex h-11 items-center gap-1.5 rounded-xl border border-blue-300 bg-blue-50 px-3 text-xs font-black text-[#0057B8]"
+        >
+          <input
+            type="checkbox"
+            checked={!ocultarProg}
+            onChange={(e) => setOcultarProg(!e.target.checked)}
+            className="h-4 w-4 accent-[#0057B8]"
+          />
+          PROG
+        </label>
         <button
           onClick={copiarImagen}
           className="h-11 rounded-xl border border-emerald-300 bg-emerald-50 px-5 text-sm font-black text-emerald-700 hover:bg-emerald-100"
@@ -1168,6 +1181,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                           asignado={asignado}
                           vhCelda={(fecha) => vhCelda(row.codigo, fecha)}
                           transitoVh={(fecha) => transitoVhCelda(row.codigo, fecha)}
+                          ocultarProg={ocultarProg}
                           onDragTransito={(fecha) => { dragTransito.current = { codigo: row.codigo, fecha }; }}
                           onDropTransito={(fecha) => { const src = dragTransito.current; if (src && src.codigo === row.codigo) moverTransito(row.codigo, src.fecha, fecha); dragTransito.current = null; }}
                           onClic={(fecha) => clicCelda(row.codigo, fecha)}
@@ -1226,6 +1240,7 @@ function FragmentRow({
   asignado,
   vhCelda,
   transitoVh,
+  ocultarProg,
   onDragTransito,
   onDropTransito,
   onClic,
@@ -1239,6 +1254,7 @@ function FragmentRow({
   asignado: number;
   vhCelda: (fecha: string) => string;
   transitoVh: (fecha: string) => number;
+  ocultarProg: boolean;
   onDragTransito: (fecha: string) => void;
   onDropTransito: (fecha: string) => void;
   onClic: (fecha: string) => void;
@@ -1250,7 +1266,7 @@ function FragmentRow({
   return (
     <>
       {fechas.map((fecha) => {
-        const vh = vhCelda(fecha);
+        const vh = ocultarProg ? "" : vhCelda(fecha);
         const tiene = numero(vh) > 0;
         const unidades = numero(vh) * base;
         const tVh = transitoVh(fecha);
