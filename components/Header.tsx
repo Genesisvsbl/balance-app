@@ -43,6 +43,18 @@ export default function Header({
         <TopNav active={active} setActive={setActive} />
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => window.location.reload()}
+            title="Actualizar (recarga para ver los ultimos cambios)"
+            aria-label="Actualizar"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-white/25 bg-white/10 text-white transition hover:bg-white/20"
+          >
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              <polyline points="21 3 21 9 15 9" />
+            </svg>
+          </button>
+
           <div className="max-w-[140px] truncate rounded-md border border-white/20 bg-white/10 px-2.5 py-1.5 text-[11px] font-black text-white">
             {userName}
           </div>
