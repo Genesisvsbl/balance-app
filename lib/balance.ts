@@ -204,12 +204,10 @@ export function generarBalance(datos: ExcelData): {
     const valorStock = convertirNumero(
       obtenerValor(fila, ["Vr.Stock Alm.", "Vr.Stock Alm"])
     );
+    // Valor bloqueado = valor por unidad (Vr.Stock / (libre + bloqueado)) x cantidad bloqueada.
+    // Asi el bloqueado NUNCA supera el Vr.Stock del material (antes se dividia solo entre "libre" y se disparaba).
     const valorBloqueado =
-      libre > 0
-        ? (valorStock / libre) * bloqueado
-        : bloqueado > 0
-        ? valorStock
-        : 0;
+      libre + bloqueado > 0 ? (valorStock * bloqueado) / (libre + bloqueado) : 0;
 
     if (!material) return;
 
