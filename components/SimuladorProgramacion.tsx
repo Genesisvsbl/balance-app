@@ -1135,10 +1135,16 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                 >
                   Referencia (1 VH = unid.)
                 </th>
-                {gruposVista.map((g) => {
-                  const req = filasVisibles.reduce((acc, row) => acc + sugeridoUnidGrupo(row.codigo, g.semanas), 0);
-                  const asig = filasVisibles.reduce((acc, row) => acc + asignadoUnidFechas(row.codigo, g.fechas), 0);
-                  const cubierta = req <= 0 || asig >= req;
+                {(() => {
+                  const cumNec: Record<string, number> = {};
+                  const cumAsig: Record<string, number> = {};
+                  return gruposVista.map((g) => {
+                  let cubierta = true;
+                  filasVisibles.forEach((row) => {
+                    cumNec[row.codigo] = (cumNec[row.codigo] || 0) + sugeridoUnidGrupo(row.codigo, g.semanas);
+                    cumAsig[row.codigo] = (cumAsig[row.codigo] || 0) + asignadoUnidFechas(row.codigo, g.fechas);
+                    if (cumNec[row.codigo] - cumAsig[row.codigo] > 1) cubierta = false;
+                  });
                   return (
                     <th
                       key={g.label}
@@ -1153,7 +1159,8 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                       </div>
                     </th>
                   );
-                })}
+                  });
+                })()}
               </tr>
               <tr className="bg-blue-100 text-[#0B4EA2]">
                 {gruposVista.map((g) => (
@@ -1188,28 +1195,37 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                         />
                       </div>
                     </td>
-                    {gruposVista.map((g) => {
-                      const necesidad = sugeridoUnidGrupo(row.codigo, g.semanas);
-                      const asignado = asignadoUnidFechas(row.codigo, g.fechas);
-                      return (
-                        <FragmentRow
-                          key={g.label}
-                          fechas={g.fechas}
-                          base={base}
-                          baseTransito={vhBaseTransitoPorCodigo[row.codigo] || base}
-                          necesidad={necesidad}
-                          asignado={asignado}
-                          vhCelda={(fecha) => vhCelda(row.codigo, fecha)}
-                          transitoVh={(fecha) => transitoVhCelda(row.codigo, fecha)}
-                          ocultarProg={ocultarProg}
-                          onDragTransito={(fecha) => { dragTransito.current = { codigo: row.codigo, fecha }; }}
-                          onDropTransito={(fecha) => { const src = dragTransito.current; if (src && src.codigo === row.codigo) moverTransito(row.codigo, src.fecha, fecha); dragTransito.current = null; }}
-                          onClic={(fecha) => clicCelda(row.codigo, fecha)}
-                          onChange={(fecha, v) => setVh(row.codigo, fecha, v)}
-                          onClear={(fecha) => setVh(row.codigo, fecha, "")}
-                        />
-                      );
-                    })}
+                    {(() => {
+                      let cumNec = 0;
+                      let cumAsig = 0;
+                      return gruposVista.map((g) => {
+                        const necesidad = sugeridoUnidGrupo(row.codigo, g.semanas);
+                        const asignado = asignadoUnidFechas(row.codigo, g.fechas);
+                        cumNec += necesidad;
+                        cumAsig += asignado;
+                        const cubre = cumNec > 0 && cumAsig >= cumNec;
+                        const falta = Math.max(0, cumNec - cumAsig);
+                        return (
+                          <FragmentRow
+                            key={g.label}
+                            fechas={g.fechas}
+                            base={base}
+                            baseTransito={vhBaseTransitoPorCodigo[row.codigo] || base}
+                            necesidad={necesidad}
+                            cubre={cubre}
+                            falta={falta}
+                            vhCelda={(fecha) => vhCelda(row.codigo, fecha)}
+                            transitoVh={(fecha) => transitoVhCelda(row.codigo, fecha)}
+                            ocultarProg={ocultarProg}
+                            onDragTransito={(fecha) => { dragTransito.current = { codigo: row.codigo, fecha }; }}
+                            onDropTransito={(fecha) => { const src = dragTransito.current; if (src && src.codigo === row.codigo) moverTransito(row.codigo, src.fecha, fecha); dragTransito.current = null; }}
+                            onClic={(fecha) => clicCelda(row.codigo, fecha)}
+                            onChange={(fecha, v) => setVh(row.codigo, fecha, v)}
+                            onClear={(fecha) => setVh(row.codigo, fecha, "")}
+                          />
+                        );
+                      });
+                    })()}
                   </tr>
                 );
               })}
@@ -1257,7 +1273,8 @@ function FragmentRow({
   base,
   baseTransito,
   necesidad,
-  asignado,
+  cubre,
+  falta,
   vhCelda,
   transitoVh,
   ocultarProg,
@@ -1271,7 +1288,8 @@ function FragmentRow({
   base: number;
   baseTransito: number;
   necesidad: number;
-  asignado: number;
+  cubre: boolean;
+  falta: number;
   vhCelda: (fecha: string) => string;
   transitoVh: (fecha: string) => number;
   ocultarProg: boolean;
@@ -1281,8 +1299,6 @@ function FragmentRow({
   onChange: (fecha: string, valor: string) => void;
   onClear: (fecha: string) => void;
 }) {
-  const cubre = necesidad > 0 && asignado >= necesidad;
-  const falta = Math.max(0, necesidad - asignado);
   return (
     <>
       {fechas.map((fecha) => {
