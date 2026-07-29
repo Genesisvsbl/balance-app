@@ -402,6 +402,14 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     if (typeof window !== "undefined") window.localStorage.setItem("balance2_sim_tmovs", JSON.stringify(transitoMovs));
   }, [transitoMovs]);
 
+  // Al combinar/descombinar semanas, reacomodar el sugerido (azul) automaticamente en la semana objetivo.
+  const combinarInit = useRef(true);
+  useEffect(() => {
+    if (combinarInit.current) { combinarInit.current = false; return; }
+    autollenar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [semanasCombinar]);
+
   const anio = new Date().getFullYear();
   const dias = DIAS_SET[diasHabiles];
 
