@@ -390,7 +390,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     if (typeof window === "undefined") return {};
     try { return JSON.parse(window.localStorage.getItem("balance2_sim_tmovs") || "{}"); } catch { return {}; }
   });
-  const dragTransito = useRef<{ codigo: string; fecha: string } | null>(null);
+  const dragTransito = useRef<{ codigo: string; fecha: string; tipo: "transito" | "azul" } | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") window.localStorage.setItem(LS_VEHICULOS, JSON.stringify(vehiculos));
@@ -675,6 +675,21 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
       if (base[origen] <= 0) delete base[origen];
       base[destino] = (base[destino] || 0) + 1;
       return { ...prev, [codigo]: base };
+    });
+  }
+
+  // Mueve 1 VH programado (azul) de un dia a otro (arrastrar y soltar), dentro de la misma referencia.
+  function moverAzul(codigo: string, origen: string, destino: string) {
+    if (origen === destino) return;
+    setVehiculos((prev) => {
+      const copia = { ...prev };
+      const o = numero(copia[clave(codigo, origen)] || "0");
+      if (o <= 0) return prev;
+      const nuevoO = o - 1;
+      if (nuevoO <= 0) delete copia[clave(codigo, origen)];
+      else copia[clave(codigo, origen)] = String(nuevoO);
+      copia[clave(codigo, destino)] = String(numero(copia[clave(codigo, destino)] || "0") + 1);
+      return copia;
     });
   }
 
@@ -1227,8 +1242,9 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                               return t;
                             }}
                             ocultarProg={ocultarProg}
-                            onDragTransito={(fecha) => { dragTransito.current = { codigo: row.codigo, fecha }; }}
-                            onDropTransito={(fecha) => { const src = dragTransito.current; if (src && src.codigo === row.codigo) moverTransito(row.codigo, src.fecha, fecha); dragTransito.current = null; }}
+                            onDragTransito={(fecha) => { dragTransito.current = { codigo: row.codigo, fecha, tipo: "transito" }; }}
+                            onDragAzul={(fecha) => { dragTransito.current = { codigo: row.codigo, fecha, tipo: "azul" }; }}
+                            onDropTransito={(fecha) => { const src = dragTransito.current; if (src && src.codigo === row.codigo) { if (src.tipo === "transito") moverTransito(row.codigo, src.fecha, fecha); else moverAzul(row.codigo, src.fecha, fecha); } dragTransito.current = null; }}
                             onClic={(fecha) => clicCelda(row.codigo, fecha)}
                             onChange={(fecha, v) => setVh(row.codigo, fecha, v)}
                             onClear={(fecha) => setVh(row.codigo, fecha, "")}
@@ -1289,6 +1305,7 @@ function FragmentRow({
   transitoVh,
   ocultarProg,
   onDragTransito,
+  onDragAzul,
   onDropTransito,
   onClic,
   onChange,
@@ -1304,6 +1321,7 @@ function FragmentRow({
   transitoVh: (fecha: string) => number;
   ocultarProg: boolean;
   onDragTransito: (fecha: string) => void;
+  onDragAzul: (fecha: string) => void;
   onDropTransito: (fecha: string) => void;
   onClic: (fecha: string) => void;
   onChange: (fecha: string, valor: string) => void;
@@ -1320,11 +1338,13 @@ function FragmentRow({
         return (
           <td key={fecha} onDragOver={(e) => e.preventDefault()} onDrop={() => onDropTransito(fecha)} className="border-l border-slate-100 p-[2px]">
             <div
+              draggable={tiene}
+              onDragStart={() => onDragAzul(fecha)}
               onClick={() => onClic(fecha)}
               onDoubleClick={() => onClear(fecha)}
-              title={tiene ? `${vh} VH = ${formato(unidades)} unid.` : "Clic para agregar VH"}
-              className={`flex h-6 w-full cursor-pointer items-center justify-center overflow-hidden rounded text-center text-[9px] font-black transition ${
-                tiene ? "bg-[#0057B8] text-white shadow-sm" : "bg-transparent text-slate-200 hover:bg-blue-50"
+              title={tiene ? `${vh} VH = ${formato(unidades)} unid. Arrastralo a otro dia.` : "Clic para agregar VH"}
+              className={`flex h-6 w-full items-center justify-center overflow-hidden rounded text-center text-[9px] font-black transition ${
+                tiene ? "cursor-move bg-[#0057B8] text-white shadow-sm" : "cursor-pointer bg-transparent text-slate-200 hover:bg-blue-50"
               }`}
             >
               {tiene ? formato(unidades) : "+"}
