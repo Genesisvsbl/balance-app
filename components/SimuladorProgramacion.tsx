@@ -402,14 +402,6 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     if (typeof window !== "undefined") window.localStorage.setItem("balance2_sim_tmovs", JSON.stringify(transitoMovs));
   }, [transitoMovs]);
 
-  // Al combinar/descombinar semanas, reacomodar el sugerido (azul) automaticamente en la semana objetivo.
-  const combinarInit = useRef(true);
-  useEffect(() => {
-    if (combinarInit.current) { combinarInit.current = false; return; }
-    autollenar();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [semanasCombinar]);
-
   const anio = new Date().getFullYear();
   const dias = DIAS_SET[diasHabiles];
 
@@ -431,6 +423,12 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     });
     return mapa;
   }, [semanasSel, anio, dias]);
+
+  // Todas las fechas de un grupo (si esta combinado, junta las de todas las semanas combinadas).
+  function fechasDelGrupo(g: { fechas: string[]; semanas: string[] }) {
+    if (g.semanas.length <= 1) return g.fechas;
+    return g.semanas.flatMap((sem) => fechasPorSemana[sem] || []);
+  }
 
   // Grupos de planeacion: las semanas elegidas en "Combinar" se juntan en un bloque; el resto van separadas.
   const grupos = useMemo(() => {
@@ -1142,7 +1140,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                   let cubierta = true;
                   filasVisibles.forEach((row) => {
                     cumNec[row.codigo] = (cumNec[row.codigo] || 0) + sugeridoUnidGrupo(row.codigo, g.semanas);
-                    cumAsig[row.codigo] = (cumAsig[row.codigo] || 0) + asignadoUnidFechas(row.codigo, g.fechas);
+                    cumAsig[row.codigo] = (cumAsig[row.codigo] || 0) + asignadoUnidFechas(row.codigo, fechasDelGrupo(g));
                     if (cumNec[row.codigo] - cumAsig[row.codigo] > 1) cubierta = false;
                   });
                   return (
@@ -1200,7 +1198,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                       let cumAsig = 0;
                       return gruposVista.map((g) => {
                         const necesidad = sugeridoUnidGrupo(row.codigo, g.semanas);
-                        const asignado = asignadoUnidFechas(row.codigo, g.fechas);
+                        const asignado = asignadoUnidFechas(row.codigo, fechasDelGrupo(g));
                         cumNec += necesidad;
                         cumAsig += asignado;
                         const cubre = cumNec > 0 && cumAsig >= cumNec;
@@ -1214,8 +1212,20 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                             necesidad={necesidad}
                             cubre={cubre}
                             falta={falta}
-                            vhCelda={(fecha) => vhCelda(row.codigo, fecha)}
-                            transitoVh={(fecha) => transitoVhCelda(row.codigo, fecha)}
+                            vhCelda={(fecha) => {
+                              if (g.semanas.length <= 1) return vhCelda(row.codigo, fecha);
+                              const i = g.fechas.indexOf(fecha);
+                              let t = 0;
+                              g.semanas.forEach((sem) => { const f = (fechasPorSemana[sem] || [])[i]; if (f) t += numero(vhCelda(row.codigo, f)); });
+                              return t > 0 ? String(t) : "";
+                            }}
+                            transitoVh={(fecha) => {
+                              if (g.semanas.length <= 1) return transitoVhCelda(row.codigo, fecha);
+                              const i = g.fechas.indexOf(fecha);
+                              let t = 0;
+                              g.semanas.forEach((sem) => { const f = (fechasPorSemana[sem] || [])[i]; if (f) t += transitoVhCelda(row.codigo, f); });
+                              return t;
+                            }}
                             ocultarProg={ocultarProg}
                             onDragTransito={(fecha) => { dragTransito.current = { codigo: row.codigo, fecha }; }}
                             onDropTransito={(fecha) => { const src = dragTransito.current; if (src && src.codigo === row.codigo) moverTransito(row.codigo, src.fecha, fecha); dragTransito.current = null; }}
