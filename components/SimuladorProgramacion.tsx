@@ -1246,8 +1246,17 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                             onDragAzul={(fecha) => { dragTransito.current = { codigo: row.codigo, fecha, tipo: "azul" }; }}
                             onDropTransito={(fecha) => { const src = dragTransito.current; if (src && src.codigo === row.codigo) { if (src.tipo === "transito") moverTransito(row.codigo, src.fecha, fecha); else moverAzul(row.codigo, src.fecha, fecha); } dragTransito.current = null; }}
                             onClic={(fecha) => clicCelda(row.codigo, fecha)}
-                            onChange={(fecha, v) => setVh(row.codigo, fecha, v)}
-                            onClear={(fecha) => setVh(row.codigo, fecha, "")}
+                            onChange={(fecha, v) => {
+                              if (g.semanas.length <= 1) { setVh(row.codigo, fecha, v); return; }
+                              const i = g.fechas.indexOf(fecha);
+                              g.semanas.forEach((sem) => { const f = (fechasPorSemana[sem] || [])[i]; if (f && f !== fecha) setVh(row.codigo, f, ""); });
+                              setVh(row.codigo, fecha, v);
+                            }}
+                            onClear={(fecha) => {
+                              if (g.semanas.length <= 1) { setVh(row.codigo, fecha, ""); return; }
+                              const i = g.fechas.indexOf(fecha);
+                              g.semanas.forEach((sem) => { const f = (fechasPorSemana[sem] || [])[i]; if (f) setVh(row.codigo, f, ""); });
+                            }}
                           />
                         );
                       });
