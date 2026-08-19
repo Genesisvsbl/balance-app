@@ -693,6 +693,31 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     });
   }
 
+  // Mover un VH azul en vista COMBINADA: lo quita del dia origen (de cualquier semana combinada) y lo pone en el destino (semana objetivo).
+  function moverAzulGrupo(codigo: string, g: { fechas: string[]; semanas: string[] }, origenFecha: string, destinoFecha: string) {
+    const oi = g.fechas.indexOf(origenFecha);
+    const di = g.fechas.indexOf(destinoFecha);
+    if (oi < 0 || di < 0 || oi === di) return;
+    setVehiculos((prev) => {
+      const copia = { ...prev };
+      let quitado = false;
+      for (const sem of g.semanas) {
+        const f = (fechasPorSemana[sem] || [])[oi];
+        if (f && numero(copia[clave(codigo, f)] || "0") > 0) {
+          const n = numero(copia[clave(codigo, f)]) - 1;
+          if (n <= 0) delete copia[clave(codigo, f)];
+          else copia[clave(codigo, f)] = String(n);
+          quitado = true;
+          break;
+        }
+      }
+      if (!quitado) return prev;
+      const fd = g.fechas[di];
+      copia[clave(codigo, fd)] = String(numero(copia[clave(codigo, fd)] || "0") + 1);
+      return copia;
+    });
+  }
+
   function clicCelda(codigo: string, fecha: string) {
     const actual = numero(vhCelda(codigo, fecha));
     setVh(codigo, fecha, String(actual + vhPorClic));
@@ -1244,7 +1269,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
                             ocultarProg={ocultarProg}
                             onDragTransito={(fecha) => { dragTransito.current = { codigo: row.codigo, fecha, tipo: "transito" }; }}
                             onDragAzul={(fecha) => { dragTransito.current = { codigo: row.codigo, fecha, tipo: "azul" }; }}
-                            onDropTransito={(fecha) => { const src = dragTransito.current; if (src && src.codigo === row.codigo) { if (src.tipo === "transito") moverTransito(row.codigo, src.fecha, fecha); else moverAzul(row.codigo, src.fecha, fecha); } dragTransito.current = null; }}
+                            onDropTransito={(fecha) => { const src = dragTransito.current; if (src && src.codigo === row.codigo) { if (src.tipo === "transito") moverTransito(row.codigo, src.fecha, fecha); else if (g.semanas.length > 1) moverAzulGrupo(row.codigo, g, src.fecha, fecha); else moverAzul(row.codigo, src.fecha, fecha); } dragTransito.current = null; }}
                             onClic={(fecha) => clicCelda(row.codigo, fecha)}
                             onChange={(fecha, v) => {
                               if (g.semanas.length <= 1) { setVh(row.codigo, fecha, v); return; }
