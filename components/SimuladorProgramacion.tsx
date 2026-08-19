@@ -762,6 +762,37 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     }
   }
 
+  function exportarExcel() {
+    const semanas = [...semanasSel].sort((a, b) => numeroSemana(a) - numeroSemana(b));
+    const encabezado: string[] = ["Referencia", "Descripcion", "1 VH ="];
+    semanas.forEach((sem) => {
+      encabezado.push(`${sem} Prog (VH)`);
+      encabezado.push(`${sem} Transito (VH)`);
+    });
+    const datos: (string | number)[][] = [encabezado];
+    filasVisibles.forEach((row) => {
+      const base = vhBasePorCodigo[row.codigo] || 0;
+      const fila: (string | number)[] = [row.codigo, row.material, base];
+      semanas.forEach((sem) => {
+        const fechas = fechasPorSemana[sem] || [];
+        let prog = 0;
+        let tran = 0;
+        fechas.forEach((f) => {
+          prog += numero(vhCelda(row.codigo, f));
+          tran += transitoVhCelda(row.codigo, f);
+        });
+        fila.push(prog);
+        fila.push(tran);
+      });
+      datos.push(fila);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(datos);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Programacion");
+    XLSX.writeFile(wb, "programacion.xlsx");
+    setTextoCorreo("Excel de programacion descargado.");
+  }
+
   async function subirFoto(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -1077,6 +1108,12 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
           className="h-11 rounded-xl border border-emerald-300 bg-emerald-50 px-5 text-sm font-black text-emerald-700 hover:bg-emerald-100"
         >
           Copiar imagen
+        </button>
+        <button
+          onClick={exportarExcel}
+          className="h-11 rounded-xl border border-[#0057B8] bg-white px-5 text-sm font-black text-[#0057B8] hover:bg-blue-50"
+        >
+          Exportar Excel
         </button>
         <button
           onClick={() => excelRef.current?.click()}
