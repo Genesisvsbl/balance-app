@@ -586,7 +586,7 @@ export default function Balance2Module({ analisis, datos, infoAnalisis, currentU
     const displayValue = isFormula ? formato(value, 2) : raw;
 
     return (
-      <td className="min-w-[62px] px-1 py-0.5">
+      <td className="min-w-[88px] px-1 py-0.5">
         {label ? <div className="mb-0.5 text-center text-[9px] font-bold text-slate-400">{label}</div> : null}
         <input
           type="text"
