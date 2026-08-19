@@ -616,7 +616,7 @@ export default function Balance2Module({ analisis, datos, infoAnalisis, currentU
             event.preventDefault();
             setTimeout(() => formulaInputRef.current?.focus(), 0);
           }}
-          className={`h-7 w-full cursor-pointer rounded-lg border px-1 text-center text-[8px] font-black outline-none transition ${isActive ? "border-[#0057B8] ring-2 ring-blue-100 bg-white text-slate-950" : "border-blue-100 bg-slate-50 text-slate-900 hover:border-blue-300"}`}
+          className={`h-7 w-full cursor-pointer rounded-lg border px-0.5 text-center text-[7px] font-black outline-none transition ${isActive ? "border-[#0057B8] ring-2 ring-blue-100 bg-white text-slate-950" : "border-blue-100 bg-slate-50 text-slate-900 hover:border-blue-300"}`}
           title={`Selecciona para editar ${fieldLabels[field]}. Formula actual: ${raw || "0"} | Resultado: ${formato(value, 2)}`}
         />
       </td>
