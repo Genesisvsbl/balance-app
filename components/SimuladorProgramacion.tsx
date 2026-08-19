@@ -764,8 +764,8 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
 
   function exportarExcel() {
     const semanas = [...semanasSel].sort((a, b) => numeroSemana(a) - numeroSemana(b));
-    const AZUL = "#0057B8";
-    const VERDE = "#10b981";
+    const AZUL = "#0A2A5E";
+    const VERDE = "#00A651";
     const fmt = (n: number) => n.toLocaleString("en-US");
     const th = (txt: string, bg: string = AZUL) =>
       `<th style="background:${bg};color:#fff;border:1px solid #cbd5e1;padding:8px 10px;font-size:11px;font-weight:800;text-align:center">${txt}</th>`;
@@ -827,7 +827,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
       `<tr><th colspan="${totalCols}" style="background:${AZUL};color:#fff;padding:14px;font-size:18px;font-weight:800;text-align:left">PROGRAMACION DE VEHICULOS</th></tr>` +
       `<tr>${th("Referencia")}${th("Descripcion")}${th("1 VH =")}${cabSemanas}${th("Total VH")}${th("Total Unidades")}</tr>` +
       filas +
-      `<tr style="background:#dbeafe">${td("<b>TOTAL</b>", "text-align:left")}${td("")}${td("")}${totCeldas}${td(`<b>${totVH}</b>`)}${td(`<b style="color:${AZUL}">${fmt(totUnid)}</b>`)}</tr>` +
+      `<tr style="background:#d7e1f2">${td("<b>TOTAL</b>", "text-align:left")}${td("")}${td("")}${totCeldas}${td(`<b>${totVH}</b>`)}${td(`<b style="color:${AZUL}">${fmt(totUnid)}</b>`)}</tr>` +
       `</table></body></html>`;
 
     const blob = new Blob([html], { type: "application/vnd.ms-excel" });
