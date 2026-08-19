@@ -764,28 +764,19 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
 
   function exportarExcel() {
     const semanas = [...semanasSel].sort((a, b) => numeroSemana(a) - numeroSemana(b));
-    const AZUL = "#0A2A5E";
-    const VERDE = "#00A651";
-    const fmt = (n: number) => n.toLocaleString("en-US");
-    const th = (txt: string, bg: string = AZUL) =>
-      `<th style="background:${bg};color:#fff;border:1px solid #cbd5e1;padding:8px 10px;font-size:11px;font-weight:800;text-align:center">${txt}</th>`;
-    const td = (txt: string, extra: string = "") =>
-      `<td style="border:1px solid #e2e8f0;padding:6px 10px;font-size:11px;text-align:center;${extra}">${txt}</td>`;
-
-    let cabSemanas = "";
+    const encabezado: string[] = ["Referencia", "Descripcion", "1 VH ="];
     semanas.forEach((sem) => {
-      cabSemanas += th(`${sem} Prog`);
-      cabSemanas += th(`${sem} Transito`, VERDE);
+      encabezado.push(`${sem} Prog`);
+      encabezado.push(`${sem} Transito`);
     });
-
-    let filas = "";
-    let totVH = 0;
-    let totUnid = 0;
-    filasVisibles.forEach((row, idx) => {
+    encabezado.push("Total VH");
+    encabezado.push("Total Unidades");
+    const datos: (string | number)[][] = [encabezado];
+    filasVisibles.forEach((row) => {
       const base = vhBasePorCodigo[row.codigo] || 0;
+      const fila: (string | number)[] = [row.codigo, row.material, base];
       let sumProg = 0;
       let sumTran = 0;
-      let celdas = "";
       semanas.forEach((sem) => {
         const fechas = fechasPorSemana[sem] || [];
         let prog = 0;
@@ -796,48 +787,27 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
         });
         sumProg += prog;
         sumTran += tran;
-        celdas += td(prog > 0 ? String(prog) : "-", `color:${AZUL};font-weight:800`);
-        celdas += td(tran > 0 ? String(tran) : "-", `color:${VERDE};font-weight:800`);
+        fila.push(prog);
+        fila.push(tran);
       });
       const totalVH = sumProg + sumTran;
-      const unidades = totalVH * base;
-      totVH += totalVH;
-      totUnid += unidades;
-      const bg = idx % 2 ? "#f1f5f9" : "#ffffff";
-      filas +=
-        `<tr style="background:${bg}">` +
-        td(`<b>${row.codigo}</b>`) +
-        td(row.material, "text-align:left") +
-        td(fmt(base)) +
-        celdas +
-        td(`<b>${totalVH}</b>`) +
-        td(`<b>${fmt(unidades)}</b>`, `color:${AZUL}`) +
-        `</tr>`;
+      fila.push(totalVH);
+      fila.push(totalVH * base);
+      datos.push(fila);
     });
-
-    let totCeldas = "";
+    const ws = XLSX.utils.aoa_to_sheet(datos);
+    const cols: { wch: number }[] = [{ wch: 12 }, { wch: 38 }, { wch: 12 }];
     semanas.forEach(() => {
-      totCeldas += td("") + td("");
+      cols.push({ wch: 10 });
+      cols.push({ wch: 12 });
     });
-
-    const totalCols = 5 + semanas.length * 2;
-    const html =
-      `<html><head><meta charset="utf-8"></head><body>` +
-      `<table style="border-collapse:collapse;font-family:Arial,sans-serif">` +
-      `<tr><th colspan="${totalCols}" style="background:${AZUL};color:#fff;padding:14px;font-size:18px;font-weight:800;text-align:left">PROGRAMACION DE VEHICULOS</th></tr>` +
-      `<tr>${th("Referencia")}${th("Descripcion")}${th("1 VH =")}${cabSemanas}${th("Total VH")}${th("Total Unidades")}</tr>` +
-      filas +
-      `<tr style="background:#d7e1f2">${td("<b>TOTAL</b>", "text-align:left")}${td("")}${td("")}${totCeldas}${td(`<b>${totVH}</b>`)}${td(`<b style="color:${AZUL}">${fmt(totUnid)}</b>`)}</tr>` +
-      `</table></body></html>`;
-
-    const blob = new Blob([html], { type: "application/vnd.ms-excel" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "Programacion_VH.xls";
-    a.click();
-    URL.revokeObjectURL(url);
-    setTextoCorreo("Excel con diseno descargado.");
+    cols.push({ wch: 10 });
+    cols.push({ wch: 16 });
+    ws["!cols"] = cols;
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Programacion");
+    XLSX.writeFile(wb, "Programacion_VH.xlsx");
+    setTextoCorreo("Excel descargado.");
   }
 
   async function subirFoto(e: ChangeEvent<HTMLInputElement>) {
