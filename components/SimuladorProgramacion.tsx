@@ -792,7 +792,13 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     });
     encabezado.push("Total VH");
     encabezado.push("Total Unidades");
-    const datos: (string | number)[][] = [encabezado];
+    const nCols = encabezado.length;
+    const filaTitulo: (string | number)[] = ["PROGRAMACION DE VEHICULOS"];
+    for (let i = 1; i < nCols; i++) filaTitulo.push("");
+    const datos: (string | number)[][] = [filaTitulo, encabezado];
+
+    let granVH = 0;
+    let granUnid = 0;
     filasVisibles.forEach((row) => {
       const base = vhBasePorCodigo[row.codigo] || 0;
       const fila: (string | number)[] = [row.codigo, row.material, base];
@@ -812,15 +818,30 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
         fila.push(tran);
       });
       const totalVH = sumProg + sumTran;
+      const unidades = totalVH * base;
+      granVH += totalVH;
+      granUnid += unidades;
       fila.push(totalVH);
-      fila.push(totalVH * base);
+      fila.push(unidades);
       datos.push(fila);
     });
 
+    const filaTotal: (string | number)[] = ["TOTAL", "", ""];
+    semanas.forEach(() => {
+      filaTotal.push("");
+      filaTotal.push("");
+    });
+    filaTotal.push(granVH);
+    filaTotal.push(granUnid);
+    datos.push(filaTotal);
+
     const ws = X.utils.aoa_to_sheet(datos);
-    const nCols = encabezado.length;
+    ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: nCols - 1 } }];
+    const filaTotalIdx = datos.length - 1;
     const esTransito = (c: number) => c >= 3 && c < 3 + nSem * 2 && (c - 3) % 2 === 1;
     const esProg = (c: number) => c >= 3 && c < 3 + nSem * 2 && (c - 3) % 2 === 0;
+    const fmtVH = '#,##0;-#,##0;"-"';
+    const fmtNum = "#,##0";
     const linea = { style: "thin", color: { rgb: "D9DEE7" } };
     const bordes = { top: linea, bottom: linea, left: linea, right: linea };
     for (let r = 0; r < datos.length; r++) {
@@ -830,19 +851,35 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
         if (!cell) continue;
         if (r === 0) {
           cell.s = {
+            font: { bold: true, sz: 14, color: { rgb: "FFFFFF" } },
+            fill: { fgColor: { rgb: NAVY } },
+            alignment: { horizontal: "left", vertical: "center" },
+          };
+        } else if (r === 1) {
+          cell.s = {
             font: { bold: true, sz: 11, color: { rgb: "FFFFFF" } },
             fill: { fgColor: { rgb: esTransito(c) ? VERDE : NAVY } },
             alignment: { horizontal: "center", vertical: "center", wrapText: true },
             border: bordes,
           };
+        } else if (r === filaTotalIdx) {
+          cell.s = {
+            font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } },
+            fill: { fgColor: { rgb: NAVY } },
+            alignment: { horizontal: c === 0 ? "left" : "center", vertical: "center" },
+            border: bordes,
+          };
+          if (c === nCols - 2 || c === nCols - 1) cell.z = fmtNum;
         } else {
           const colorTexto = esTransito(c) ? VERDE : esProg(c) ? NAVY : "1F2937";
           cell.s = {
             font: { bold: c === 0 || c >= nCols - 2 || esProg(c) || esTransito(c), sz: 10, color: { rgb: colorTexto } },
-            fill: { fgColor: { rgb: r % 2 === 0 ? "FFFFFF" : "F2F5FA" } },
+            fill: { fgColor: { rgb: r % 2 === 0 ? "F2F5FA" : "FFFFFF" } },
             alignment: { horizontal: c === 1 ? "left" : "center", vertical: "center" },
             border: bordes,
           };
+          if (esProg(c) || esTransito(c)) cell.z = fmtVH;
+          else if (c === 2 || c === nCols - 2 || c === nCols - 1) cell.z = fmtNum;
         }
       }
     }
@@ -854,7 +891,7 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     cols.push({ wch: 9 });
     cols.push({ wch: 16 });
     ws["!cols"] = cols;
-    ws["!rows"] = [{ hpt: 26 }];
+    ws["!rows"] = [{ hpt: 30 }, { hpt: 28 }];
 
     const wb = X.utils.book_new();
     X.utils.book_append_sheet(wb, ws, "Programacion");
