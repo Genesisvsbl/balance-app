@@ -58,6 +58,23 @@ async function cargarHtmlToImage(): Promise<HtmlToImage> {
   return w.htmlToImage;
 }
 
+// Carga xlsx-js-style desde CDN (SheetJS con estilos) para generar un .xlsx REAL con colores.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function cargarXlsxStyle(): Promise<any> {
+  const w = window as unknown as { XLSX?: unknown; XLSXStyleReady?: unknown };
+  if (w.XLSXStyleReady) return w.XLSXStyleReady;
+  await new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("No se pudo cargar la libreria de Excel con estilos"));
+    document.head.appendChild(script);
+  });
+  if (!w.XLSX) throw new Error("libreria de Excel no disponible");
+  w.XLSXStyleReady = w.XLSX;
+  return w.XLSX;
+}
+
 type OcrWord = { text: string; bbox: { x0: number; y0: number; x1: number; y1: number } };
 type OcrData = { words?: OcrWord[]; text: string };
 type TessWorker = {
@@ -762,8 +779,12 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
     }
   }
 
-  function exportarExcel() {
+  async function exportarExcel() {
+    const X = await cargarXlsxStyle();
     const semanas = [...semanasSel].sort((a, b) => numeroSemana(a) - numeroSemana(b));
+    const NAVY = "0A2A5E";
+    const VERDE = "00A651";
+    const nSem = semanas.length;
     const encabezado: string[] = ["Referencia", "Descripcion", "1 VH ="];
     semanas.forEach((sem) => {
       encabezado.push(`${sem} Prog`);
@@ -795,19 +816,50 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
       fila.push(totalVH * base);
       datos.push(fila);
     });
-    const ws = XLSX.utils.aoa_to_sheet(datos);
-    const cols: { wch: number }[] = [{ wch: 12 }, { wch: 38 }, { wch: 12 }];
+
+    const ws = X.utils.aoa_to_sheet(datos);
+    const nCols = encabezado.length;
+    const esTransito = (c: number) => c >= 3 && c < 3 + nSem * 2 && (c - 3) % 2 === 1;
+    const esProg = (c: number) => c >= 3 && c < 3 + nSem * 2 && (c - 3) % 2 === 0;
+    const linea = { style: "thin", color: { rgb: "D9DEE7" } };
+    const bordes = { top: linea, bottom: linea, left: linea, right: linea };
+    for (let r = 0; r < datos.length; r++) {
+      for (let c = 0; c < nCols; c++) {
+        const ref = X.utils.encode_cell({ r, c });
+        const cell = ws[ref];
+        if (!cell) continue;
+        if (r === 0) {
+          cell.s = {
+            font: { bold: true, sz: 11, color: { rgb: "FFFFFF" } },
+            fill: { fgColor: { rgb: esTransito(c) ? VERDE : NAVY } },
+            alignment: { horizontal: "center", vertical: "center", wrapText: true },
+            border: bordes,
+          };
+        } else {
+          const colorTexto = esTransito(c) ? VERDE : esProg(c) ? NAVY : "1F2937";
+          cell.s = {
+            font: { bold: c === 0 || c >= nCols - 2 || esProg(c) || esTransito(c), sz: 10, color: { rgb: colorTexto } },
+            fill: { fgColor: { rgb: r % 2 === 0 ? "FFFFFF" : "F2F5FA" } },
+            alignment: { horizontal: c === 1 ? "left" : "center", vertical: "center" },
+            border: bordes,
+          };
+        }
+      }
+    }
+    const cols: { wch: number }[] = [{ wch: 12 }, { wch: 40 }, { wch: 12 }];
     semanas.forEach(() => {
-      cols.push({ wch: 10 });
-      cols.push({ wch: 12 });
+      cols.push({ wch: 9 });
+      cols.push({ wch: 11 });
     });
-    cols.push({ wch: 10 });
+    cols.push({ wch: 9 });
     cols.push({ wch: 16 });
     ws["!cols"] = cols;
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Programacion");
-    XLSX.writeFile(wb, "Programacion_VH.xlsx");
-    setTextoCorreo("Excel descargado.");
+    ws["!rows"] = [{ hpt: 26 }];
+
+    const wb = X.utils.book_new();
+    X.utils.book_append_sheet(wb, ws, "Programacion");
+    X.writeFile(wb, "Programacion_VH.xlsx");
+    setTextoCorreo("Excel con diseno descargado.");
   }
 
   async function subirFoto(e: ChangeEvent<HTMLInputElement>) {
