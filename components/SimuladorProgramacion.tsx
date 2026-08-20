@@ -404,8 +404,9 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
   const [panelAbierto, setPanelAbierto] = useState(false);
   const excelRef = useRef<HTMLInputElement>(null);
   const [transitoMovs, setTransitoMovs] = useState<Record<string, Record<string, number>>>(() => {
-    if (typeof window === "undefined") return {};
-    try { return JSON.parse(window.localStorage.getItem("balance2_sim_tmovs") || "{}"); } catch { return {}; }
+    // No persistir los movimientos entre balances: si se guardan con fechas viejas, ocultan el transito.
+    if (typeof window !== "undefined") window.localStorage.removeItem("balance2_sim_tmovs");
+    return {};
   });
   const dragTransito = useRef<{ codigo: string; fecha: string; tipo: "transito" | "azul" } | null>(null);
 
@@ -415,9 +416,6 @@ export default function SimuladorProgramacion({ rows, semanas }: Props) {
   useEffect(() => {
     if (typeof window !== "undefined") window.localStorage.setItem(LS_BASE, JSON.stringify(baseOverride));
   }, [baseOverride]);
-  useEffect(() => {
-    if (typeof window !== "undefined") window.localStorage.setItem("balance2_sim_tmovs", JSON.stringify(transitoMovs));
-  }, [transitoMovs]);
 
   const anio = new Date().getFullYear();
   const dias = DIAS_SET[diasHabiles];
